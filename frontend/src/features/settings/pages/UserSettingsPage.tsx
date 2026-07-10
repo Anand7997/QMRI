@@ -11,21 +11,15 @@ import {
   Select,
   Stack,
   Switch,
-  TextField,
   Typography,
 } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
-import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
-import { useAuthContext } from "contexts/AuthContext";
 import { PageHeader } from "shared/components";
 
 export function UserSettingsPage() {
-  const { user } = useAuthContext();
   const [saved, setSaved] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.fullName || user?.userName || "Portal User");
-  const [email, setEmail] = useState(user?.email || "user@qmri.app");
   const [digest, setDigest] = useState("weekly");
   const [reminders, setReminders] = useState(true);
   const [submissionUpdates, setSubmissionUpdates] = useState(true);
@@ -40,7 +34,7 @@ export function UserSettingsPage() {
     <Box>
       <PageHeader
         title="Settings"
-        subtitle="Manage your profile, reminders and workspace preferences."
+        subtitle="Manage your reminders and workspace preferences."
         actions={
           <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>
             Save changes
@@ -51,21 +45,6 @@ export function UserSettingsPage() {
       {saved ? <Alert severity="success" sx={{ mb: 2 }}>Settings saved for this session.</Alert> : null}
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
-        <Card sx={{ p: 2.5 }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-            <PersonOutlineOutlinedIcon color="primary" />
-            <Typography variant="h3">Profile</Typography>
-          </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Basic account information used in your QMRI workspace.
-          </Typography>
-          <Stack spacing={2}>
-            <TextField label="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} fullWidth />
-            <TextField label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} fullWidth />
-            <TextField label="Role" value={(user?.roles ?? ["USER"]).join(", ")} fullWidth disabled />
-          </Stack>
-        </Card>
-
         <Card sx={{ p: 2.5 }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
             <NotificationsNoneOutlinedIcon color="primary" />
