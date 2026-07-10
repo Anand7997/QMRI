@@ -61,6 +61,7 @@ public sealed class ExamTakerProgressDto
     public int AnsweredCount { get; set; }
     public int QuestionCount { get; set; }
     public decimal CompletionPercentage { get; set; }
+    public decimal? OverallScore { get; set; }
     public DateTime? StartedAtUtc { get; set; }
     public DateTime? FinishedAtUtc { get; set; }
 }

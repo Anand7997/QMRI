@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
+  Button,
   Card,
   Chip,
   LinearProgress,
@@ -21,11 +22,22 @@ import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import { EmptyState, LoadingState, PageHeader } from "shared/components";
-import { useAssessments, useExamTakers } from "shared/api/assessments";
-import type { AssessmentSummaryDto, ExamTakerProgressStatus } from "shared/api/types";
+import { useAssessments, useCreateAssessment, useExamTakers } from "shared/api/assessments";
+import type { AssessmentSummaryDto, ExamTakerProgressDto, ExamTakerProgressStatus } from "shared/api/types";
 import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 
 const unknownAssignedByValue = "__unknown_assigned_by__";
+const PASS_SCORE = 70;
+
+type ActionFeedback = {
+  severity: "success" | "error";
+  message: string;
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
 
 function assignedByLabel(assessment: AssessmentSummaryDto) {
   return assessment.assignedByFullName?.trim() || assessment.assignedByUserName?.trim() || "Unknown";
@@ -33,6 +45,7 @@ function assignedByLabel(assessment: AssessmentSummaryDto) {
 
 export function ExamTakersPage() {
   const assessmentsQuery = useAssessments();
+  const createAssessment = useCreateAssessment();
   const assessments = useMemo(
     () => collapseAssessmentsByAssignment(assessmentsQuery.data ?? []),
     [assessmentsQuery.data],
@@ -40,6 +53,8 @@ export function ExamTakersPage() {
 
   const [assignedByFilter, setAssignedByFilter] = useState<string>("all");
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
+  const [reassigningAssessmentId, setReassigningAssessmentId] = useState<string | null>(null);
 
   const assignedByOptions = useMemo(() => {
     const options = new Map<string, { label: string; count: number }>();
@@ -111,6 +126,38 @@ export function ExamTakersPage() {
   const inProgressCount = examTakers.filter((item) => item.progressStatus === "InProgress").length;
   const finishedCount = examTakers.filter((item) => item.progressStatus === "Finished").length;
 
+  async function handleReassign(examTaker: ExamTakerProgressDto) {
+    if (!selectedAssessment) {
+      return;
+    }
+
+    setActionFeedback(null);
+    setReassigningAssessmentId(examTaker.assessmentId);
+
+    try {
+      await createAssessment.mutateAsync({
+        userId: examTaker.userId,
+        scoringModelId: selectedAssessment.scoringModelId ?? null,
+        title: selectedAssessment.title,
+        description: selectedAssessment.description ?? null,
+        departments: selectedAssessment.departments,
+        questionIds: selectedAssessment.questionIds,
+      });
+
+      setActionFeedback({
+        severity: "success",
+        message: `Reassigned ${examTaker.fullName || examTaker.userName} successfully.`,
+      });
+    } catch (error) {
+      setActionFeedback({
+        severity: "error",
+        message: errorMessage(error, "Could not reassign this exam taker."),
+      });
+    } finally {
+      setReassigningAssessmentId(null);
+    }
+  }
+
   return (
     <Box>
       <PageHeader
@@ -149,6 +196,12 @@ export function ExamTakersPage() {
 
       {!assessmentsQuery.isLoading && !assessmentsQuery.isError && filteredAssessments.length > 0 ? (
         <Stack spacing={2}>
+          {actionFeedback ? (
+            <Alert severity={actionFeedback.severity} onClose={() => setActionFeedback(null)}>
+              {actionFeedback.message}
+            </Alert>
+          ) : null}
+
           <Card sx={{ p: 2 }}>
             <Stack spacing={2}>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -241,12 +294,14 @@ export function ExamTakersPage() {
                         <TableCell>Progress</TableCell>
                         <TableCell>Started</TableCell>
                         <TableCell>Finished</TableCell>
+                        <TableCell>Result</TableCell>
+                        <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {examTakers.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6}>
+                          <TableCell colSpan={8}>
                             <EmptyState
                               icon={<GroupOutlinedIcon sx={{ fontSize: 32 }} />}
                               title="No exam takers found"
@@ -274,6 +329,25 @@ export function ExamTakersPage() {
                             </TableCell>
                             <TableCell>{formatDate(examTaker.startedAtUtc)}</TableCell>
                             <TableCell>{formatDate(examTaker.finishedAtUtc)}</TableCell>
+                            <TableCell>
+                              <ExamResultChip examTaker={examTaker} />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                disabled={
+                                  examTaker.progressStatus !== "Finished" ||
+                                  reassigningAssessmentId === examTaker.assessmentId ||
+                                  createAssessment.isPending
+                                }
+                                onClick={() => {
+                                  void handleReassign(examTaker);
+                                }}
+                              >
+                                {reassigningAssessmentId === examTaker.assessmentId ? "Reassigning..." : "Reassign"}
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))
                       )}
@@ -309,6 +383,22 @@ function StatusMetric({
       <Typography variant="h2" sx={{ mt: 0.5 }}>{value}</Typography>
     </Card>
   );
+}
+
+function ExamResultChip({ examTaker }: { examTaker: ExamTakerProgressDto }) {
+  if (examTaker.progressStatus !== "Finished") {
+    return <Typography variant="body2" color="text.secondary">-</Typography>;
+  }
+
+  if (examTaker.overallScore == null) {
+    return <Chip size="small" color="warning" label="Pending" />;
+  }
+
+  if (examTaker.overallScore >= PASS_SCORE) {
+    return <Chip size="small" color="success" label="Pass" />;
+  }
+
+  return <Chip size="small" color="error" label="Fail" />;
 }
 
 function ProgressStatusChip({ status }: { status: ExamTakerProgressStatus }) {

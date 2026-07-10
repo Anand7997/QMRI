@@ -225,6 +225,7 @@ export interface ExamTakerProgressDto {
   answeredCount: number;
   questionCount: number;
   completionPercentage: number;
+  overallScore?: number | null;
   startedAtUtc?: string | null;
   finishedAtUtc?: string | null;
 }

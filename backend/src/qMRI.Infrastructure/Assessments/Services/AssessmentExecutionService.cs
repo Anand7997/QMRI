@@ -260,6 +260,7 @@ public sealed class AssessmentExecutionService(
 
         var assessments = await GetAssignmentCohortQuery(seedAssessment)
             .Include(entity => entity.Responses)
+            .Include(entity => entity.Scores)
             .AsNoTracking()
             .ToArrayAsync(cancellationToken);
 
@@ -285,6 +286,9 @@ public sealed class AssessmentExecutionService(
             .Select(entity =>
             {
                 usersById.TryGetValue(entity.UserId, out var user);
+                var overallScore = entity.Scores
+                    .FirstOrDefault(score => score.Scope == ScoreScope.Overall)
+                    ?.Score;
 
                 var answeredCount = entity.Responses
                     .Where(response => selectedQuestionIds.Count == 0 || selectedQuestionIds.Contains(response.QuestionId))
@@ -305,6 +309,7 @@ public sealed class AssessmentExecutionService(
                     CompletionPercentage = questionCount == 0
                         ? 0
                         : Math.Round(answeredCount * 100m / questionCount, 2, MidpointRounding.AwayFromZero),
+                    OverallScore = overallScore,
                     StartedAtUtc = entity.StartedAtUtc,
                     FinishedAtUtc = entity.ScoredAtUtc ?? entity.SubmittedAtUtc
                 };
