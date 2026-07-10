@@ -35,6 +35,10 @@ export function UserDashboardPage() {
 
   const activeAssessment = activeAssessments[0];
   const isPendingActiveAssessment = activeAssessment?.status === AssessmentStatus.Draft;
+  const newlyAssignedCount = useMemo(
+    () => dashboard.assessments.filter((assessment) => assessment.status === AssessmentStatus.Draft).length,
+    [dashboard.assessments],
+  );
 
   return (
     <MotionConfig reducedMotion="user">
@@ -162,6 +166,7 @@ export function UserDashboardPage() {
               icon={block.icon}
               gradient={block.gradient}
               onClick={() => navigate(block.route)}
+              badgeCount={block.id === "my-assessments" ? newlyAssignedCount : undefined}
             />
           ))}
         </Box>

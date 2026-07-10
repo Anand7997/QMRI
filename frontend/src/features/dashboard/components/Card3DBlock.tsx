@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { Box, Card, Typography } from "@mui/material";
+import { Badge, Box, Card, Typography } from "@mui/material";
 import { motion } from "motion/react";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
@@ -20,6 +21,8 @@ export interface Card3DBlockProps {
   icon: ReactNode;
   gradient: string;
   onClick?: () => void;
+  /** Shows a bell badge in the corner when greater than 0 (e.g. newly assigned items). */
+  badgeCount?: number;
 }
 
 interface MousePos {
@@ -27,7 +30,7 @@ interface MousePos {
   y: number;
 }
 
-export function Card3DBlock({ title, description, icon, gradient, onClick }: Card3DBlockProps) {
+export function Card3DBlock({ title, description, icon, gradient, onClick, badgeCount }: Card3DBlockProps) {
   const [mousePos, setMousePos] = useState<MousePos>({ x: 0, y: 0 });
   const [hovered, setHovered] = useState(false);
 
@@ -99,6 +102,22 @@ export function Card3DBlock({ title, description, icon, gradient, onClick }: Car
           bgcolor: "rgba(255,255,255,0.08)",
         }}
       />
+
+      {badgeCount ? (
+        <Badge
+          badgeContent={badgeCount}
+          color="error"
+          overlap="circular"
+          sx={{ position: "absolute", top: 18, right: 20, zIndex: 2 }}
+        >
+          <motion.div
+            animate={{ rotate: [0, -12, 12, -8, 8, 0] }}
+            transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 2.5, ease: "easeInOut" }}
+          >
+            <NotificationsNoneIcon sx={{ color: "#fff" }} />
+          </motion.div>
+        </Badge>
+      ) : null}
 
       {/* hover glow */}
       <motion.div
