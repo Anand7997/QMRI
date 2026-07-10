@@ -8,6 +8,8 @@ import QuizOutlinedIcon from "@mui/icons-material/QuizOutlined";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { RoutePaths } from "shared/constants/routePaths";
 
 const MotionCard = motion.create(Card);
@@ -200,5 +202,48 @@ export const dashboardBlocks: DashboardBlockDef[] = [
     icon: <SettingsOutlinedIcon fontSize="inherit" />,
     gradient: GRADIENTS.cyan,
     route: RoutePaths.settings,
+  },
+];
+
+export const userDashboardBlocks: DashboardBlockDef[] = [
+  {
+    id: "my-assessments",
+    title: "My Assessments",
+    description: "View and continue assessments assigned to you.",
+    icon: <AssignmentOutlinedIcon fontSize="inherit" />,
+    gradient: GRADIENTS.blue,
+    route: RoutePaths.portalAssessments,
+  },
+  {
+    id: "history",
+    title: "History",
+    description: "Look back at assessments you've completed.",
+    icon: <HistoryOutlinedIcon fontSize="inherit" />,
+    gradient: GRADIENTS.purple,
+    route: RoutePaths.portalHistory,
+  },
+  {
+    id: "reports",
+    title: "Reports",
+    description: "Review your maturity scores and generated reports.",
+    icon: <AssessmentOutlinedIcon fontSize="inherit" />,
+    gradient: GRADIENTS.emerald,
+    route: RoutePaths.portalReports,
+  },
+  {
+    id: "profile",
+    title: "Profile",
+    description: "Update your personal information and account details.",
+    icon: <PersonOutlineIcon fontSize="inherit" />,
+    gradient: GRADIENTS.amber,
+    route: RoutePaths.portalProfile,
+  },
+  {
+    id: "settings",
+    title: "Settings",
+    description: "Manage your preferences and account settings.",
+    icon: <SettingsOutlinedIcon fontSize="inherit" />,
+    gradient: GRADIENTS.cyan,
+    route: RoutePaths.portalSettings,
   },
 ];

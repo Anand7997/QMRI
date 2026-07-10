@@ -1,22 +1,17 @@
-import { Alert, Box, Button, Card, LinearProgress, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, LinearProgress, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
-import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
-import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MotionConfig } from "motion/react";
-import { EmptyState, MaturityChip, StatusChip, type EntityStatus } from "shared/components";
-import { AssessmentStatus, assessmentStatusLabel } from "shared/api/types";
+import { AssessmentStatus } from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
 import { useAuthContext } from "contexts/AuthContext";
-import { brandTokens, dataTokens, semanticTokens } from "app/theme/tokens/palette";
-import { StatCard } from "../components/StatCard";
+import { brandTokens } from "app/theme/tokens/palette";
 import { ProgressRing } from "../components/ProgressRing";
-import { MotionItem, MotionReveal, MotionStagger } from "../components/dashboardMotion";
+import { Card3DBlock, userDashboardBlocks } from "../components/Card3DBlock";
+import { MotionReveal } from "../components/dashboardMotion";
 import { useAssessmentDashboardData } from "../assessmentData";
 
 export function UserDashboardPage() {
@@ -38,14 +33,8 @@ export function UserDashboardPage() {
     [dashboard.assessments],
   );
 
-  const pendingAssessments = useMemo(
-    () => activeAssessments.filter((assessment) => assessment.status === AssessmentStatus.Draft),
-    [activeAssessments],
-  );
-
   const activeAssessment = activeAssessments[0];
   const isPendingActiveAssessment = activeAssessment?.status === AssessmentStatus.Draft;
-  const latestScore = dashboard.recentAssessments.find((assessment) => assessment.score != null)?.score ?? 0;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -54,14 +43,6 @@ export function UserDashboardPage() {
         {dashboard.isError ? (
           <Alert severity="error" sx={{ mb: 2 }}>
             Unable to load your assessment data.
-          </Alert>
-        ) : null}
-
-        {!dashboard.isLoading && pendingAssessments.length > 0 ? (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            {pendingAssessments.length === 1
-              ? "A new assessment is assigned to you and is pending."
-              : `${pendingAssessments.length} assessments are assigned to you and pending.`}
           </Alert>
         ) : null}
 
@@ -166,97 +147,27 @@ export function UserDashboardPage() {
           </Stack>
         </MotionReveal>
 
-        {/* Stats */}
-        <MotionStagger
-          sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" } }}
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
+          }}
         >
-          <StatCard
-            label="Assigned"
-            value={activeAssessments.length}
-            icon={<AssignmentOutlinedIcon />}
-            accent={brandTokens.blue600}
-          />
-          <StatCard
-            label="Completed"
-            value={dashboard.completedCount}
-            icon={<TaskAltOutlinedIcon />}
-            accent={semanticTokens.successMain}
-          />
-          <StatCard
-            label="Last score"
-            value={latestScore}
-            icon={<SpeedOutlinedIcon />}
-            accent={dataTokens.bandIQ}
-            footer={<MaturityChip score={latestScore} />}
-          />
-        </MotionStagger>
-
-        {/* My assessments */}
-        <MotionReveal delay={0.2} sx={{ mt: 2 }}>
-          <Card>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2.5, py: 2 }}>
-              <Typography variant="h3">My assessments</Typography>
-              <Button
-                size="small"
-                endIcon={<ArrowForwardIcon />}
-                onClick={() => navigate(RoutePaths.portalAssessments)}
-              >
-                View all
-              </Button>
-            </Stack>
-            {activeAssessments.length === 0 ? (
-              <EmptyState
-                title="No assessment is assigned to you"
-                description="Completed assessments are available in History and Reports."
-              />
-            ) : (
-              <MotionStagger>
-                {activeAssessments.map((assessment) => (
-                  <MotionItem
-                    key={assessment.assessmentId}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      px: 2.5,
-                      py: 1.75,
-                      cursor: "pointer",
-                      transition: "background-color 200ms",
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                      "&:first-of-type": { borderTop: "none" },
-                      "&:hover": { bgcolor: alpha(brandTokens.blue600, 0.06) },
-                    }}
-                    onClick={() => navigate(RoutePaths.portalAssessments, { state: { assessmentId: assessment.assessmentId } })}
-                  >
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography variant="body1" fontWeight={600} noWrap>
-                        {assessment.title}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Updated {formatDate(resolveDate(assessment))}
-                      </Typography>
-                    </Box>
-                    <StatusChip status={toEntityStatus(assessment.status)} />
-                    <ArrowForwardIcon fontSize="small" sx={{ color: "text.disabled" }} />
-                  </MotionItem>
-                ))}
-              </MotionStagger>
-            )}
-          </Card>
-        </MotionReveal>
+          {userDashboardBlocks.map((block) => (
+            <Card3DBlock
+              key={block.id}
+              title={block.title}
+              description={block.description}
+              icon={block.icon}
+              gradient={block.gradient}
+              onClick={() => navigate(block.route)}
+            />
+          ))}
+        </Box>
       </Box>
     </MotionConfig>
   );
-}
-
-function toEntityStatus(status: number): EntityStatus {
-  if (status === AssessmentStatus.Draft) {
-    return "Pending";
-  }
-
-  const label = assessmentStatusLabel[status] as EntityStatus | undefined;
-  return label ?? "Draft";
 }
 
 function resolveDate(assessment: {
@@ -266,8 +177,4 @@ function resolveDate(assessment: {
   createdAtUtc: string;
 }) {
   return assessment.scoredAtUtc ?? assessment.submittedAtUtc ?? assessment.startedAtUtc ?? assessment.createdAtUtc;
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
