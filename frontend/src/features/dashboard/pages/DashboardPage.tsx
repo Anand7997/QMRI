@@ -20,18 +20,17 @@ export function DashboardPage() {
           </Alert>
         ) : null}
 
-        <MotionReveal>
-          <RecentAssessments rows={dashboard.recentAssessments} />
-        </MotionReveal>
-
         <Box
           sx={{
             display: "grid",
             gap: 2,
-            mt: 2,
             gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
           }}
         >
+          <MotionReveal sx={{ gridColumn: "1 / -1" }}>
+            <RecentAssessments rows={dashboard.recentAssessments} />
+          </MotionReveal>
+
           {dashboardBlocks.map((block) => (
             <Card3DBlock
               key={block.id}
