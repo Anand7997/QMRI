@@ -8,8 +8,12 @@ import {
   Toolbar,
 } from "@mui/material";
 import { NavLink } from "react-router-dom";
+import { alpha } from "@mui/material/styles";
 import { PORTAL_SIDEBAR_WIDTH, type PortalNavItem } from "./types";
 import { QmriLogo } from "shared/components";
+import { brandTokens } from "app/theme/tokens/palette";
+
+const SIDEBAR_BACKGROUND = `linear-gradient(180deg, ${brandTokens.blue700} 0%, #0A2F55 100%)`;
 
 interface PortalSidebarProps {
   brandTitle: string;
@@ -28,9 +32,9 @@ function SidebarContent({
   onNavigate: () => void;
 }) {
   return (
-    <Box role="navigation" aria-label="Primary" sx={{ height: "100%" }}>
+    <Box role="navigation" aria-label="Primary" sx={{ height: "100%", background: SIDEBAR_BACKGROUND }}>
       <Toolbar sx={{ px: 2.25 }}>
-        <QmriLogo label={brandTitle} size="sm" />
+        <QmriLogo label={brandTitle} size="sm" light />
       </Toolbar>
       <List sx={{ px: 1.5 }}>
         {items.map((item) => {
@@ -45,13 +49,14 @@ function SidebarContent({
               sx={{
                 borderRadius: 2,
                 mb: 0.5,
-                color: "text.secondary",
+                color: alpha("#fff", 0.7),
+                "&:hover": { bgcolor: alpha("#fff", 0.08), color: "#fff" },
                 "&.active": {
-                  bgcolor: "primary.main",
-                  color: "primary.contrastText",
+                  bgcolor: brandTokens.blue500,
+                  color: "#fff",
                   "& .MuiListItemIcon-root": { color: "inherit" },
                 },
-                "&.active:hover": { bgcolor: "primary.dark" },
+                "&.active:hover": { bgcolor: brandTokens.blue500 },
               }}
             >
               <ListItemIcon sx={{ minWidth: 40, color: "inherit" }}>
@@ -81,7 +86,11 @@ export function PortalSidebar({ brandTitle, items, mobileOpen, onClose }: Portal
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": { width: PORTAL_SIDEBAR_WIDTH, boxSizing: "border-box" },
+          "& .MuiDrawer-paper": {
+            width: PORTAL_SIDEBAR_WIDTH,
+            boxSizing: "border-box",
+            background: SIDEBAR_BACKGROUND,
+          },
         }}
       >
         <SidebarContent brandTitle={brandTitle} items={items} onNavigate={onClose} />
@@ -96,8 +105,8 @@ export function PortalSidebar({ brandTitle, items, mobileOpen, onClose }: Portal
           "& .MuiDrawer-paper": {
             width: PORTAL_SIDEBAR_WIDTH,
             boxSizing: "border-box",
-            borderRight: "1px solid",
-            borderColor: "divider",
+            background: SIDEBAR_BACKGROUND,
+            borderRight: "none",
           },
         }}
       >
