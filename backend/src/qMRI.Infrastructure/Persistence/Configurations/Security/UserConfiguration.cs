@@ -44,6 +44,11 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasDefaultValue("USER")
             .IsRequired();
 
+        builder.Property(entity => entity.Category)
+            .HasMaxLength(64)
+            .HasDefaultValue("Fresher")
+            .IsRequired();
+
         builder.Property(entity => entity.RequestedAtUtc)
             .HasColumnType("datetime2")
             .HasDefaultValueSql("SYSUTCDATETIME()")

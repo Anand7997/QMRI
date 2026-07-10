@@ -1,5 +1,6 @@
 export * from "./Chips";
 export * from "./KpiTile";
+export * from "./MetricTile";
 export * from "./PageHeader";
 export * from "./States";
 export * from "./ConfirmDialog";

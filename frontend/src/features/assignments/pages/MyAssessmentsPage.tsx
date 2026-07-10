@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
+  Alert,
   Box,
   Button,
   Card,
   Chip,
   Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   LinearProgress,
   Stack,
@@ -18,75 +24,185 @@ import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import KeyboardArrowLeftIcon from "@mui/icons-material/KeyboardArrowLeft";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { alpha } from "@mui/material/styles";
-import { EmptyState, LoadingState, PageHeader } from "shared/components";
+import { EmptyState, LoadingState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import { useHierarchy } from "shared/api/catalog";
+import { useAssessment, useAssessments, useSaveResponse, useSubmitAssessment } from "shared/api/assessments";
 import {
-  useAssessment,
-  useAssessments,
-  useCreateAssessment,
-  useSaveResponse,
-  useSubmitAssessment,
-} from "shared/api/assessments";
-import { AnswerOption, AssessmentStatus, answerLabel } from "shared/api/types";
+  AnswerOption,
+  AssessmentStatus,
+  answerLabel,
+  assessmentStatusLabel,
+  type AssessmentSummaryDto,
+} from "shared/api/types";
 import { answerColor } from "shared/domain/maturity";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
+type AssessmentDetailQuery = ReturnType<typeof useAssessment>;
 
 export function MyAssessmentsPage() {
+  const location = useLocation();
   const assessmentsQuery = useAssessments();
-  const createAssessment = useCreateAssessment();
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
-
-  // Pick the first non-submitted assessment to resume.
-  useEffect(() => {
-    if (!assessmentId && assessmentsQuery.data?.length) {
-      const active = assessmentsQuery.data.find((a) => a.status <= AssessmentStatus.InProgress) ?? assessmentsQuery.data[0];
-      setAssessmentId(active.assessmentId);
-    }
-  }, [assessmentId, assessmentsQuery.data]);
-
-  const detail = useAssessment(assessmentId);
-  const treeQuery = useHierarchy(false, true); // active only, with questions
-  const saveResponse = useSaveResponse(assessmentId ?? "");
-  const submit = useSubmitAssessment(assessmentId ?? "");
-
+  const [questionMode, setQuestionMode] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
   const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
+  const handledLocationKey = useRef<string | null>(null);
+
+  const navigationAssessmentId = (location.state as { assessmentId?: string } | null)?.assessmentId;
+  const assessments = useMemo(
+    () =>
+      (assessmentsQuery.data ?? []).filter(
+        (assessment) =>
+          assessment.status <= AssessmentStatus.InProgress &&
+          !completedAssessmentIds.has(assessment.assessmentId),
+      ),
+    [assessmentsQuery.data, completedAssessmentIds],
+  );
+
+  useEffect(() => {
+    const rows = assessments;
+
+    if (!rows.length) {
+      if (assessmentId) {
+        setAssessmentId(undefined);
+        setQuestionMode(false);
+        setSelectedSub(null);
+        setOpenModules({});
+        setNotes({});
+        setOpenNotes({});
+        setReviewOpen(false);
+      }
+      return;
+    }
+
+    const hasNavigationTarget = Boolean(
+      handledLocationKey.current !== location.key &&
+        navigationAssessmentId &&
+        rows.some((assessment) => assessment.assessmentId === navigationAssessmentId),
+    );
+
+    if (hasNavigationTarget && navigationAssessmentId) {
+      handledLocationKey.current = location.key;
+      setAssessmentId(navigationAssessmentId);
+      setQuestionMode(false);
+      setSelectedSub(null);
+      setOpenModules({});
+      setNotes({});
+      setOpenNotes({});
+      setReviewOpen(false);
+      return;
+    }
+
+    if (handledLocationKey.current !== location.key) {
+      handledLocationKey.current = location.key;
+    }
+
+    const selectedStillExists = assessmentId
+      ? rows.some((assessment) => assessment.assessmentId === assessmentId)
+      : false;
+
+    if (selectedStillExists) return;
+
+    setAssessmentId(rows[0].assessmentId);
+    setQuestionMode(false);
+    setSelectedSub(null);
+    setOpenModules({});
+    setNotes({});
+    setOpenNotes({});
+    setReviewOpen(false);
+  }, [assessmentId, assessments, location.key, navigationAssessmentId]);
+
+  const selectedSummary = useMemo(
+    () => assessments.find((assessment) => assessment.assessmentId === assessmentId),
+    [assessmentId, assessments],
+  );
+
+  const detail = useAssessment(assessmentId);
+  const treeQuery = useHierarchy(false, true);
+  const saveResponse = useSaveResponse(assessmentId ?? "");
+  const submit = useSubmitAssessment(assessmentId ?? "");
 
   const tree = treeQuery.data ?? [];
-
-  // Map questionId -> answer (from server responses)
   const answersByQuestion = useMemo(() => {
     const map = new Map<string, number>();
     detail.data?.responses.forEach((r) => map.set(r.questionId, r.answer));
     return map;
   }, [detail.data]);
 
-  const summary = detail.data?.summary;
+  const summary = detail.data?.summary ?? selectedSummary;
   const percent = Math.round(summary?.completionPercentage ?? 0);
+  const selectedQuestionSet = useMemo(() => {
+    const ids = summary?.questionIds ?? [];
+    return ids.length ? new Set(ids) : null;
+  }, [summary?.questionIds]);
 
-  // Flatten submodules for lookup
-  const currentSub = useMemo(() => {
-    for (const c of tree) for (const m of c.modules) {
-      const s = m.subModules.find((x) => x.subModuleId === selectedSub);
-      if (s) return { category: c.name, module: m.name, sub: s };
-    }
-    return null;
-  }, [tree, selectedSub]);
+  const submoduleSteps = useMemo(() => {
+    return tree.flatMap((category) =>
+      category.modules.flatMap((module) =>
+        module.subModules
+          .map((sub) => ({
+            ...sub,
+            questions: selectedQuestionSet
+              ? sub.questions.filter((question) => selectedQuestionSet.has(question.questionId))
+              : sub.questions,
+          }))
+          .filter((sub) => sub.questions.length > 0)
+          .map((sub) => ({
+            categoryId: category.categoryId,
+            category: category.name,
+            moduleId: module.moduleId,
+            module: module.name,
+            sub,
+          })),
+      ),
+    );
+  }, [tree, selectedQuestionSet]);
 
-  // default select first submodule
+  const currentStepIndex = useMemo(
+    () => submoduleSteps.findIndex((step) => step.sub.subModuleId === selectedSub),
+    [selectedSub, submoduleSteps],
+  );
+
+  const currentSub = currentStepIndex >= 0 ? submoduleSteps[currentStepIndex] : null;
+  const previousStep = currentStepIndex > 0 ? submoduleSteps[currentStepIndex - 1] : null;
+  const nextStep = currentStepIndex >= 0 && currentStepIndex < submoduleSteps.length - 1
+    ? submoduleSteps[currentStepIndex + 1]
+    : null;
+
   useEffect(() => {
-    if (!selectedSub && tree.length) {
-      const firstMod = tree[0].modules[0];
-      if (firstMod?.subModules[0]) {
-        setSelectedSub(firstMod.subModules[0].subModuleId);
-        setOpenModules({ [firstMod.moduleId]: true });
-      }
+    if (!questionMode) return;
+    if (!selectedSub && submoduleSteps.length) {
+      const firstStep = submoduleSteps[0];
+      setSelectedSub(firstStep.sub.subModuleId);
+      setOpenModules({ [firstStep.moduleId]: true });
     }
-  }, [selectedSub, tree]);
+  }, [questionMode, selectedSub, submoduleSteps]);
+
+  const selectAssessment = (id: string) => {
+    setAssessmentId(id);
+    setQuestionMode(false);
+    setSelectedSub(null);
+    setOpenModules({});
+    setNotes({});
+    setOpenNotes({});
+    setReviewOpen(false);
+  };
+
+  const openQuestions = () => {
+    if (!assessmentId) return;
+    setQuestionMode(true);
+    setSelectedSub(null);
+    setOpenModules({});
+    setOpenNotes({});
+    setReviewOpen(false);
+  };
 
   const answeredInSub = (questions: { questionId: string }[]) =>
     questions.filter((q) => answersByQuestion.has(q.questionId)).length;
@@ -95,50 +211,82 @@ export function MyAssessmentsPage() {
     if (!assessmentId) return;
     saveResponse.mutate({ questionId, answer: value, findings: notes[questionId] || null });
   };
+
   const saveNote = (questionId: string) => {
     if (!assessmentId || !answersByQuestion.has(questionId)) return;
     saveResponse.mutate({ questionId, answer: answersByQuestion.get(questionId)!, findings: notes[questionId] || null });
   };
 
-  if (assessmentsQuery.isLoading) return <LoadingState label="Loading your assessments…" />;
+  const goToStep = (step: (typeof submoduleSteps)[number] | null) => {
+    if (!step) return;
+    setSelectedSub(step.sub.subModuleId);
+    setOpenModules((state) => ({ ...state, [step.moduleId]: true }));
+  };
 
-  if (!assessmentId && !assessmentsQuery.data?.length) {
+  if (assessmentsQuery.isLoading) return <LoadingState label="Loading your assessments..." />;
+
+  if (assessmentsQuery.isError) {
     return (
       <Box>
-        <PageHeader title="My Assessments" subtitle="Start your TOPP QA maturity assessment." />
+        <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
         <Card sx={{ p: 4 }}>
           <EmptyState
-            title="No assessment yet"
-            description="Create an assessment to begin answering questions."
-            action={
-              <Button variant="contained" disabled={createAssessment.isPending}
-                onClick={async () => {
-                  const a = await createAssessment.mutateAsync({ title: "TOPP QA Maturity Assessment" });
-                  setAssessmentId(a.assessmentId);
-                }}>
-                Start assessment
-              </Button>
-            }
+            title="Could not load assessments"
+            description="Your assigned assessments could not be loaded. Please try again in a moment."
           />
         </Card>
       </Box>
     );
   }
 
+  if (!assessments.length) {
+    return (
+      <Box>
+        <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
+        <Card sx={{ p: 4 }}>
+          <EmptyState
+            title="No assessment is assigned to you"
+            description="Completed assessments are available in History and Reports."
+          />
+        </Card>
+      </Box>
+    );
+  }
+
+  if (!questionMode) {
+    return (
+      <AssessmentDetailView
+        assessments={assessments}
+        selectedId={assessmentId}
+        selectedSummary={selectedSummary}
+        detail={detail}
+        onSelect={selectAssessment}
+        onStartQuestions={openQuestions}
+      />
+    );
+  }
+
   const isSubmitted = (summary?.status ?? 0) >= AssessmentStatus.Submitted;
+  const answeredCount = summary?.answeredCount ?? answersByQuestion.size;
+  const questionCount = summary?.questionCount ?? submoduleSteps.reduce((total, step) => total + step.sub.questions.length, 0);
+  const unansweredCount = Math.max(questionCount - answeredCount, 0);
 
   return (
     <Box sx={{ pb: 9 }}>
       <PageHeader
         title={summary?.title ?? "My Assessment"}
-        subtitle={currentSub ? `${currentSub.category} · ${currentSub.module}` : "Select a submodule to begin"}
+        subtitle={currentSub ? `${currentSub.category} / ${currentSub.module}` : "Select a submodule to begin"}
+        actions={
+          <Button variant="outlined" startIcon={<KeyboardArrowLeftIcon />} onClick={() => setQuestionMode(false)}>
+            Assessment details
+          </Button>
+        }
       />
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" } }}>
-        {/* Tree nav */}
         <Card sx={{ p: 1, alignSelf: "start", maxHeight: "70vh", overflowY: "auto" }}>
           {treeQuery.isLoading ? (
-            <LoadingState label="Loading questions…" />
+            <LoadingState label="Loading questions..." />
           ) : (
             tree.map((c) => (
               <Box key={c.categoryId} sx={{ mb: 1 }}>
@@ -147,8 +295,12 @@ export function MyAssessmentsPage() {
                   const open = openModules[m.moduleId];
                   return (
                     <Box key={m.moduleId}>
-                      <Stack direction="row" alignItems="center" sx={{ px: 1, py: 0.5, cursor: "pointer" }}
-                        onClick={() => setOpenModules((s) => ({ ...s, [m.moduleId]: !open }))}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        sx={{ px: 1, py: 0.5, cursor: "pointer" }}
+                        onClick={() => setOpenModules((s) => ({ ...s, [m.moduleId]: !open }))}
+                      >
                         {open ? <ExpandMoreIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
                         <Typography variant="body2" fontWeight={600} noWrap sx={{ flexGrow: 1 }}>{m.name}</Typography>
                       </Stack>
@@ -158,14 +310,27 @@ export function MyAssessmentsPage() {
                           const complete = s.questions.length > 0 && done === s.questions.length;
                           const active = s.subModuleId === selectedSub;
                           return (
-                            <Stack key={s.subModuleId} direction="row" spacing={1} alignItems="center"
+                            <Stack
+                              key={s.subModuleId}
+                              direction="row"
+                              spacing={1}
+                              alignItems="center"
                               onClick={() => setSelectedSub(s.subModuleId)}
-                              sx={{ ml: 2, px: 1.5, py: 0.75, borderRadius: 2, cursor: "pointer",
+                              sx={{
+                                ml: 2,
+                                px: 1.5,
+                                py: 0.75,
+                                borderRadius: 2,
+                                cursor: "pointer",
                                 bgcolor: active ? "action.selected" : "transparent",
-                                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" } }}>
-                              {complete
-                                ? <CheckCircleIcon fontSize="small" color="success" />
-                                : <RadioButtonUncheckedIcon fontSize="small" sx={{ color: "text.disabled" }} />}
+                                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
+                              }}
+                            >
+                              {complete ? (
+                                <CheckCircleIcon fontSize="small" color="success" />
+                              ) : (
+                                <RadioButtonUncheckedIcon fontSize="small" sx={{ color: "text.disabled" }} />
+                              )}
                               <Typography variant="body2" noWrap sx={{ flexGrow: 1 }}>{s.name}</Typography>
                               <Typography variant="caption" color="text.secondary">{done}/{s.questions.length}</Typography>
                             </Stack>
@@ -180,13 +345,25 @@ export function MyAssessmentsPage() {
           )}
         </Card>
 
-        {/* Questions */}
         <Card sx={{ p: 3 }}>
           {!currentSub ? (
             <EmptyState title="Select a submodule" description="Pick a submodule from the left to answer its questions." />
           ) : (
             <>
-              <Typography variant="h2" sx={{ mb: 2 }}>{currentSub.sub.name}</Typography>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }} sx={{ mb: 2 }}>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h2">{currentSub.sub.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {currentSub.category} / {currentSub.module}
+                  </Typography>
+                </Box>
+                <Chip
+                  size="small"
+                  label={`Part ${currentStepIndex + 1} of ${submoduleSteps.length}`}
+                  color="primary"
+                  variant="outlined"
+                />
+              </Stack>
               <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />} spacing={2.5}>
                 {currentSub.sub.questions.map((q, i) => {
                   const value = answersByQuestion.get(q.questionId);
@@ -199,30 +376,56 @@ export function MyAssessmentsPage() {
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>{q.guidance}</Typography>
                       )}
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                        <ToggleButtonGroup exclusive size="small" value={value ?? null} disabled={isSubmitted}
-                          onChange={(_, v: number | null) => v !== null && answer(q.questionId, v)}>
+                        <ToggleButtonGroup
+                          exclusive
+                          size="small"
+                          value={value ?? null}
+                          disabled={isSubmitted}
+                          onChange={(_, v: number | null) => v !== null && answer(q.questionId, v)}
+                        >
                           {OPTIONS.map((opt) => {
                             const label = answerLabel[opt];
                             return (
-                              <ToggleButton key={opt} value={opt} sx={{ px: 2.5,
-                                "&.Mui-selected": { bgcolor: alpha(answerColor[label], 0.14), color: answerColor[label],
-                                  borderColor: alpha(answerColor[label], 0.4), "&:hover": { bgcolor: alpha(answerColor[label], 0.2) } } }}>
+                              <ToggleButton
+                                key={opt}
+                                value={opt}
+                                sx={{
+                                  px: 2.5,
+                                  "&.Mui-selected": {
+                                    bgcolor: alpha(answerColor[label], 0.14),
+                                    color: answerColor[label],
+                                    borderColor: alpha(answerColor[label], 0.4),
+                                    "&:hover": { bgcolor: alpha(answerColor[label], 0.2) },
+                                  },
+                                }}
+                              >
                                 {label}
                               </ToggleButton>
                             );
                           })}
                         </ToggleButtonGroup>
-                        <IconButton size="small" aria-label="Add findings" disabled={isSubmitted}
-                          onClick={() => setOpenNotes((s) => ({ ...s, [q.questionId]: !s[q.questionId] }))}>
+                        <IconButton
+                          size="small"
+                          aria-label="Add findings"
+                          disabled={isSubmitted}
+                          onClick={() => setOpenNotes((s) => ({ ...s, [q.questionId]: !s[q.questionId] }))}
+                        >
                           <NotesOutlinedIcon fontSize="small" />
                         </IconButton>
                       </Stack>
                       <Collapse in={openNotes[q.questionId]}>
-                        <TextField fullWidth size="small" placeholder="Findings / notes (optional)" multiline minRows={2}
-                          sx={{ mt: 1.5 }} disabled={isSubmitted}
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="Findings / notes (optional)"
+                          multiline
+                          minRows={2}
+                          sx={{ mt: 1.5 }}
+                          disabled={isSubmitted}
                           value={notes[q.questionId] ?? detail.data?.responses.find((r) => r.questionId === q.questionId)?.findings ?? ""}
                           onChange={(e) => setNotes({ ...notes, [q.questionId]: e.target.value })}
-                          onBlur={() => saveNote(q.questionId)} />
+                          onBlur={() => saveNote(q.questionId)}
+                        />
                       </Collapse>
                     </Box>
                   );
@@ -236,31 +439,287 @@ export function MyAssessmentsPage() {
         </Card>
       </Box>
 
-      {/* Sticky footer */}
-      <Box sx={{ position: "fixed", bottom: 0, left: { xs: 0, md: 264 }, right: 0, bgcolor: "background.paper",
-        borderTop: 1, borderColor: "divider", px: 3, py: 1.5, zIndex: 5 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Box sx={{ flexGrow: 1, maxWidth: 420 }}>
+      <Box
+        sx={{
+          position: "fixed",
+          bottom: 0,
+          left: { xs: 0, md: 264 },
+          right: 0,
+          bgcolor: "background.paper",
+          borderTop: 1,
+          borderColor: "divider",
+          px: 3,
+          py: 1.5,
+          zIndex: 5,
+        }}
+      >
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <Box sx={{ flexGrow: 1, maxWidth: 420, minWidth: { xs: "100%", md: 320 } }}>
             <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
               <Typography variant="caption" color="text.secondary">
-                {summary?.answeredCount ?? 0} / {summary?.questionCount ?? 0} answered
+                {answeredCount} / {questionCount} answered
               </Typography>
               <Typography variant="caption" fontWeight={600}>{percent}%</Typography>
             </Stack>
             <LinearProgress variant="determinate" value={percent} sx={{ height: 6, borderRadius: 999 }} />
           </Box>
           <Box sx={{ flexGrow: 1 }} />
-          {saveResponse.isPending && <Chip size="small" label="Saving…" />}
+          {saveResponse.isPending && <Chip size="small" label="Saving..." />}
           {isSubmitted ? (
             <Chip color="success" label="Submitted" />
           ) : (
-            <Button variant="contained" disabled={submit.isPending || (summary?.answeredCount ?? 0) === 0}
-              onClick={() => submit.mutate()}>
-              Submit
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<KeyboardArrowLeftIcon />}
+                disabled={!previousStep}
+                onClick={() => goToStep(previousStep)}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outlined"
+                endIcon={<KeyboardArrowRightIcon />}
+                disabled={!nextStep}
+                onClick={() => goToStep(nextStep)}
+              >
+                Next part
+              </Button>
+              <Button
+                variant="contained"
+                disabled={submit.isPending || answeredCount === 0}
+                onClick={() => setReviewOpen(true)}
+              >
+                Submit
+              </Button>
+            </>
           )}
         </Stack>
+      </Box>
+
+      <Dialog open={reviewOpen} onClose={() => setReviewOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Review assessment before submit</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Check your progress before final submission. You can go back and answer more questions, or submit now.
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+              <Card variant="outlined" sx={{ p: 2, flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Answered</Typography>
+                <Typography variant="h2" color="success.main">{answeredCount}</Typography>
+              </Card>
+              <Card variant="outlined" sx={{ p: 2, flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Not answered</Typography>
+                <Typography variant="h2" color={unansweredCount > 0 ? "warning.main" : "success.main"}>
+                  {unansweredCount}
+                </Typography>
+              </Card>
+              <Card variant="outlined" sx={{ p: 2, flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Total</Typography>
+                <Typography variant="h2">{questionCount}</Typography>
+              </Card>
+            </Stack>
+            <LinearProgress variant="determinate" value={percent} sx={{ height: 8, borderRadius: 999 }} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReviewOpen(false)}>Go back</Button>
+          <Button
+            variant="contained"
+            disabled={submit.isPending || answeredCount === 0}
+            onClick={() => {
+              submit.mutate(undefined, {
+                onSuccess: () => {
+                  if (assessmentId) {
+                    setCompletedAssessmentIds((ids) => {
+                      const next = new Set(ids);
+                      next.add(assessmentId);
+                      return next;
+                    });
+                  }
+                  setReviewOpen(false);
+                  setQuestionMode(false);
+                  setAssessmentId(undefined);
+                  setSelectedSub(null);
+                  setOpenModules({});
+                  setNotes({});
+                  setOpenNotes({});
+                },
+              });
+            }}
+          >
+            Submit assessment
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
+interface AssessmentDetailViewProps {
+  assessments: AssessmentSummaryDto[];
+  selectedId?: string;
+  selectedSummary?: AssessmentSummaryDto;
+  detail: AssessmentDetailQuery;
+  onSelect: (id: string) => void;
+  onStartQuestions: () => void;
+}
+
+function AssessmentDetailView({
+  assessments,
+  selectedId,
+  selectedSummary,
+  detail,
+  onSelect,
+  onStartQuestions,
+}: AssessmentDetailViewProps) {
+  const summary = detail.data?.summary ?? selectedSummary;
+  const percent = Math.round(summary?.completionPercentage ?? 0);
+  const unansweredCount = Math.max((summary?.questionCount ?? 0) - (summary?.answeredCount ?? 0), 0);
+
+  return (
+    <Box sx={{ pb: 4 }}>
+      <PageHeader
+        title="My Assessments"
+        subtitle="Review the assessment assigned by your administrator before opening the questions."
+      />
+
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" } }}>
+        <Card sx={{ p: 1, alignSelf: "start" }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 1 }}>
+            <Typography variant="overline" color="text.secondary">Assigned assessments</Typography>
+            <Chip size="small" variant="outlined" label={assessments.length} />
+          </Stack>
+          <Stack spacing={0.75}>
+            {assessments.map((assessment) => {
+              const active = assessment.assessmentId === selectedId;
+              return (
+                <Box
+                  key={assessment.assessmentId}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelect(assessment.assessmentId)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelect(assessment.assessmentId);
+                    }
+                  }}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: active ? "primary.main" : "divider",
+                    bgcolor: active ? "action.selected" : "transparent",
+                    cursor: "pointer",
+                    transition: "background-color 200ms, border-color 200ms",
+                    "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
+                    "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
+                  }}
+                >
+                  <Typography variant="body2" fontWeight={700} noWrap>{assessment.title}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Assigned {formatDate(assessment.createdAtUtc)}
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mt: 1 }}>
+                    <StatusChip status={toEntityStatus(assessment.status)} />
+                    <Typography variant="caption" color="text.secondary">
+                      {Math.round(assessment.completionPercentage)}%
+                    </Typography>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        </Card>
+
+        <Card sx={{ p: { xs: 2, md: 3 } }}>
+          {detail.isLoading && !summary ? (
+            <LoadingState label="Loading assessment details..." />
+          ) : summary ? (
+            <>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "flex-start" }}>
+                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                  <Typography variant="overline" color="text.secondary">Assigned by administrator</Typography>
+                  <Typography variant="h2" sx={{ mt: 0.5 }}>{summary.title}</Typography>
+                  {summary.description ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 720 }}>
+                      {summary.description}
+                    </Typography>
+                  ) : null}
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                    <StatusChip status={toEntityStatus(summary.status)} />
+                    <Chip size="small" variant="outlined" label={`Assigned ${formatDate(summary.createdAtUtc)}`} />
+                    {summary.startedAtUtc ? (
+                      <Chip size="small" variant="outlined" label={`Started ${formatDate(summary.startedAtUtc)}`} />
+                    ) : null}
+                  </Stack>
+                </Box>
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrowIcon />}
+                  disabled={detail.isLoading || detail.isError}
+                  onClick={onStartQuestions}
+                  sx={{ minHeight: 44, px: 2.5, whiteSpace: "nowrap" }}
+                >
+                  Start assessment
+                </Button>
+              </Stack>
+
+              {detail.isError ? (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  Assessment details could not be loaded. Please refresh before opening the questions.
+                </Alert>
+              ) : null}
+
+              <Box sx={{ mt: 3 }}>
+                <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {summary.answeredCount} / {summary.questionCount} answered
+                  </Typography>
+                  <Typography variant="caption" fontWeight={700}>{percent}%</Typography>
+                </Stack>
+                <LinearProgress variant="determinate" value={percent} sx={{ height: 8, borderRadius: 999 }} />
+              </Box>
+
+              <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }, mt: 3 }}>
+                <DetailMetric label="Questions" value={summary.questionCount} helper="Total assigned" />
+                <DetailMetric label="Answered" value={summary.answeredCount} helper="Saved responses" />
+                <DetailMetric label="Remaining" value={unansweredCount} helper="Still open" />
+                <DetailMetric
+                  label="Score"
+                  value={summary.overallScore == null ? "Pending" : Math.round(summary.overallScore)}
+                  helper={summary.overallMaturityLevel ?? "After scoring"}
+                />
+              </Box>
+            </>
+          ) : (
+            <EmptyState title="Select an assessment" description="Choose an assigned assessment to review its details." />
+          )}
+        </Card>
       </Box>
     </Box>
   );
 }
+
+function DetailMetric({ label, value, helper }: { label: string; value: string | number; helper?: string }) {
+  return (
+    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2, minHeight: 106 }}>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="h2" sx={{ mt: 0.5 }}>{value}</Typography>
+      {helper ? <Typography variant="caption" color="text.secondary">{helper}</Typography> : null}
+    </Box>
+  );
+}
+
+function toEntityStatus(status: number): EntityStatus {
+  const label = assessmentStatusLabel[status] as EntityStatus | undefined;
+  return label ?? "Draft";
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "Not started";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+}
+

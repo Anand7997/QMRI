@@ -46,6 +46,7 @@ public static class IdentityDataSeeder
                 IsActive = true,
                 ApprovalStatus = UserApprovalStatus.Approved,
                 RequestedRoleCode = AdminRoleCode,
+                Category = "QE",
                 RequestedAtUtc = nowUtc,
                 ApprovedAtUtc = nowUtc,
                 CreatedAtUtc = nowUtc
@@ -75,6 +76,12 @@ public static class IdentityDataSeeder
             if (!string.Equals(admin.RequestedRoleCode, AdminRoleCode, StringComparison.OrdinalIgnoreCase))
             {
                 admin.RequestedRoleCode = AdminRoleCode;
+                changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(admin.Category))
+            {
+                admin.Category = "QE";
                 changed = true;
             }
 

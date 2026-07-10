@@ -11,6 +11,16 @@ public sealed class UserAdministrationService(qMRIDbContext dbContext) : IUserAd
 {
     private const string AdminRoleCode = "ADMIN";
     private const string UserRoleCode = "USER";
+    private const string DefaultCategory = "Fresher";
+
+    private static readonly string[] AllowedCategories =
+    [
+        "Fresher",
+        "Digital",
+        "Ai",
+        "QE",
+        "Delevery"
+    ];
 
     public async Task<IReadOnlyCollection<UserAccessRequestDto>> GetUsersAsync(
         UserApprovalStatus? approvalStatus = null,
@@ -39,6 +49,7 @@ public sealed class UserAdministrationService(qMRIDbContext dbContext) : IUserAd
         Guid userId,
         Guid approvedByUserId,
         string? roleCode = null,
+        string? category = null,
         CancellationToken cancellationToken = default)
     {
         var user = await dbContext.Users
@@ -52,6 +63,7 @@ public sealed class UserAdministrationService(qMRIDbContext dbContext) : IUserAd
         }
 
         var requestedRoleCode = NormalizeRequestedRole(roleCode ?? user.RequestedRoleCode);
+        var normalizedCategory = NormalizeCategory(category ?? user.Category);
         var role = await dbContext.Roles
             .SingleOrDefaultAsync(entity => entity.Code == requestedRoleCode && entity.IsActive, cancellationToken);
 
@@ -61,6 +73,7 @@ public sealed class UserAdministrationService(qMRIDbContext dbContext) : IUserAd
         }
 
         user.RequestedRoleCode = requestedRoleCode;
+        user.Category = normalizedCategory;
         user.ApprovalStatus = UserApprovalStatus.Approved;
         user.IsActive = true;
         user.ApprovedAtUtc = DateTime.UtcNow;
@@ -92,6 +105,7 @@ public sealed class UserAdministrationService(qMRIDbContext dbContext) : IUserAd
             UserName = user.UserName,
             Email = user.Email,
             RequestedRoleCode = user.RequestedRoleCode,
+            Category = NormalizeCategory(user.Category),
             ApprovalStatus = user.ApprovalStatus.ToString(),
             IsActive = user.IsActive,
             RequestedAtUtc = user.RequestedAtUtc,
@@ -112,4 +126,19 @@ public sealed class UserAdministrationService(qMRIDbContext dbContext) : IUserAd
             ? AdminRoleCode
             : UserRoleCode;
     }
+
+    private static string NormalizeCategory(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            return DefaultCategory;
+        }
+
+        var match = AllowedCategories.FirstOrDefault(allowedCategory =>
+            string.Equals(allowedCategory, category.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        return match ?? DefaultCategory;
+    }
 }
+
+

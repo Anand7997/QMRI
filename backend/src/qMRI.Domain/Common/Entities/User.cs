@@ -20,6 +20,8 @@ public sealed class User
 
     public string RequestedRoleCode { get; set; } = "USER";
 
+    public string Category { get; set; } = "Fresher";
+
     public DateTime RequestedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime? ApprovedAtUtc { get; set; }
@@ -32,3 +34,5 @@ public sealed class User
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
+
+

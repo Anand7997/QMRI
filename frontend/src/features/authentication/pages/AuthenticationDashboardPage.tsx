@@ -23,7 +23,6 @@ import {
 } from "@mui/material";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import LockClockOutlinedIcon from "@mui/icons-material/LockClockOutlined";
@@ -34,6 +33,7 @@ import { EmptyState, KpiTile, PageHeader, TableSkeleton } from "shared/component
 import {
   useApproveUser,
   useUsers,
+  type ApprovalCategoryCode,
   type ApprovalRoleCode,
   type UserAccessRequest,
   type UserStatusFilter,
@@ -48,13 +48,16 @@ const filterTabs: { label: string; value: FilterTab }[] = [
 ];
 
 const defaultApprovalRole: ApprovalRoleCode = "USER";
+const defaultApprovalCategory: ApprovalCategoryCode = "Fresher";
+
+const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery"];
 
 export function AuthenticationDashboardPage() {
   const [filter, setFilter] = useState<FilterTab>("Pending");
   const [approvingUserId, setApprovingUserId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editingRoleIds, setEditingRoleIds] = useState<string[]>([]);
   const [roleByUserId, setRoleByUserId] = useState<Record<string, ApprovalRoleCode>>({});
+  const [categoryByUserId, setCategoryByUserId] = useState<Record<string, ApprovalCategoryCode>>({});
   const { data: users = [], isLoading, isError } = useUsers("all");
   const approveUser = useApproveUser();
 
@@ -77,6 +80,10 @@ export function AuthenticationDashboardPage() {
     return roleByUserId[userId] ?? defaultApprovalRole;
   }
 
+  function approvalCategoryFor(user: UserAccessRequest) {
+    return categoryByUserId[user.userId] ?? normalizeCategory(user.category);
+  }
+
   function handleToggleUser(userId: string) {
     setSelectedIds((current) =>
       current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId],
@@ -97,19 +104,25 @@ export function AuthenticationDashboardPage() {
     setSelectedIds((current) => Array.from(new Set([...current, ...pendingFilteredIds])));
   }
 
-  function handleEditRole(userId: string) {
-    setEditingRoleIds((current) => (current.includes(userId) ? current : [...current, userId]));
-    setRoleByUserId((current) => ({ ...current, [userId]: approvalRoleFor(userId) }));
-  }
 
   function handleRoleChange(userId: string, event: SelectChangeEvent<ApprovalRoleCode>) {
     setRoleByUserId((current) => ({ ...current, [userId]: event.target.value as ApprovalRoleCode }));
   }
 
+  function handleCategoryChange(userId: string, event: SelectChangeEvent<ApprovalCategoryCode>) {
+    setCategoryByUserId((current) => ({ ...current, [userId]: event.target.value as ApprovalCategoryCode }));
+  }
+
   function handleApprove(userId: string) {
+    const user = users.find((candidate) => candidate.userId === userId);
+
     setApprovingUserId(userId);
     approveUser.mutate(
-      { userId, roleCode: approvalRoleFor(userId) },
+      {
+        userId,
+        roleCode: approvalRoleFor(userId),
+        category: user ? approvalCategoryFor(user) : defaultApprovalCategory,
+      },
       {
         onSuccess: () => setSelectedIds((current) => current.filter((id) => id !== userId)),
         onSettled: () => setApprovingUserId(null),
@@ -121,7 +134,12 @@ export function AuthenticationDashboardPage() {
     setApprovingUserId("bulk");
     try {
       for (const userId of selectedPendingIds) {
-        await approveUser.mutateAsync({ userId, roleCode: approvalRoleFor(userId) });
+        const user = users.find((candidate) => candidate.userId === userId);
+        await approveUser.mutateAsync({
+          userId,
+          roleCode: approvalRoleFor(userId),
+          category: user ? approvalCategoryFor(user) : defaultApprovalCategory,
+        });
       }
       setSelectedIds((current) => current.filter((id) => !selectedPendingIds.includes(id)));
     } finally {
@@ -157,7 +175,7 @@ export function AuthenticationDashboardPage() {
               <Chip size="small" label={`${pendingCount} pending`} color={pendingCount ? "warning" : "success"} />
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Accounts are approved as User by default. Use Edit to approve a request as Admin.
+              Select each user role and category before approving access.
             </Typography>
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "stretch", sm: "center" }}>
@@ -189,7 +207,7 @@ export function AuthenticationDashboardPage() {
         {isError ? <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to load authentication requests.</Alert> : null}
 
         {isLoading ? (
-          <TableSkeleton rows={6} cols={7} />
+          <TableSkeleton rows={6} cols={8} />
         ) : filteredUsers.length === 0 ? (
           <EmptyState
             icon={<PersonAddAltOutlinedIcon sx={{ fontSize: 40 }} />}
@@ -198,7 +216,7 @@ export function AuthenticationDashboardPage() {
           />
         ) : (
           <Box sx={{ width: "100%", overflowX: "auto" }}>
-            <Table sx={{ minWidth: 1080 }}>
+            <Table sx={{ minWidth: 1180 }}>
               <TableHead>
                 <TableRow>
                   <TableCell padding="checkbox">
@@ -213,6 +231,7 @@ export function AuthenticationDashboardPage() {
                   <TableCell>Account</TableCell>
                   <TableCell>Requested role</TableCell>
                   <TableCell>Approve as</TableCell>
+                  <TableCell>Category</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Requested</TableCell>
                   <TableCell align="right">Action</TableCell>
@@ -221,8 +240,8 @@ export function AuthenticationDashboardPage() {
               <TableBody>
                 {filteredUsers.map((user) => {
                   const isPending = user.approvalStatus === "Pending";
-                  const isEditingRole = editingRoleIds.includes(user.userId);
                   const selectedRole = approvalRoleFor(user.userId);
+                  const selectedCategory = approvalCategoryFor(user);
 
                   return (
                     <TableRow key={user.userId} hover selected={selectedIds.includes(user.userId)}>
@@ -249,23 +268,29 @@ export function AuthenticationDashboardPage() {
                       </TableCell>
                       <TableCell>
                         {isPending ? (
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            {isEditingRole ? (
-                              <FormControl size="small" sx={{ minWidth: 112 }}>
-                                <Select value={selectedRole} onChange={(event) => handleRoleChange(user.userId, event)}>
-                                  <MenuItem value="USER">User</MenuItem>
-                                  <MenuItem value="ADMIN">Admin</MenuItem>
-                                </Select>
-                              </FormControl>
-                            ) : (
-                              <RoleChip role={selectedRole} />
-                            )}
-                            <Button size="small" variant="text" startIcon={<EditOutlinedIcon />} onClick={() => handleEditRole(user.userId)}>
-                              Edit
-                            </Button>
-                          </Stack>
+                          <FormControl size="small" sx={{ minWidth: 112 }}>
+                            <Select value={selectedRole} onChange={(event) => handleRoleChange(user.userId, event)}>
+                              <MenuItem value="USER">User</MenuItem>
+                              <MenuItem value="ADMIN">Admin</MenuItem>
+                            </Select>
+                          </FormControl>
                         ) : (
                           <RoleChip role={user.roles.includes("ADMIN") ? "ADMIN" : user.requestedRoleCode} />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isPending ? (
+                          <FormControl size="small" sx={{ minWidth: 132 }}>
+                            <Select value={selectedCategory} onChange={(event) => handleCategoryChange(user.userId, event)}>
+                              {approvalCategories.map((category) => (
+                                <MenuItem key={category} value={category}>
+                                  {category}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        ) : (
+                          <CategoryChip category={selectedCategory} />
                         )}
                       </TableCell>
                       <TableCell>
@@ -306,6 +331,14 @@ function RoleChip({ role }: { role: string }) {
   return <Chip size="small" label={isAdmin ? "Admin" : "User"} color={isAdmin ? "primary" : "default"} />;
 }
 
+function CategoryChip({ category }: { category: string }) {
+  return <Chip size="small" label={normalizeCategory(category)} variant="outlined" />;
+}
+
+function normalizeCategory(category?: string | null): ApprovalCategoryCode {
+  return approvalCategories.find((option) => option.toLowerCase() === category?.toLowerCase()) ?? defaultApprovalCategory;
+}
+
 function ApprovalChip({ user }: { user: UserAccessRequest }) {
   if (user.approvalStatus === "Pending") {
     return <Chip size="small" label="Pending" color="warning" />;
@@ -328,3 +361,6 @@ function formatDateTime(value: string) {
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
+
+
+

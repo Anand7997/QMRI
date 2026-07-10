@@ -34,11 +34,18 @@ namespace qMRI.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("Departments")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
                     b.Property<DateTime?>("ScoredAtUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid?>("ScoringModelId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SelectedQuestionIds")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("StartedAtUtc")
                         .HasColumnType("datetime2");
@@ -547,6 +554,13 @@ namespace qMRI.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ApprovedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasDefaultValue("Fresher");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -846,3 +860,6 @@ namespace qMRI.Infrastructure.Persistence.Migrations
         }
     }
 }
+
+
+

@@ -12,6 +12,8 @@ public sealed class UserAccessRequestDto
 
     public string RequestedRoleCode { get; set; } = string.Empty;
 
+    public string Category { get; set; } = string.Empty;
+
     public string ApprovalStatus { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }
@@ -26,3 +28,4 @@ public sealed class UserAccessRequestDto
 
     public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
 }
+

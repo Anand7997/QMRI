@@ -9,8 +9,8 @@ import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MotionConfig } from "motion/react";
-import { EmptyState, MaturityChip, StatusChip } from "shared/components";
-import { AssessmentStatus } from "shared/api/types";
+import { EmptyState, MaturityChip, StatusChip, type EntityStatus } from "shared/components";
+import { AssessmentStatus, assessmentStatusLabel } from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
 import { useAuthContext } from "contexts/AuthContext";
 import { brandTokens, dataTokens, semanticTokens } from "app/theme/tokens/palette";
@@ -27,16 +27,17 @@ export function UserDashboardPage() {
   const firstName = (user?.userName ?? "there").split(/[.\s@]/)[0];
   const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
 
-  const activeAssessment = useMemo(
+  const activeAssessments = useMemo(
     () =>
       [...dashboard.assessments]
         .filter(
           (assessment) =>
             assessment.status === AssessmentStatus.InProgress || assessment.status === AssessmentStatus.Draft,
         )
-        .sort((a, b) => new Date(resolveDate(b)).getTime() - new Date(resolveDate(a)).getTime())[0],
+        .sort((a, b) => new Date(resolveDate(b)).getTime() - new Date(resolveDate(a)).getTime()),
     [dashboard.assessments],
   );
+  const activeAssessment = activeAssessments[0];
   const latestScore = dashboard.recentAssessments.find((assessment) => assessment.score != null)?.score ?? 0;
 
   return (
@@ -89,7 +90,7 @@ export function UserDashboardPage() {
               {activeAssessment ? (
                 <>
                   <Typography variant="body1" sx={{ mt: 0.5, color: alpha("#fff", 0.85) }}>
-                    Continue where you left off — <b>{activeAssessment.title}</b>
+                    Continue where you left off - <b>{activeAssessment.title}</b>
                   </Typography>
                   <Typography variant="caption" sx={{ color: alpha("#fff", 0.7) }}>
                     {activeAssessment.answeredCount} / {activeAssessment.questionCount} answered
@@ -98,7 +99,9 @@ export function UserDashboardPage() {
                     <Button
                       variant="contained"
                       startIcon={<PlayArrowIcon />}
-                      onClick={() => navigate(RoutePaths.portalAssessments)}
+                      onClick={() =>
+                        navigate(RoutePaths.portalAssessments, { state: { assessmentId: activeAssessment.assessmentId } })
+                      }
                       sx={{
                         bgcolor: "#fff",
                         color: brandTokens.blue700,
@@ -107,14 +110,14 @@ export function UserDashboardPage() {
                         "&:hover": { bgcolor: brandTokens.blue50 },
                       }}
                     >
-                      Resume assessment
+                      View assessment
                     </Button>
                   </Box>
                 </>
               ) : (
                 <>
                   <Typography variant="body1" sx={{ mt: 0.5, color: alpha("#fff", 0.85), maxWidth: 460 }}>
-                    You have no active assessment. New assignments appear here as soon as they are created.
+                    No assessment is assigned to you. New assignments appear here as soon as they are created.
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     <Button
@@ -152,7 +155,7 @@ export function UserDashboardPage() {
         >
           <StatCard
             label="Assigned"
-            value={dashboard.assessmentCount}
+            value={activeAssessments.length}
             icon={<AssignmentOutlinedIcon />}
             accent={brandTokens.blue600}
           />
@@ -184,13 +187,16 @@ export function UserDashboardPage() {
                 View all
               </Button>
             </Stack>
-            {dashboard.recentAssessments.length === 0 ? (
-              <EmptyState title="No assessments" description="Your assigned assessments will be listed here." />
+            {activeAssessments.length === 0 ? (
+              <EmptyState
+                title="No assessment is assigned to you"
+                description="Completed assessments are available in History and Reports."
+              />
             ) : (
               <MotionStagger>
-                {dashboard.recentAssessments.map((assessment) => (
+                {activeAssessments.map((assessment) => (
                   <MotionItem
-                    key={assessment.id}
+                    key={assessment.assessmentId}
                     sx={{
                       display: "flex",
                       alignItems: "center",
@@ -204,17 +210,17 @@ export function UserDashboardPage() {
                       "&:first-of-type": { borderTop: "none" },
                       "&:hover": { bgcolor: alpha(brandTokens.blue600, 0.06) },
                     }}
-                    onClick={() => navigate(RoutePaths.portalAssessments)}
+                    onClick={() => navigate(RoutePaths.portalAssessments, { state: { assessmentId: assessment.assessmentId } })}
                   >
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                       <Typography variant="body1" fontWeight={600} noWrap>
                         {assessment.title}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Updated {formatDate(assessment.date)}
+                        Updated {formatDate(resolveDate(assessment))}
                       </Typography>
                     </Box>
-                    <StatusChip status={assessment.status} />
+                    <StatusChip status={toEntityStatus(assessment.status)} />
                     <ArrowForwardIcon fontSize="small" sx={{ color: "text.disabled" }} />
                   </MotionItem>
                 ))}
@@ -225,6 +231,11 @@ export function UserDashboardPage() {
       </Box>
     </MotionConfig>
   );
+}
+
+function toEntityStatus(status: number): EntityStatus {
+  const label = assessmentStatusLabel[status] as EntityStatus | undefined;
+  return label ?? "Draft";
 }
 
 function resolveDate(assessment: {

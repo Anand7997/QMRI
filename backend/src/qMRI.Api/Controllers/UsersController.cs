@@ -45,7 +45,12 @@ public sealed class UsersController(IUserAdministrationService userAdministratio
             return Unauthorized();
         }
 
-        var user = await userAdministrationService.ApproveUserAsync(userId, approvedByUserId.Value, request?.RoleCode, cancellationToken);
+        var user = await userAdministrationService.ApproveUserAsync(
+            userId,
+            approvedByUserId.Value,
+            request?.RoleCode,
+            request?.Category,
+            cancellationToken);
         return user is null ? NotFound() : Ok(user);
     }
 
@@ -77,4 +82,8 @@ public sealed class UsersController(IUserAdministrationService userAdministratio
 public sealed class ApproveUserRequest
 {
     public string? RoleCode { get; set; }
+
+    public string? Category { get; set; }
 }
+
+

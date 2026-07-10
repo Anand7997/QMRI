@@ -15,6 +15,10 @@ public sealed class Assessment
 
     public string? Description { get; set; }
 
+    public string? Departments { get; set; }
+
+    public string? SelectedQuestionIds { get; set; }
+
     public AssessmentStatus Status { get; set; } = AssessmentStatus.Draft;
 
     public DateTime? StartedAtUtc { get; set; }
@@ -33,3 +37,4 @@ public sealed class Assessment
 
     public ICollection<Recommendation> Recommendations { get; set; } = new List<Recommendation>();
 }
+

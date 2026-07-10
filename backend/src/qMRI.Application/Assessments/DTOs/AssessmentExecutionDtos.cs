@@ -8,6 +8,8 @@ public sealed class CreateAssessmentRequest
     public Guid? ScoringModelId { get; set; }
     public string? Title { get; set; }
     public string? Description { get; set; }
+    public IReadOnlyCollection<string> Departments { get; set; } = Array.Empty<string>();
+    public IReadOnlyCollection<Guid> QuestionIds { get; set; } = Array.Empty<Guid>();
 }
 
 public sealed class UpdateAssessmentRequest
@@ -22,6 +24,8 @@ public sealed class AssessmentSummaryDto
     public Guid? ScoringModelId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public IReadOnlyCollection<string> Departments { get; set; } = Array.Empty<string>();
+    public IReadOnlyCollection<Guid> QuestionIds { get; set; } = Array.Empty<Guid>();
     public AssessmentStatus Status { get; set; }
     public DateTime? StartedAtUtc { get; set; }
     public DateTime? SubmittedAtUtc { get; set; }
@@ -91,3 +95,5 @@ public sealed class RecommendationDto
     public RecommendationPriority Priority { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }
+
+

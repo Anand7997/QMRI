@@ -23,6 +23,12 @@ public sealed class AssessmentConfiguration : IEntityTypeConfiguration<Assessmen
         builder.Property(entity => entity.Description)
             .HasMaxLength(1000);
 
+        builder.Property(entity => entity.Departments)
+            .HasMaxLength(512);
+
+        builder.Property(entity => entity.SelectedQuestionIds)
+            .HasColumnType("nvarchar(max)");
+
         builder.Property(entity => entity.Status)
             .HasConversion<int>()
             .IsRequired();
@@ -55,3 +61,4 @@ public sealed class AssessmentConfiguration : IEntityTypeConfiguration<Assessmen
         builder.HasIndex(entity => entity.Status);
     }
 }
+

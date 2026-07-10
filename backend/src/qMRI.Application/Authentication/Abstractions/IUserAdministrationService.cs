@@ -13,5 +13,8 @@ public interface IUserAdministrationService
         Guid userId,
         Guid approvedByUserId,
         string? roleCode = null,
+        string? category = null,
         CancellationToken cancellationToken = default);
 }
+
+

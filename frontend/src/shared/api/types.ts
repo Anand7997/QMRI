@@ -149,6 +149,8 @@ export interface AssessmentSummaryDto {
   scoringModelId?: string | null;
   title: string;
   description?: string | null;
+  departments: string[];
+  questionIds: string[];
   status: number;
   startedAtUtc?: string | null;
   submittedAtUtc?: string | null;
@@ -213,6 +215,8 @@ export interface CreateAssessmentRequest {
   scoringModelId?: string | null;
   title?: string | null;
   description?: string | null;
+  departments: string[];
+  questionIds: string[];
 }
 
 export interface UpdateAssessmentRequest {
@@ -224,4 +228,5 @@ export interface UpsertAssessmentResponseRequest {
   answer: number;
   findings?: string | null;
 }
+
 

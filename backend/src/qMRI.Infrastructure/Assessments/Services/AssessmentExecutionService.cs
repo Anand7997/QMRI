@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
@@ -37,6 +38,24 @@ public sealed class AssessmentExecutionService(
             throw new ArgumentException("The requested scoring model does not exist or is inactive.");
         }
 
+        var selectedDepartments = NormalizeDepartments(request.Departments);
+        if (selectedDepartments.Length == 0)
+        {
+            throw new ArgumentException("Select at least one department for this assessment.");
+        }
+
+        var selectedQuestionIds = request.QuestionIds.Distinct().ToArray();
+        if (selectedQuestionIds.Length == 0)
+        {
+            throw new ArgumentException("Select at least one assessment question.");
+        }
+
+        var validQuestionIds = await GetValidQuestionIdsAsync(selectedQuestionIds, cancellationToken);
+        if (validQuestionIds.Length != selectedQuestionIds.Length)
+        {
+            throw new ArgumentException("One or more selected questions are inactive or do not exist.");
+        }
+
         var now = DateTime.UtcNow;
         var assessment = new Assessment
         {
@@ -45,6 +64,8 @@ public sealed class AssessmentExecutionService(
             ScoringModelId = scoringModelId,
             Title = string.IsNullOrWhiteSpace(request.Title) ? "qMRI TOPP Assessment" : request.Title.Trim(),
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+            Departments = SerializeStringList(selectedDepartments),
+            SelectedQuestionIds = SerializeGuidList(validQuestionIds),
             Status = AssessmentStatus.InProgress,
             StartedAtUtc = now,
             CreatedAtUtc = now
@@ -53,7 +74,7 @@ public sealed class AssessmentExecutionService(
         dbContext.Assessments.Add(assessment);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var questionCount = await CountActiveQuestionsAsync(cancellationToken);
+        var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
         return MapSummary(assessment, questionCount);
     }
 
@@ -76,8 +97,7 @@ public sealed class AssessmentExecutionService(
             .OrderByDescending(assessment => assessment.CreatedAtUtc)
             .ToArrayAsync(cancellationToken);
 
-        var questionCount = await CountActiveQuestionsAsync(cancellationToken);
-        return assessments.Select(assessment => MapSummary(assessment, questionCount)).ToArray();
+        return await MapSummariesAsync(assessments, cancellationToken);
     }
 
     public async Task<AssessmentDetailDto?> GetAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default)
@@ -91,7 +111,7 @@ public sealed class AssessmentExecutionService(
             return null;
         }
 
-        var questionCount = await CountActiveQuestionsAsync(cancellationToken);
+        var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
         return MapDetail(assessment, questionCount);
     }
 
@@ -119,7 +139,7 @@ public sealed class AssessmentExecutionService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var questionCount = await CountActiveQuestionsAsync(cancellationToken);
+        var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
         return MapSummary(assessment, questionCount);
     }
 
@@ -137,6 +157,7 @@ public sealed class AssessmentExecutionService(
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
     public async Task<AssessmentResponseDto?> SaveResponseAsync(
         Guid assessmentId,
         UpsertAssessmentResponseRequest request,
@@ -162,6 +183,11 @@ public sealed class AssessmentExecutionService(
         if (question is null)
         {
             throw new ArgumentException("The requested active question does not exist.");
+        }
+
+        if (!IsQuestionSelected(assessment, request.QuestionId))
+        {
+            throw new ArgumentException("The requested question is not part of this assessment.");
         }
 
         var scoringModelId = assessment.ScoringModelId
@@ -263,6 +289,14 @@ public sealed class AssessmentExecutionService(
                 question.SubModule.Module.Category.IsActive)
             .AsNoTracking()
             .ToArrayAsync(cancellationToken);
+
+        var selectedQuestionIds = GetSelectedQuestionIds(assessment);
+        if (selectedQuestionIds.Count > 0)
+        {
+            activeQuestions = activeQuestions
+                .Where(question => selectedQuestionIds.Contains(question.QuestionId))
+                .ToArray();
+        }
 
         var responses = await dbContext.AssessmentResponses
             .Where(response => response.AssessmentId == assessment.AssessmentId)
@@ -434,15 +468,105 @@ public sealed class AssessmentExecutionService(
             : $"{band.Level} - {band.Label}";
     }
 
-    private async Task<int> CountActiveQuestionsAsync(CancellationToken cancellationToken)
+    private async Task<AssessmentSummaryDto[]> MapSummariesAsync(
+        IReadOnlyCollection<Assessment> assessments,
+        CancellationToken cancellationToken)
     {
+        var summaries = new List<AssessmentSummaryDto>(assessments.Count);
+        foreach (var assessment in assessments)
+        {
+            summaries.Add(MapSummary(assessment, await CountAssessmentQuestionsAsync(assessment, cancellationToken)));
+        }
+
+        return summaries.ToArray();
+    }
+
+    private async Task<int> CountAssessmentQuestionsAsync(Assessment assessment, CancellationToken cancellationToken)
+    {
+        var selectedQuestionIds = GetSelectedQuestionIds(assessment);
+        if (selectedQuestionIds.Count > 0)
+        {
+            return await dbContext.Questions.CountAsync(question => question.IsActive && selectedQuestionIds.Contains(question.QuestionId), cancellationToken);
+        }
+
         return await dbContext.Questions.CountAsync(question => question.IsActive, cancellationToken);
     }
 
+    private async Task<Guid[]> GetValidQuestionIdsAsync(IReadOnlyCollection<Guid> questionIds, CancellationToken cancellationToken)
+    {
+        return await dbContext.Questions
+            .Where(question =>
+                questionIds.Contains(question.QuestionId) &&
+                question.IsActive &&
+                question.SubModule != null &&
+                question.SubModule.IsActive &&
+                question.SubModule.Module != null &&
+                question.SubModule.Module.IsActive &&
+                question.SubModule.Module.Category != null &&
+                question.SubModule.Module.Category.IsActive)
+            .Select(question => question.QuestionId)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private static bool IsQuestionSelected(Assessment assessment, Guid questionId)
+    {
+        var selectedQuestionIds = GetSelectedQuestionIds(assessment);
+        return selectedQuestionIds.Count == 0 || selectedQuestionIds.Contains(questionId);
+    }
+
+    private static HashSet<Guid> GetSelectedQuestionIds(Assessment assessment)
+    {
+        if (string.IsNullOrWhiteSpace(assessment.SelectedQuestionIds))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Guid[]>(assessment.SelectedQuestionIds)?.ToHashSet() ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string[] GetDepartments(Assessment assessment)
+    {
+        if (string.IsNullOrWhiteSpace(assessment.Departments))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(assessment.Departments) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string[] NormalizeDepartments(IEnumerable<string> departments)
+    {
+        return departments
+            .Where(department => !string.IsNullOrWhiteSpace(department))
+            .Select(department => department.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string SerializeGuidList(IEnumerable<Guid> values) => JsonSerializer.Serialize(values.Distinct().ToArray());
+
+    private static string SerializeStringList(IEnumerable<string> values) => JsonSerializer.Serialize(NormalizeDepartments(values));
+
     private static AssessmentSummaryDto MapSummary(Assessment assessment, int questionCount)
     {
+        var selectedQuestionIds = GetSelectedQuestionIds(assessment);
         var overall = assessment.Scores.FirstOrDefault(score => score.Scope == ScoreScope.Overall);
         var answeredCount = assessment.Responses
+            .Where(response => selectedQuestionIds.Count == 0 || selectedQuestionIds.Contains(response.QuestionId))
             .Select(response => response.QuestionId)
             .Distinct()
             .Count();
@@ -454,6 +578,8 @@ public sealed class AssessmentExecutionService(
             ScoringModelId = assessment.ScoringModelId,
             Title = assessment.Title,
             Description = assessment.Description,
+            Departments = GetDepartments(assessment),
+            QuestionIds = selectedQuestionIds.ToArray(),
             Status = assessment.Status,
             StartedAtUtc = assessment.StartedAtUtc,
             SubmittedAtUtc = assessment.SubmittedAtUtc,

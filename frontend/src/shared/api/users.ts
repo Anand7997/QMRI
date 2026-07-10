@@ -5,6 +5,7 @@ import { QueryKeys } from "shared/query/keys";
 export type UserApprovalStatus = "Pending" | "Approved" | "Rejected";
 export type UserStatusFilter = UserApprovalStatus | "all";
 export type ApprovalRoleCode = "USER" | "ADMIN";
+export type ApprovalCategoryCode = "Fresher" | "Digital" | "Ai" | "QE" | "Delevery";
 
 export interface UserAccessRequest {
   userId: string;
@@ -12,6 +13,7 @@ export interface UserAccessRequest {
   userName: string;
   email: string;
   requestedRoleCode: ApprovalRoleCode | string;
+  category: ApprovalCategoryCode | string;
   approvalStatus: UserApprovalStatus;
   isActive: boolean;
   requestedAtUtc: string;
@@ -24,6 +26,7 @@ export interface UserAccessRequest {
 export interface ApproveUserInput {
   userId: string;
   roleCode?: ApprovalRoleCode;
+  category?: ApprovalCategoryCode;
 }
 
 export async function getUsers(status: UserStatusFilter = "all"): Promise<UserAccessRequest[]> {
@@ -35,6 +38,7 @@ export async function getUsers(status: UserStatusFilter = "all"): Promise<UserAc
 export async function approveUser(input: ApproveUserInput): Promise<UserAccessRequest> {
   const { data } = await axiosClient.post<UserAccessRequest>(`/users/${input.userId}/approve`, {
     roleCode: input.roleCode,
+    category: input.category,
   });
   return data;
 }
@@ -56,3 +60,5 @@ export function useApproveUser() {
     },
   });
 }
+
+
