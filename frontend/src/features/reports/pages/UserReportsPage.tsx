@@ -47,11 +47,13 @@ import {
 import { maturityFor } from "shared/domain/maturity";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { AnimatedNumber, MotionReveal } from "features/dashboard/components/dashboardMotion";
+import { useAuthContext } from "contexts/AuthContext";
 
 const PASS_SCORE = 70;
 
 export function UserReportsPage() {
-  const assessmentsQuery = useAssessments();
+  const { user } = useAuthContext();
+  const assessmentsQuery = useAssessments(user?.userId);
   const assessments = assessmentsQuery.data ?? [];
   const reports = useMemo(
     () =>

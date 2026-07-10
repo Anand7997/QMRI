@@ -29,7 +29,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { alpha } from "@mui/material/styles";
 import { EmptyState, LoadingState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import { useHierarchy } from "shared/api/catalog";
-import { useAssessment, useAssessments, useSaveResponse, useSubmitAssessment } from "shared/api/assessments";
+import { useAssessment, useAssessments, useSaveResponse, useStartAssessment, useSubmitAssessment } from "shared/api/assessments";
 import {
   AnswerOption,
   AssessmentStatus,
@@ -38,13 +38,15 @@ import {
   type AssessmentSummaryDto,
 } from "shared/api/types";
 import { answerColor } from "shared/domain/maturity";
+import { useAuthContext } from "contexts/AuthContext";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 type AssessmentDetailQuery = ReturnType<typeof useAssessment>;
 
 export function MyAssessmentsPage() {
   const location = useLocation();
-  const assessmentsQuery = useAssessments();
+  const { user } = useAuthContext();
+  const assessmentsQuery = useAssessments(user?.userId);
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
   const [questionMode, setQuestionMode] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
@@ -52,6 +54,7 @@ export function MyAssessmentsPage() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const handledLocationKey = useRef<string | null>(null);
 
@@ -72,6 +75,7 @@ export function MyAssessmentsPage() {
     if (!rows.length) {
       if (assessmentId) {
         setAssessmentId(undefined);
+        setStartError(null);
         setQuestionMode(false);
         setSelectedSub(null);
         setOpenModules({});
@@ -91,6 +95,7 @@ export function MyAssessmentsPage() {
     if (hasNavigationTarget && navigationAssessmentId) {
       handledLocationKey.current = location.key;
       setAssessmentId(navigationAssessmentId);
+      setStartError(null);
       setQuestionMode(false);
       setSelectedSub(null);
       setOpenModules({});
@@ -111,6 +116,7 @@ export function MyAssessmentsPage() {
     if (selectedStillExists) return;
 
     setAssessmentId(rows[0].assessmentId);
+    setStartError(null);
     setQuestionMode(false);
     setSelectedSub(null);
     setOpenModules({});
@@ -127,6 +133,7 @@ export function MyAssessmentsPage() {
   const detail = useAssessment(assessmentId);
   const treeQuery = useHierarchy(false, true);
   const saveResponse = useSaveResponse(assessmentId ?? "");
+  const startAssessment = useStartAssessment(assessmentId ?? "");
   const submit = useSubmitAssessment(assessmentId ?? "");
 
   const tree = treeQuery.data ?? [];
@@ -143,17 +150,31 @@ export function MyAssessmentsPage() {
     return ids.length ? new Set(ids) : null;
   }, [summary?.questionIds]);
 
+  const filteredTree = useMemo(() => {
+    return tree
+      .map((category) => ({
+        ...category,
+        modules: category.modules
+          .map((module) => ({
+            ...module,
+            subModules: module.subModules
+              .map((subModule) => ({
+                ...subModule,
+                questions: selectedQuestionSet
+                  ? subModule.questions.filter((question) => selectedQuestionSet.has(question.questionId))
+                  : subModule.questions,
+              }))
+              .filter((subModule) => subModule.questions.length > 0),
+          }))
+          .filter((module) => module.subModules.length > 0),
+      }))
+      .filter((category) => category.modules.length > 0);
+  }, [selectedQuestionSet, tree]);
+
   const submoduleSteps = useMemo(() => {
-    return tree.flatMap((category) =>
+    return filteredTree.flatMap((category) =>
       category.modules.flatMap((module) =>
         module.subModules
-          .map((sub) => ({
-            ...sub,
-            questions: selectedQuestionSet
-              ? sub.questions.filter((question) => selectedQuestionSet.has(question.questionId))
-              : sub.questions,
-          }))
-          .filter((sub) => sub.questions.length > 0)
           .map((sub) => ({
             categoryId: category.categoryId,
             category: category.name,
@@ -163,7 +184,7 @@ export function MyAssessmentsPage() {
           })),
       ),
     );
-  }, [tree, selectedQuestionSet]);
+  }, [filteredTree]);
 
   const currentStepIndex = useMemo(
     () => submoduleSteps.findIndex((step) => step.sub.subModuleId === selectedSub),
@@ -187,6 +208,7 @@ export function MyAssessmentsPage() {
 
   const selectAssessment = (id: string) => {
     setAssessmentId(id);
+    setStartError(null);
     setQuestionMode(false);
     setSelectedSub(null);
     setOpenModules({});
@@ -195,8 +217,17 @@ export function MyAssessmentsPage() {
     setReviewOpen(false);
   };
 
-  const openQuestions = () => {
+  const openQuestions = async () => {
     if (!assessmentId) return;
+
+    setStartError(null);
+
+    try {
+      await startAssessment.mutateAsync();
+    } catch {
+      setStartError("Could not update the start time right now. Your answers will still be saved when you continue.");
+    }
+
     setQuestionMode(true);
     setSelectedSub(null);
     setOpenModules({});
@@ -260,6 +291,8 @@ export function MyAssessmentsPage() {
         selectedId={assessmentId}
         selectedSummary={selectedSummary}
         detail={detail}
+        startError={startError}
+        isStarting={startAssessment.isPending}
         onSelect={selectAssessment}
         onStartQuestions={openQuestions}
       />
@@ -288,7 +321,7 @@ export function MyAssessmentsPage() {
           {treeQuery.isLoading ? (
             <LoadingState label="Loading questions..." />
           ) : (
-            tree.map((c) => (
+            filteredTree.map((c) => (
               <Box key={c.categoryId} sx={{ mb: 1 }}>
                 <Typography variant="overline" color="text.secondary" sx={{ px: 1.5 }}>{c.name}</Typography>
                 {c.modules.map((m) => {
@@ -562,8 +595,10 @@ interface AssessmentDetailViewProps {
   selectedId?: string;
   selectedSummary?: AssessmentSummaryDto;
   detail: AssessmentDetailQuery;
+  startError?: string | null;
+  isStarting?: boolean;
   onSelect: (id: string) => void;
-  onStartQuestions: () => void;
+  onStartQuestions: () => void | Promise<void>;
 }
 
 function AssessmentDetailView({
@@ -571,6 +606,8 @@ function AssessmentDetailView({
   selectedId,
   selectedSummary,
   detail,
+  startError,
+  isStarting,
   onSelect,
   onStartQuestions,
 }: AssessmentDetailViewProps) {
@@ -659,13 +696,19 @@ function AssessmentDetailView({
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
-                  disabled={detail.isLoading || detail.isError}
+                  disabled={detail.isLoading || detail.isError || isStarting}
                   onClick={onStartQuestions}
                   sx={{ minHeight: 44, px: 2.5, whiteSpace: "nowrap" }}
                 >
-                  Start assessment
+                  {summary.status === AssessmentStatus.Draft ? "Start assessment" : "Continue assessment"}
                 </Button>
               </Stack>
+
+              {startError ? (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  {startError}
+                </Alert>
+              ) : null}
 
               {detail.isError ? (
                 <Alert severity="warning" sx={{ mt: 2 }}>
@@ -714,6 +757,10 @@ function DetailMetric({ label, value, helper }: { label: string; value: string |
 }
 
 function toEntityStatus(status: number): EntityStatus {
+  if (status === AssessmentStatus.Draft) {
+    return "Pending";
+  }
+
   const label = assessmentStatusLabel[status] as EntityStatus | undefined;
   return label ?? "Draft";
 }

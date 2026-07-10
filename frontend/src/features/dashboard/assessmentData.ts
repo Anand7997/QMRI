@@ -13,6 +13,7 @@ import {
 } from "shared/api/types";
 import type { EntityStatus } from "shared/components";
 import { maturityFor, type MaturityBand } from "shared/domain/maturity";
+import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 
 export interface CategoryScore {
   category: string;
@@ -31,6 +32,9 @@ export interface RecentAssessment {
   score: number | null;
   completionPercentage: number;
   date: string;
+  assignedByUserId?: string | null;
+  assignedByUserName?: string | null;
+  assignedByFullName?: string | null;
 }
 
 export interface RecommendationItem {
@@ -49,9 +53,12 @@ export interface TrendPoint {
 
 const bandOrder: MaturityBand[] = ["Testing", "QA", "QE", "IQ"];
 
-export function useAssessmentDashboardData() {
-  const assessmentsQuery = useAssessments();
-  const assessments = assessmentsQuery.data ?? [];
+export function useAssessmentDashboardData(userId?: string) {
+  const assessmentsQuery = useAssessments(userId);
+  const assessments = useMemo(
+    () => collapseAssessmentsByAssignment(assessmentsQuery.data ?? []),
+    [assessmentsQuery.data],
+  );
 
   const scoredIds = useMemo(
     () => assessments.filter((assessment) => assessment.status === AssessmentStatus.Scored).map((assessment) => assessment.assessmentId),
@@ -146,6 +153,9 @@ function buildRecentAssessments(assessments: AssessmentSummaryDto[]): RecentAsse
       score: assessment.overallScore ?? null,
       completionPercentage: assessment.completionPercentage,
       date: resolveAssessmentDate(assessment),
+      assignedByUserId: assessment.assignedByUserId ?? null,
+      assignedByUserName: assessment.assignedByUserName ?? null,
+      assignedByFullName: assessment.assignedByFullName ?? null,
     }));
 }
 

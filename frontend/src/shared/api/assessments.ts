@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { axiosClient } from "./axiosClient";
 import type {
   AssessmentDetailDto,
+  ExamTakerProgressDto,
   AssessmentResponseDto,
   AssessmentSummaryDto,
   CreateAssessmentRequest,
@@ -13,6 +14,7 @@ const keys = {
   list: (userId?: string) => ["assessments", "list", userId ?? "me"] as const,
   detail: (id: string) => ["assessments", "detail", id] as const,
   results: (id: string) => ["assessments", "results", id] as const,
+  examTakers: (id: string) => ["assessments", "exam-takers", id] as const,
 };
 
 export function useAssessments(userId?: string) {
@@ -74,6 +76,29 @@ export function useSaveResponse(assessmentId: string) {
         .put<AssessmentResponseDto>(`/assessments/${assessmentId}/responses`, body)
         .then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.detail(assessmentId) }),
+  });
+}
+
+export function useStartAssessment(assessmentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      axiosClient.post<AssessmentSummaryDto>(`/assessments/${assessmentId}/start`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["assessments"] });
+      qc.invalidateQueries({ queryKey: keys.detail(assessmentId) });
+    },
+  });
+}
+
+export function useExamTakers(assessmentId: string | undefined) {
+  return useQuery({
+    queryKey: keys.examTakers(assessmentId ?? ""),
+    queryFn: async () => {
+      const { data } = await axiosClient.get<ExamTakerProgressDto[]>(`/assessments/${assessmentId}/exam-takers`);
+      return data;
+    },
+    enabled: Boolean(assessmentId),
   });
 }
 

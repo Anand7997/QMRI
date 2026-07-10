@@ -37,6 +37,10 @@ public sealed class qMRIDbContext : DbContext
 
     public DbSet<Assessment> Assessments => Set<Assessment>();
 
+    public DbSet<AdminRecord> AdminRecords => Set<AdminRecord>();
+
+    public DbSet<UserRecord> UserRecords => Set<UserRecord>();
+
     public DbSet<AssessmentResponse> AssessmentResponses => Set<AssessmentResponse>();
 
     public DbSet<AssessmentScore> AssessmentScores => Set<AssessmentScore>();

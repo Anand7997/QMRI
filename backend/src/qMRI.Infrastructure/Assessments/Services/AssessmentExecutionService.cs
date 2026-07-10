@@ -4,6 +4,8 @@ using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
 using qMRI.Domain.Assessments.Entities;
 using qMRI.Domain.Assessments.Enums;
+using qMRI.Domain.Common.Entities;
+using qMRI.Domain.Common.Enums;
 using qMRI.Infrastructure.Persistence;
 
 namespace qMRI.Infrastructure.Assessments.Services;
@@ -16,28 +18,6 @@ public sealed class AssessmentExecutionService(
         CreateAssessmentRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (!request.UserId.HasValue)
-        {
-            throw new ArgumentException("A user id is required to create an assessment.");
-        }
-
-        var userExists = await dbContext.Users.AnyAsync(user => user.UserId == request.UserId.Value, cancellationToken);
-        if (!userExists)
-        {
-            throw new ArgumentException("The requested assessment user does not exist.");
-        }
-
-        var scoringModelId = request.ScoringModelId
-            ?? (await scoringConfigurationService.EnsureDefaultScoringModelAsync(cancellationToken)).ScoringModelId;
-
-        var scoringModelExists = await dbContext.ScoringModels
-            .AnyAsync(model => model.ScoringModelId == scoringModelId && model.IsActive, cancellationToken);
-
-        if (!scoringModelExists)
-        {
-            throw new ArgumentException("The requested scoring model does not exist or is inactive.");
-        }
-
         var selectedDepartments = NormalizeDepartments(request.Departments);
         if (selectedDepartments.Length == 0)
         {
@@ -56,26 +36,151 @@ public sealed class AssessmentExecutionService(
             throw new ArgumentException("One or more selected questions are inactive or do not exist.");
         }
 
-        var now = DateTime.UtcNow;
-        var assessment = new Assessment
-        {
-            AssessmentId = Guid.NewGuid(),
-            UserId = request.UserId.Value,
-            ScoringModelId = scoringModelId,
-            Title = string.IsNullOrWhiteSpace(request.Title) ? "qMRI TOPP Assessment" : request.Title.Trim(),
-            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
-            Departments = SerializeStringList(selectedDepartments),
-            SelectedQuestionIds = SerializeGuidList(validQuestionIds),
-            Status = AssessmentStatus.InProgress,
-            StartedAtUtc = now,
-            CreatedAtUtc = now
-        };
+        var scoringModelId = request.ScoringModelId
+            ?? (await scoringConfigurationService.EnsureDefaultScoringModelAsync(cancellationToken)).ScoringModelId;
 
-        dbContext.Assessments.Add(assessment);
+        var scoringModelExists = await dbContext.ScoringModels
+            .AnyAsync(model => model.ScoringModelId == scoringModelId && model.IsActive, cancellationToken);
+
+        if (!scoringModelExists)
+        {
+            throw new ArgumentException("The requested scoring model does not exist or is inactive.");
+        }
+
+        var assignees = await ResolveAssigneesAsync(request, selectedDepartments, cancellationToken);
+
+        if (assignees.Length == 0)
+        {
+            throw new ArgumentException("No active approved users are available in the selected departments.");
+        }
+
+        var assignedBy = await ResolveAssigningUserAsync(request, assignees, cancellationToken);
+
+        if (assignedBy is null)
+        {
+            throw new ArgumentException("The assigning user could not be resolved.");
+        }
+
+        var now = DateTime.UtcNow;
+        var serializedDepartments = SerializeStringList(selectedDepartments);
+        var serializedQuestionIds = SerializeGuidList(validQuestionIds);
+        var title = string.IsNullOrWhiteSpace(request.Title) ? "qMRI TOPP Assessment" : request.Title.Trim();
+        var description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+
+        var assessments = new List<Assessment>(assignees.Length);
+        var userRecords = new List<UserRecord>(assignees.Length);
+        var adminRecords = new List<AdminRecord>(assignees.Length);
+
+        foreach (var assignee in assignees)
+        {
+            var assessmentId = Guid.NewGuid();
+
+            assessments.Add(new Assessment
+            {
+                AssessmentId = assessmentId,
+                UserId = assignee.UserId,
+                ScoringModelId = scoringModelId,
+                Title = title,
+                Description = description,
+                Departments = serializedDepartments,
+                SelectedQuestionIds = serializedQuestionIds,
+                Status = AssessmentStatus.Draft,
+                StartedAtUtc = null,
+                CreatedAtUtc = now
+            });
+
+            userRecords.Add(new UserRecord
+            {
+                UserRecordId = Guid.NewGuid(),
+                AssessmentId = assessmentId,
+                UserId = assignee.UserId,
+                UserName = assignee.UserName,
+                FullName = string.IsNullOrWhiteSpace(assignee.FullName) ? assignee.UserName : assignee.FullName,
+                CreatedAtUtc = now,
+                RecordDateUtc = now.Date
+            });
+
+            adminRecords.Add(new AdminRecord
+            {
+                AdminRecordId = Guid.NewGuid(),
+                AssessmentId = assessmentId,
+                AssignedByUserId = assignedBy.UserId,
+                AssignedByUserName = assignedBy.UserName,
+                AssignedByFullName = string.IsNullOrWhiteSpace(assignedBy.FullName) ? assignedBy.UserName : assignedBy.FullName,
+                AssignedToUserId = assignee.UserId,
+                AssignedToUserName = assignee.UserName,
+                AssignedToFullName = string.IsNullOrWhiteSpace(assignee.FullName) ? assignee.UserName : assignee.FullName,
+                AssignedDepartments = serializedDepartments,
+                AssignedQuestionIds = serializedQuestionIds,
+                AssignedAtUtc = now
+            });
+        }
+
+        dbContext.Assessments.AddRange(assessments);
+        dbContext.UserRecords.AddRange(userRecords);
+        dbContext.AdminRecords.AddRange(adminRecords);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
-        return MapSummary(assessment, questionCount);
+        var questionCount = validQuestionIds.Length;
+        var assignedByMetadata = new AssessmentAssignedByMetadata(
+            assignedBy.UserId,
+            assignedBy.UserName,
+            string.IsNullOrWhiteSpace(assignedBy.FullName) ? assignedBy.UserName : assignedBy.FullName);
+
+        return MapSummary(assessments[0], questionCount, assignedByMetadata);
+    }
+
+    private async Task<User[]> ResolveAssigneesAsync(
+        CreateAssessmentRequest request,
+        IReadOnlyCollection<string> selectedDepartments,
+        CancellationToken cancellationToken)
+    {
+        if (request.UserId.HasValue)
+        {
+            var assignee = await dbContext.Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(user => user.UserId == request.UserId.Value, cancellationToken);
+
+            if (assignee is null)
+            {
+                throw new ArgumentException("The requested assessment user does not exist.");
+            }
+
+            return [assignee];
+        }
+
+        var normalizedDepartments = selectedDepartments
+            .Select(NormalizeDepartment)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var candidateUsers = await dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.IsActive && user.ApprovalStatus == UserApprovalStatus.Approved)
+            .ToArrayAsync(cancellationToken);
+
+        return candidateUsers
+            .Where(user => normalizedDepartments.Contains(NormalizeDepartment(user.Category)))
+            .ToArray();
+    }
+
+    private async Task<User?> ResolveAssigningUserAsync(
+        CreateAssessmentRequest request,
+        IReadOnlyList<User> assignees,
+        CancellationToken cancellationToken)
+    {
+        if (request.AssignedByUserId.HasValue)
+        {
+            return await dbContext.Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(user => user.UserId == request.AssignedByUserId.Value, cancellationToken);
+        }
+
+        if (request.UserId.HasValue)
+        {
+            return assignees.FirstOrDefault();
+        }
+
+        return null;
     }
 
     public async Task<IReadOnlyList<AssessmentSummaryDto>> GetAssessmentsAsync(
@@ -100,6 +205,21 @@ public sealed class AssessmentExecutionService(
         return await MapSummariesAsync(assessments, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<AssessmentSummaryDto>> GetAssessmentsForAssigneeAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var assessments = await dbContext.Assessments
+            .Include(assessment => assessment.Responses)
+            .Include(assessment => assessment.Scores)
+            .Where(assessment => assessment.UserId == userId)
+            .AsNoTracking()
+            .OrderByDescending(assessment => assessment.CreatedAtUtc)
+            .ToArrayAsync(cancellationToken);
+
+        return await MapSummariesAsync(assessments, cancellationToken);
+    }
+
     public async Task<AssessmentDetailDto?> GetAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default)
     {
         var assessment = await LoadAssessmentDetailQuery()
@@ -112,13 +232,89 @@ public sealed class AssessmentExecutionService(
         }
 
         var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
-        return MapDetail(assessment, questionCount);
+        var assignedByMetadata = await GetAssessmentAssignedByMetadataAsync(assessment.AssessmentId, cancellationToken);
+        return MapDetail(assessment, questionCount, assignedByMetadata);
     }
 
-    public async Task<AssessmentSummaryDto?> UpdateAssessmentAsync(
+    public async Task<Guid?> GetAssessmentOwnerUserIdAsync(Guid assessmentId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Assessments
+            .AsNoTracking()
+            .Where(entity => entity.AssessmentId == assessmentId)
+            .Select(entity => (Guid?)entity.UserId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ExamTakerProgressDto>> GetExamTakersAsync(
         Guid assessmentId,
-        UpdateAssessmentRequest request,
         CancellationToken cancellationToken = default)
+    {
+        var seedAssessment = await dbContext.Assessments
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.AssessmentId == assessmentId, cancellationToken);
+
+        if (seedAssessment is null)
+        {
+            return Array.Empty<ExamTakerProgressDto>();
+        }
+
+        var assessments = await GetAssignmentCohortQuery(seedAssessment)
+            .Include(entity => entity.Responses)
+            .AsNoTracking()
+            .ToArrayAsync(cancellationToken);
+
+        if (assessments.Length == 0)
+        {
+            return Array.Empty<ExamTakerProgressDto>();
+        }
+
+        var userIds = assessments
+            .Select(entity => entity.UserId)
+            .Distinct()
+            .ToArray();
+
+        var usersById = await dbContext.Users
+            .AsNoTracking()
+            .Where(user => userIds.Contains(user.UserId))
+            .ToDictionaryAsync(user => user.UserId, cancellationToken);
+
+        var questionCount = await CountAssessmentQuestionsAsync(seedAssessment, cancellationToken);
+        var selectedQuestionIds = GetSelectedQuestionIds(seedAssessment);
+
+        return assessments
+            .Select(entity =>
+            {
+                usersById.TryGetValue(entity.UserId, out var user);
+
+                var answeredCount = entity.Responses
+                    .Where(response => selectedQuestionIds.Count == 0 || selectedQuestionIds.Contains(response.QuestionId))
+                    .Select(response => response.QuestionId)
+                    .Distinct()
+                    .Count();
+
+                return new ExamTakerProgressDto
+                {
+                    AssessmentId = entity.AssessmentId,
+                    UserId = entity.UserId,
+                    UserName = user?.UserName ?? string.Empty,
+                    FullName = string.IsNullOrWhiteSpace(user?.FullName) ? user?.UserName ?? string.Empty : user!.FullName,
+                    Department = user?.Category ?? string.Empty,
+                    ProgressStatus = ResolveExamTakerStatus(entity.Status),
+                    AnsweredCount = answeredCount,
+                    QuestionCount = questionCount,
+                    CompletionPercentage = questionCount == 0
+                        ? 0
+                        : Math.Round(answeredCount * 100m / questionCount, 2, MidpointRounding.AwayFromZero),
+                    StartedAtUtc = entity.StartedAtUtc,
+                    FinishedAtUtc = entity.ScoredAtUtc ?? entity.SubmittedAtUtc
+                };
+            })
+            .OrderBy(item => ResolveExamTakerStatusOrder(item.ProgressStatus))
+            .ThenBy(item => item.FullName)
+            .ToArray();
+    }
+
+    public async Task<AssessmentSummaryDto?> StartAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default)
     {
         var assessment = await dbContext.Assessments
             .Include(entity => entity.Responses)
@@ -130,17 +326,64 @@ public sealed class AssessmentExecutionService(
             return null;
         }
 
-        assessment.Title = string.IsNullOrWhiteSpace(request.Title)
+        if (assessment.Status == AssessmentStatus.Archived)
+        {
+            throw new InvalidOperationException("Archived assessments cannot be started.");
+        }
+
+        if (assessment.Status == AssessmentStatus.Draft)
+        {
+            var startedAtUtc = DateTime.UtcNow;
+            assessment.Status = AssessmentStatus.InProgress;
+            assessment.StartedAtUtc ??= startedAtUtc;
+            await EnsureUserRecordAsync(assessment, startedAtUtc: assessment.StartedAtUtc, cancellationToken: cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
+        var assignedByMetadata = await GetAssessmentAssignedByMetadataAsync(assessment.AssessmentId, cancellationToken);
+        return MapSummary(assessment, questionCount, assignedByMetadata);
+    }
+
+    public async Task<AssessmentSummaryDto?> UpdateAssessmentAsync(
+        Guid assessmentId,
+        UpdateAssessmentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var assessment = await dbContext.Assessments
+            .SingleOrDefaultAsync(entity => entity.AssessmentId == assessmentId, cancellationToken);
+
+        if (assessment is null)
+        {
+            return null;
+        }
+
+        var updatedTitle = string.IsNullOrWhiteSpace(request.Title)
             ? "qMRI TOPP Assessment"
             : request.Title.Trim();
-        assessment.Description = string.IsNullOrWhiteSpace(request.Description)
+        var updatedDescription = string.IsNullOrWhiteSpace(request.Description)
             ? null
             : request.Description.Trim();
 
+        var cohort = await GetAssignmentCohortQuery(assessment)
+            .ToArrayAsync(cancellationToken);
+
+        foreach (var item in cohort)
+        {
+            item.Title = updatedTitle;
+            item.Description = updatedDescription;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
-        return MapSummary(assessment, questionCount);
+        var updatedAssessment = await dbContext.Assessments
+            .Include(entity => entity.Responses)
+            .Include(entity => entity.Scores)
+            .SingleAsync(entity => entity.AssessmentId == assessmentId, cancellationToken);
+
+        var questionCount = await CountAssessmentQuestionsAsync(updatedAssessment, cancellationToken);
+        var assignedByMetadata = await GetAssessmentAssignedByMetadataAsync(updatedAssessment.AssessmentId, cancellationToken);
+        return MapSummary(updatedAssessment, questionCount, assignedByMetadata);
     }
 
     public async Task<bool> DeleteAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default)
@@ -153,7 +396,18 @@ public sealed class AssessmentExecutionService(
             return false;
         }
 
-        dbContext.Assessments.Remove(assessment);
+        var cohort = await GetAssignmentCohortQuery(assessment)
+            .ToArrayAsync(cancellationToken);
+
+        if (cohort.Length == 0)
+        {
+            dbContext.Assessments.Remove(assessment);
+        }
+        else
+        {
+            dbContext.Assessments.RemoveRange(cohort);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -224,6 +478,7 @@ public sealed class AssessmentExecutionService(
 
         assessment.Status = AssessmentStatus.InProgress;
         assessment.StartedAtUtc ??= now;
+        await EnsureUserRecordAsync(assessment, startedAtUtc: assessment.StartedAtUtc, cancellationToken: cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return MapResponse(response);
@@ -253,8 +508,57 @@ public sealed class AssessmentExecutionService(
         assessment.Status = AssessmentStatus.Scored;
         assessment.ScoredAtUtc = now;
 
+        await EnsureUserRecordAsync(assessment, startedAtUtc: assessment.StartedAtUtc, endedAtUtc: now, cancellationToken: cancellationToken);
+
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetAssessmentAsync(assessmentId, cancellationToken);
+    }
+
+    private async Task EnsureUserRecordAsync(
+        Assessment assessment,
+        DateTime? startedAtUtc = null,
+        DateTime? endedAtUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        var userRecord = await dbContext.UserRecords
+            .SingleOrDefaultAsync(entity => entity.AssessmentId == assessment.AssessmentId, cancellationToken);
+
+        if (userRecord is null)
+        {
+            var user = await dbContext.Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(entity => entity.UserId == assessment.UserId, cancellationToken);
+
+            if (user is null)
+            {
+                return;
+            }
+
+            userRecord = new UserRecord
+            {
+                UserRecordId = Guid.NewGuid(),
+                AssessmentId = assessment.AssessmentId,
+                UserId = user.UserId,
+                UserName = user.UserName,
+                FullName = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName,
+                CreatedAtUtc = assessment.CreatedAtUtc,
+                RecordDateUtc = assessment.CreatedAtUtc.Date
+            };
+
+            dbContext.UserRecords.Add(userRecord);
+        }
+
+        if (startedAtUtc.HasValue)
+        {
+            userRecord.StartedAtUtc ??= startedAtUtc.Value;
+            userRecord.RecordDateUtc = startedAtUtc.Value.Date;
+        }
+
+        if (endedAtUtc.HasValue)
+        {
+            userRecord.EndedAtUtc = endedAtUtc.Value;
+            userRecord.RecordDateUtc = endedAtUtc.Value.Date;
+        }
     }
 
     private IQueryable<Assessment> LoadAssessmentDetailQuery()
@@ -271,6 +575,17 @@ public sealed class AssessmentExecutionService(
                 .ThenInclude(recommendation => recommendation.Category)
             .Include(assessment => assessment.Recommendations)
                 .ThenInclude(recommendation => recommendation.Module);
+    }
+
+    private IQueryable<Assessment> GetAssignmentCohortQuery(Assessment seedAssessment)
+    {
+        return dbContext.Assessments.Where(entity =>
+            entity.CreatedAtUtc == seedAssessment.CreatedAtUtc &&
+            entity.Title == seedAssessment.Title &&
+            entity.Description == seedAssessment.Description &&
+            entity.Departments == seedAssessment.Departments &&
+            entity.SelectedQuestionIds == seedAssessment.SelectedQuestionIds &&
+            entity.ScoringModelId == seedAssessment.ScoringModelId);
     }
 
     private async Task RecalculateScoresAsync(Assessment assessment, CancellationToken cancellationToken)
@@ -472,13 +787,63 @@ public sealed class AssessmentExecutionService(
         IReadOnlyCollection<Assessment> assessments,
         CancellationToken cancellationToken)
     {
+        if (assessments.Count == 0)
+        {
+            return Array.Empty<AssessmentSummaryDto>();
+        }
+
+        var assignedByMetadataByAssessmentId = await GetAssessmentAssignedByMetadataMapAsync(
+            assessments.Select(assessment => assessment.AssessmentId).ToArray(),
+            cancellationToken);
+
         var summaries = new List<AssessmentSummaryDto>(assessments.Count);
         foreach (var assessment in assessments)
         {
-            summaries.Add(MapSummary(assessment, await CountAssessmentQuestionsAsync(assessment, cancellationToken)));
+            assignedByMetadataByAssessmentId.TryGetValue(assessment.AssessmentId, out var assignedByMetadata);
+            summaries.Add(MapSummary(
+                assessment,
+                await CountAssessmentQuestionsAsync(assessment, cancellationToken),
+                assignedByMetadata));
         }
 
         return summaries.ToArray();
+    }
+
+    private async Task<AssessmentAssignedByMetadata?> GetAssessmentAssignedByMetadataAsync(
+        Guid assessmentId,
+        CancellationToken cancellationToken)
+    {
+        var metadataByAssessmentId = await GetAssessmentAssignedByMetadataMapAsync([assessmentId], cancellationToken);
+        return metadataByAssessmentId.GetValueOrDefault(assessmentId);
+    }
+
+    private async Task<Dictionary<Guid, AssessmentAssignedByMetadata>> GetAssessmentAssignedByMetadataMapAsync(
+        IReadOnlyCollection<Guid> assessmentIds,
+        CancellationToken cancellationToken)
+    {
+        if (assessmentIds.Count == 0)
+        {
+            return [];
+        }
+
+        var records = await dbContext.AdminRecords
+            .AsNoTracking()
+            .Where(record => assessmentIds.Contains(record.AssessmentId))
+            .OrderByDescending(record => record.AssignedAtUtc)
+            .ToArrayAsync(cancellationToken);
+
+        return records
+            .GroupBy(record => record.AssessmentId)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var record = group.First();
+                    return new AssessmentAssignedByMetadata(
+                        record.AssignedByUserId,
+                        record.AssignedByUserName,
+                        record.AssignedByFullName);
+                });
     }
 
     private async Task<int> CountAssessmentQuestionsAsync(Assessment assessment, CancellationToken cancellationToken)
@@ -548,6 +913,18 @@ public sealed class AssessmentExecutionService(
         }
     }
 
+    private static bool IsAssignedToDepartment(Assessment assessment, string userDepartment)
+    {
+        if (string.IsNullOrWhiteSpace(userDepartment))
+        {
+            return false;
+        }
+
+        return GetDepartments(assessment)
+            .Select(NormalizeDepartment)
+            .Any(department => string.Equals(department, userDepartment, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string[] NormalizeDepartments(IEnumerable<string> departments)
     {
         return departments
@@ -557,11 +934,40 @@ public sealed class AssessmentExecutionService(
             .ToArray();
     }
 
+    private static string NormalizeDepartment(string? department) => department?.Trim() ?? string.Empty;
+
+    private static string ResolveExamTakerStatus(AssessmentStatus status)
+    {
+        return status switch
+        {
+            AssessmentStatus.Draft => "NotStarted",
+            AssessmentStatus.InProgress => "InProgress",
+            AssessmentStatus.Submitted => "Finished",
+            AssessmentStatus.Scored => "Finished",
+            AssessmentStatus.Archived => "Finished",
+            _ => "NotStarted"
+        };
+    }
+
+    private static int ResolveExamTakerStatusOrder(string status)
+    {
+        return status switch
+        {
+            "InProgress" => 0,
+            "NotStarted" => 1,
+            "Finished" => 2,
+            _ => 3
+        };
+    }
+
     private static string SerializeGuidList(IEnumerable<Guid> values) => JsonSerializer.Serialize(values.Distinct().ToArray());
 
     private static string SerializeStringList(IEnumerable<string> values) => JsonSerializer.Serialize(NormalizeDepartments(values));
 
-    private static AssessmentSummaryDto MapSummary(Assessment assessment, int questionCount)
+    private static AssessmentSummaryDto MapSummary(
+        Assessment assessment,
+        int questionCount,
+        AssessmentAssignedByMetadata? assignedByMetadata = null)
     {
         var selectedQuestionIds = GetSelectedQuestionIds(assessment);
         var overall = assessment.Scores.FirstOrDefault(score => score.Scope == ScoreScope.Overall);
@@ -575,6 +981,9 @@ public sealed class AssessmentExecutionService(
         {
             AssessmentId = assessment.AssessmentId,
             UserId = assessment.UserId,
+            AssignedByUserId = assignedByMetadata?.AssignedByUserId,
+            AssignedByUserName = assignedByMetadata?.AssignedByUserName,
+            AssignedByFullName = assignedByMetadata?.AssignedByFullName,
             ScoringModelId = assessment.ScoringModelId,
             Title = assessment.Title,
             Description = assessment.Description,
@@ -595,11 +1004,14 @@ public sealed class AssessmentExecutionService(
         };
     }
 
-    private static AssessmentDetailDto MapDetail(Assessment assessment, int questionCount)
+    private static AssessmentDetailDto MapDetail(
+        Assessment assessment,
+        int questionCount,
+        AssessmentAssignedByMetadata? assignedByMetadata = null)
     {
         return new AssessmentDetailDto
         {
-            Summary = MapSummary(assessment, questionCount),
+            Summary = MapSummary(assessment, questionCount, assignedByMetadata),
             Responses = assessment.Responses
                 .OrderBy(response => response.AnsweredAtUtc)
                 .Select(MapResponse)
@@ -671,4 +1083,9 @@ public sealed class AssessmentExecutionService(
         bool IsAnswered,
         decimal Points,
         decimal Weight);
+
+    private sealed record AssessmentAssignedByMetadata(
+        Guid AssignedByUserId,
+        string AssignedByUserName,
+        string AssignedByFullName);
 }

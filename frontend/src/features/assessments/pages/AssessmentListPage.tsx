@@ -50,8 +50,10 @@ import {
 import { useHierarchy } from "shared/api/catalog";
 import { AssessmentStatus, type AssessmentSummaryDto, type ModuleDto, type SubModuleDto } from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
+import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 
 const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery"] as const;
+const unknownAssignedByValue = "__unknown_assigned_by__";
 
 const statusByValue: Record<number, EntityStatus> = {
   [AssessmentStatus.Draft]: "Draft",
@@ -91,6 +93,10 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function assignedByLabel(row: AssessmentSummaryDto) {
+  return row.assignedByFullName?.trim() || row.assignedByUserName?.trim() || "Unknown";
+}
+
 export function AssessmentListPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -114,6 +120,7 @@ export function AssessmentListPage() {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [activeRow, setActiveRow] = useState<AssessmentSummaryDto | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [assignedByFilter, setAssignedByFilter] = useState<string>("all");
 
   useEffect(() => {
     if ((location.state as { openCreate?: boolean } | null)?.openCreate) {
@@ -122,7 +129,44 @@ export function AssessmentListPage() {
     }
   }, [location.state, navigate]);
 
-  const rows = useMemo(() => assessmentsQuery.data ?? [], [assessmentsQuery.data]);
+  const rows = useMemo(() => collapseAssessmentsByAssignment(assessmentsQuery.data ?? []), [assessmentsQuery.data]);
+  const assignedByOptions = useMemo(() => {
+    const options = new Map<string, { label: string; count: number }>();
+
+    rows.forEach((row) => {
+      if (row.assignedByUserId) {
+        const existing = options.get(row.assignedByUserId);
+        options.set(row.assignedByUserId, {
+          label: assignedByLabel(row),
+          count: (existing?.count ?? 0) + 1,
+        });
+        return;
+      }
+
+      const existing = options.get(unknownAssignedByValue);
+      options.set(unknownAssignedByValue, {
+        label: "Unknown",
+        count: (existing?.count ?? 0) + 1,
+      });
+    });
+
+    return Array.from(options.entries())
+      .map(([value, option]) => ({ value, ...option }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (assignedByFilter === "all") {
+      return rows;
+    }
+
+    if (assignedByFilter === unknownAssignedByValue) {
+      return rows.filter((row) => !row.assignedByUserId);
+    }
+
+    return rows.filter((row) => row.assignedByUserId === assignedByFilter);
+  }, [assignedByFilter, rows]);
+
   const catalog = catalogQuery.data ?? [];
   const selectedQuestionSet = useMemo(() => new Set(selectedQuestionIds), [selectedQuestionIds]);
   const expandedCategorySet = useMemo(() => new Set(expandedCategoryIds), [expandedCategoryIds]);
@@ -135,6 +179,16 @@ export function AssessmentListPage() {
     setExpandedCategoryIds(catalog.map((category) => category.categoryId));
     setExpandedModuleIds(catalog.flatMap((category) => category.modules.map((module) => module.moduleId)));
   }, [catalog, expandedCategoryIds.length, expandedModuleIds.length]);
+
+  useEffect(() => {
+    if (assignedByFilter === "all") {
+      return;
+    }
+
+    if (!assignedByOptions.some((option) => option.value === assignedByFilter)) {
+      setAssignedByFilter("all");
+    }
+  }, [assignedByFilter, assignedByOptions]);
 
   function openCreate() {
     setEditingId(null);
@@ -279,8 +333,38 @@ export function AssessmentListPage() {
           </Alert>
         )}
 
+        {rows.length > 0 ? (
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            alignItems={{ sm: "center" }}
+            sx={{ px: 2, pt: 2, pb: 1 }}
+          >
+            <TextField
+              select
+              size="small"
+              label="Assigned by"
+              value={assignedByFilter}
+              onChange={(event) => setAssignedByFilter(event.target.value)}
+              sx={{ minWidth: 240 }}
+            >
+              <MenuItem value="all">All admins ({rows.length})</MenuItem>
+              {assignedByOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label} ({option.count})
+                </MenuItem>
+              ))}
+            </TextField>
+            {assignedByFilter !== "all" ? (
+              <Button variant="text" onClick={() => setAssignedByFilter("all")}>
+                Clear filter
+              </Button>
+            ) : null}
+          </Stack>
+        ) : null}
+
         {assessmentsQuery.isLoading ? (
-          <TableSkeleton rows={8} cols={7} />
+          <TableSkeleton rows={8} cols={8} />
         ) : assessmentsQuery.isError ? (
           <EmptyState
             title="Could not load assessments"
@@ -297,6 +381,16 @@ export function AssessmentListPage() {
               </Button>
             }
           />
+        ) : filteredRows.length === 0 ? (
+          <EmptyState
+            title="No assessments match this admin"
+            description="Change the Assigned by filter to view other assignments."
+            action={
+              <Button variant="outlined" onClick={() => setAssignedByFilter("all")}>
+                Show all admins
+              </Button>
+            }
+          />
         ) : (
           <TableContainer>
             <Table>
@@ -306,13 +400,14 @@ export function AssessmentListPage() {
                   <TableCell>Status</TableCell>
                   <TableCell>Progress</TableCell>
                   <TableCell>Score</TableCell>
+                  <TableCell>Assigned by</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Submitted</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {rows.map((row) => (
+                {filteredRows.map((row) => (
                   <TableRow key={row.assessmentId} hover>
                     <TableCell sx={{ minWidth: 280 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -354,6 +449,16 @@ export function AssessmentListPage() {
                       ) : (
                         <MaturityChip score={row.overallScore} />
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {assignedByLabel(row)}
+                      </Typography>
+                      {row.assignedByUserName ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {row.assignedByUserName}
+                        </Typography>
+                      ) : null}
                     </TableCell>
                     <TableCell>{formatDate(row.createdAtUtc)}</TableCell>
                     <TableCell>{formatDate(row.submittedAtUtc)}</TableCell>

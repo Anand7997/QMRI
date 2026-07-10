@@ -5,6 +5,7 @@ namespace qMRI.Application.Assessments.DTOs;
 public sealed class CreateAssessmentRequest
 {
     public Guid? UserId { get; set; }
+    public Guid? AssignedByUserId { get; set; }
     public Guid? ScoringModelId { get; set; }
     public string? Title { get; set; }
     public string? Description { get; set; }
@@ -21,6 +22,9 @@ public sealed class AssessmentSummaryDto
 {
     public Guid AssessmentId { get; set; }
     public Guid UserId { get; set; }
+    public Guid? AssignedByUserId { get; set; }
+    public string? AssignedByUserName { get; set; }
+    public string? AssignedByFullName { get; set; }
     public Guid? ScoringModelId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -44,6 +48,21 @@ public sealed class AssessmentDetailDto
     public IReadOnlyList<AssessmentResponseDto> Responses { get; set; } = Array.Empty<AssessmentResponseDto>();
     public IReadOnlyList<AssessmentScoreDto> Scores { get; set; } = Array.Empty<AssessmentScoreDto>();
     public IReadOnlyList<RecommendationDto> Recommendations { get; set; } = Array.Empty<RecommendationDto>();
+}
+
+public sealed class ExamTakerProgressDto
+{
+    public Guid AssessmentId { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Department { get; set; } = string.Empty;
+    public string ProgressStatus { get; set; } = "NotStarted";
+    public int AnsweredCount { get; set; }
+    public int QuestionCount { get; set; }
+    public decimal CompletionPercentage { get; set; }
+    public DateTime? StartedAtUtc { get; set; }
+    public DateTime? FinishedAtUtc { get; set; }
 }
 
 public sealed class AssessmentResponseDto

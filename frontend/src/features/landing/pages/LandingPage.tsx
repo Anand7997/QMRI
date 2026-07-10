@@ -19,12 +19,25 @@ import LoginOutlinedIcon from "@mui/icons-material/LoginOutlined";
 import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
 import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
 import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
-import { GetStartedButton, QmriLogo } from "shared/components";
+import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
+import SupportAgentOutlinedIcon from "@mui/icons-material/SupportAgentOutlined";
+import TimelapseOutlinedIcon from "@mui/icons-material/TimelapseOutlined";
+import { GetStartedButton, MetricTile, QmriLogo } from "shared/components";
 import { brandTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { RoutePaths } from "shared/constants/routePaths";
+import { ScrollExpandMedia } from "../components/ScrollExpandMedia";
+import { TextParallaxContent } from "../components/TextParallaxContent";
 
-const heroImage =
-  "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1800&q=80";
+const heroBgImage =
+  "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1920&q=80";
+const heroMediaImage =
+  "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=80";
+
+const stats = [
+  { label: "Analysis & solution effort", value: 50, icon: <SpeedOutlinedIcon fontSize="inherit" />, sub: "reduction", accent: brandTokens.blue600 },
+  { label: "Resolution time", value: 95, icon: <TimelapseOutlinedIcon fontSize="inherit" />, sub: "improvement", accent: semanticTokens.successMain },
+  { label: "Support efficiency", value: 30, icon: <SupportAgentOutlinedIcon fontSize="inherit" />, sub: "improvement", accent: semanticTokens.warningMain },
+];
 
 const method = [
   {
@@ -96,57 +109,30 @@ export function LandingPage() {
         </Container>
       </AppBar>
 
-      <Box
-        component="section"
-        sx={{
-          minHeight: { xs: "calc(100dvh - 68px)", md: "calc(92dvh - 68px)" },
-          display: "flex",
-          alignItems: "center",
-          position: "relative",
-          overflow: "hidden",
-          color: "#fff",
-          backgroundImage: `linear-gradient(90deg, rgba(7, 38, 78, 0.92) 0%, rgba(7, 38, 78, 0.72) 42%, rgba(7, 38, 78, 0.24) 100%), url(${heroImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
+      <ScrollExpandMedia
+        mediaType="image"
+        mediaSrc={heroMediaImage}
+        bgImageSrc={heroBgImage}
+        logoSrc="/qmri-logo-cutout.png"
+        logoAlt="QMRI - Quinnox Measures, Recommend and Implement"
+        title="Accelerate Success"
+        date="Measure . Recommend . Implement"
+        scrollToExpand="Scroll to explore QMRI"
+        textBlend
       >
-        <Container maxWidth="lg" sx={{ py: { xs: 7, md: 10 } }}>
-          <Box sx={{ maxWidth: 720 }}>
-            <Box
-              component="img"
-              src="/qmri-logo-cutout.png"
-              alt="QMRI logo"
-              sx={{
-                width: { xs: 270, sm: 340, md: 430 },
-                height: "auto",
-                objectFit: "contain",
-                display: "block",
-                mb: { xs: 3, md: 4 },
-                filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.32))",
-              }}
-            />
-            <Typography
-              variant="overline"
-              sx={{
-                display: "block",
-                color: "#fff",
-                fontWeight: 800,
-                letterSpacing: "0.08em",
-                textShadow: "0 2px 12px rgba(0,0,0,0.45)",
-              }}
-            >
+        <Box sx={{ bgcolor: neutralTokens.surface0, color: neutralTokens.ink900, pt: { xs: 6, md: 8 } }}>
+          <Container maxWidth="lg" sx={{ textAlign: "center", mb: { xs: 5, md: 7 } }}>
+            <Typography variant="overline" sx={{ color: brandTokens.blue600, fontWeight: 800, letterSpacing: "0.08em" }}>
               Quinnox Measures, Recommend and Implement
             </Typography>
-
-
-            <Typography variant="h2" sx={{ mt: 2, maxWidth: 620, fontSize: { xs: "1.5rem", md: "2rem" }, fontWeight: 700 }}>
+            <Typography variant="h1" sx={{ mt: 1.5, mx: "auto", maxWidth: 820, fontSize: { xs: "1.75rem", md: "2.5rem" }, fontWeight: 800 }}>
               A quality maturity engine that moves teams from assessment to action.
             </Typography>
-            <Typography variant="body1" sx={{ mt: 2.5, maxWidth: 620, color: "rgba(255,255,255,0.82)", fontSize: "1.0625rem" }}>
-              Measure quality capability, recommend the right improvement priorities, and implement a clear path toward
-              stronger engineering maturity.
+            <Typography variant="body1" sx={{ mt: 2.5, mx: "auto", maxWidth: 720, color: neutralTokens.ink500, fontSize: "1.0625rem", lineHeight: 1.75 }}>
+              We empower businesses to drive agility through connected experiences - measuring quality capability,
+              recommending the right priorities, and implementing a clear path to stronger engineering maturity.
             </Typography>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }} sx={{ mt: 4 }}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="center" alignItems={{ xs: "stretch", sm: "center" }} sx={{ mt: 4 }}>
               <GetStartedButton component={RouterLink} to={RoutePaths.signup}>
                 Get Started
               </GetStartedButton>
@@ -156,32 +142,45 @@ export function LandingPage() {
                 variant="outlined"
                 size="large"
                 startIcon={<LoginOutlinedIcon />}
-                sx={{
-                  minHeight: 48,
-                  px: 3,
-                  borderRadius: 999,
-                  color: "#fff",
-                  borderColor: "rgba(255,255,255,0.5)",
-                  bgcolor: "rgba(255,255,255,0.12)",
-                  backdropFilter: "blur(10px)",
-                  fontWeight: 800,
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.24)",
-                  "&:hover": {
-                    borderColor: "#fff",
-                    bgcolor: "rgba(255,255,255,0.2)",
-                    boxShadow: "0 16px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.28)",
-                    transform: "translateY(-1px)",
-                  },
-                }}
+                sx={{ minHeight: 48, px: 3, borderRadius: 999, fontWeight: 800, borderColor: brandTokens.blue300, color: brandTokens.blue700 }}
               >
                 Sign In
               </Button>
             </Stack>
-          </Box>
-        </Container>
-      </Box>
+          </Container>
 
-      <Container maxWidth="lg" sx={{ mt: { xs: -3, md: -5 }, position: "relative", zIndex: 2 }}>
+          <Container maxWidth="lg" sx={{ mb: { xs: 6, md: 8 } }}>
+            <Grid container spacing={2}>
+              {stats.map((s) => (
+                <Grid item xs={12} sm={4} key={s.label}>
+                  <MetricTile
+                    label={s.label}
+                    value={s.value}
+                    accent={s.accent}
+                    icon={s.icon}
+                    format={(n) => `${Math.round(n)}%`}
+                    sub={<Typography variant="body2" color="text.secondary">{s.sub}</Typography>}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Container>
+
+          <TextParallaxContent />
+
+      <Container maxWidth="lg" sx={{ position: "relative", zIndex: 2, mt: { xs: 4, md: 6 } }}>
+        <Stack spacing={1} sx={{ textAlign: "center", mb: { xs: 4, md: 5 } }}>
+          <Typography variant="overline" sx={{ color: brandTokens.blue600, fontWeight: 800, letterSpacing: "0.08em" }}>
+            The QMRI method
+          </Typography>
+          <Typography variant="h1" sx={{ fontSize: { xs: "1.6rem", md: "2.2rem" }, fontWeight: 800 }}>
+            Measure. Recommend. Implement.
+          </Typography>
+          <Typography variant="body1" sx={{ mx: "auto", maxWidth: 680, color: neutralTokens.ink500, lineHeight: 1.75 }}>
+            The three moves behind QMRI - Quinnox Measures, Recommend and Implement - turning quality signals into
+            prioritised action.
+          </Typography>
+        </Stack>
         <Grid container spacing={2}>
           {method.map((item) => {
             const Icon = item.icon;
@@ -281,6 +280,8 @@ export function LandingPage() {
           </Stack>
         </Container>
       </Box>
+        </Box>
+      </ScrollExpandMedia>
     </Box>
   );
 }

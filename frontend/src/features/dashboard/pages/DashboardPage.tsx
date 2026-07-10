@@ -1,10 +1,11 @@
-import { Alert, Box, Button, LinearProgress, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, LinearProgress, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
 import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
 import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { useNavigate } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { MaturityChip } from "shared/components";
@@ -125,6 +126,25 @@ export function DashboardPage() {
             accent={semanticTokens.successMain}
           />
         </MotionStagger>
+
+        <MotionReveal delay={0.1} sx={{ mt: 2 }}>
+          <Card sx={{ p: 2.5 }}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
+              <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexGrow: 1 }}>
+                <GroupsOutlinedIcon color="primary" />
+                <Box>
+                  <Typography variant="h3">Exam Takers</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    See who has not started, who is progressing, and who has finished each assignment.
+                  </Typography>
+                </Box>
+              </Stack>
+              <Button variant="outlined" onClick={() => navigate(RoutePaths.examTakers)}>
+                Open panel
+              </Button>
+            </Stack>
+          </Card>
+        </MotionReveal>
 
         {/* Charts */}
         <Box

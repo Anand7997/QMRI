@@ -34,12 +34,14 @@ import { RoutePaths } from "shared/constants/routePaths";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { MotionConfig } from "motion/react";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
+import { useAuthContext } from "contexts/AuthContext";
 
 type Filter = "all" | "notStarted" | "active" | "completed";
 
 export function HistoryPage() {
   const navigate = useNavigate();
-  const assessmentsQuery = useAssessments();
+  const { user } = useAuthContext();
+  const assessmentsQuery = useAssessments(user?.userId);
   const [filter, setFilter] = useState<Filter>("all");
 
   const rows = useMemo(

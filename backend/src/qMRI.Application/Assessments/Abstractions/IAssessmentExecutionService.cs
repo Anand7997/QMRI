@@ -12,7 +12,19 @@ public interface IAssessmentExecutionService
         Guid? userId = null,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<AssessmentSummaryDto>> GetAssessmentsForAssigneeAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<AssessmentDetailDto?> GetAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default);
+
+    Task<Guid?> GetAssessmentOwnerUserIdAsync(Guid assessmentId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ExamTakerProgressDto>> GetExamTakersAsync(
+        Guid assessmentId,
+        CancellationToken cancellationToken = default);
+
+    Task<AssessmentSummaryDto?> StartAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default);
 
     Task<AssessmentSummaryDto?> UpdateAssessmentAsync(
         Guid assessmentId,

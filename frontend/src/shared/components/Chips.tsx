@@ -21,6 +21,7 @@ function toneChip(label: string, color: string) {
 export type EntityStatus =
   | "Active"
   | "Inactive"
+  | "Pending"
   | "Draft"
   | "InProgress"
   | "Submitted"
@@ -32,6 +33,7 @@ const statusColor: Record<EntityStatus, string> = {
   Scored: semanticTokens.successMain,
   Submitted: semanticTokens.infoMain,
   InProgress: semanticTokens.warningMain,
+  Pending: semanticTokens.warningMain,
   Draft: neutralTokens.ink500,
   Inactive: neutralTokens.ink400,
   Archived: neutralTokens.ink400,
@@ -40,6 +42,7 @@ const statusColor: Record<EntityStatus, string> = {
 const statusLabel: Record<EntityStatus, string> = {
   Active: "Active",
   Inactive: "Inactive",
+  Pending: "Pending",
   Draft: "Draft",
   InProgress: "In progress",
   Submitted: "Submitted",

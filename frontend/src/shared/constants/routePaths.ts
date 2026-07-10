@@ -8,6 +8,7 @@ export const RoutePaths = {
   dashboard: "/dashboard",
   authentication: "/authentication",
   assessments: "/assessments",
+  examTakers: "/exam-takers",
   questionBank: "/question-bank",
   structure: "/structure",
   reports: "/reports",

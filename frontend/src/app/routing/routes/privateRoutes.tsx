@@ -8,6 +8,7 @@ import { DashboardPage } from "features/dashboard/pages/DashboardPage";
 import { UserDashboardPage } from "features/dashboard/pages/UserDashboardPage";
 import { AuthenticationDashboardPage } from "features/authentication/pages/AuthenticationDashboardPage";
 import { AssessmentListPage } from "features/assessments/pages/AssessmentListPage";
+import { ExamTakersPage } from "features/assessments/pages/ExamTakersPage";
 import { QuestionBankPage } from "features/question-bank/pages/QuestionBankPage";
 import { StructurePage } from "features/catalog/pages/StructurePage";
 import { ReportsPage } from "features/reports/pages/ReportsPage";
@@ -32,6 +33,7 @@ export const privateRoutes: RouteObject[] = [
               { path: RoutePaths.dashboard, element: <DashboardPage /> },
               { path: RoutePaths.authentication, element: <AuthenticationDashboardPage /> },
               { path: RoutePaths.assessments, element: <AssessmentListPage /> },
+              { path: RoutePaths.examTakers, element: <ExamTakersPage /> },
               { path: RoutePaths.questionBank, element: <QuestionBankPage /> },
               { path: RoutePaths.structure, element: <StructurePage /> },
               { path: RoutePaths.reports, element: <ReportsPage /> },

@@ -22,7 +22,7 @@ import { useAssessmentDashboardData } from "../assessmentData";
 export function UserDashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
-  const dashboard = useAssessmentDashboardData();
+  const dashboard = useAssessmentDashboardData(user?.userId);
 
   const firstName = (user?.userName ?? "there").split(/[.\s@]/)[0];
   const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
@@ -37,7 +37,14 @@ export function UserDashboardPage() {
         .sort((a, b) => new Date(resolveDate(b)).getTime() - new Date(resolveDate(a)).getTime()),
     [dashboard.assessments],
   );
+
+  const pendingAssessments = useMemo(
+    () => activeAssessments.filter((assessment) => assessment.status === AssessmentStatus.Draft),
+    [activeAssessments],
+  );
+
   const activeAssessment = activeAssessments[0];
+  const isPendingActiveAssessment = activeAssessment?.status === AssessmentStatus.Draft;
   const latestScore = dashboard.recentAssessments.find((assessment) => assessment.score != null)?.score ?? 0;
 
   return (
@@ -47,6 +54,14 @@ export function UserDashboardPage() {
         {dashboard.isError ? (
           <Alert severity="error" sx={{ mb: 2 }}>
             Unable to load your assessment data.
+          </Alert>
+        ) : null}
+
+        {!dashboard.isLoading && pendingAssessments.length > 0 ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {pendingAssessments.length === 1
+              ? "A new assessment is assigned to you and is pending."
+              : `${pendingAssessments.length} assessments are assigned to you and pending.`}
           </Alert>
         ) : null}
 
@@ -90,7 +105,9 @@ export function UserDashboardPage() {
               {activeAssessment ? (
                 <>
                   <Typography variant="body1" sx={{ mt: 0.5, color: alpha("#fff", 0.85) }}>
-                    Continue where you left off - <b>{activeAssessment.title}</b>
+                    {isPendingActiveAssessment
+                      ? <>A new assessment is waiting - <b>{activeAssessment.title}</b></>
+                      : <>Continue where you left off - <b>{activeAssessment.title}</b></>}
                   </Typography>
                   <Typography variant="caption" sx={{ color: alpha("#fff", 0.7) }}>
                     {activeAssessment.answeredCount} / {activeAssessment.questionCount} answered
@@ -110,7 +127,7 @@ export function UserDashboardPage() {
                         "&:hover": { bgcolor: brandTokens.blue50 },
                       }}
                     >
-                      View assessment
+                      {isPendingActiveAssessment ? "Start assessment" : "Continue assessment"}
                     </Button>
                   </Box>
                 </>
@@ -234,6 +251,10 @@ export function UserDashboardPage() {
 }
 
 function toEntityStatus(status: number): EntityStatus {
+  if (status === AssessmentStatus.Draft) {
+    return "Pending";
+  }
+
   const label = assessmentStatusLabel[status] as EntityStatus | undefined;
   return label ?? "Draft";
 }

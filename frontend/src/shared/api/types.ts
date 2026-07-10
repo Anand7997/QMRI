@@ -146,6 +146,9 @@ export interface UpsertQuestionRequest {
 export interface AssessmentSummaryDto {
   assessmentId: string;
   userId: string;
+  assignedByUserId?: string | null;
+  assignedByUserName?: string | null;
+  assignedByFullName?: string | null;
   scoringModelId?: string | null;
   title: string;
   description?: string | null;
@@ -208,6 +211,22 @@ export interface AssessmentDetailDto {
   responses: AssessmentResponseDto[];
   scores: AssessmentScoreDto[];
   recommendations: RecommendationDto[];
+}
+
+export type ExamTakerProgressStatus = "NotStarted" | "InProgress" | "Finished";
+
+export interface ExamTakerProgressDto {
+  assessmentId: string;
+  userId: string;
+  userName: string;
+  fullName: string;
+  department: string;
+  progressStatus: ExamTakerProgressStatus;
+  answeredCount: number;
+  questionCount: number;
+  completionPercentage: number;
+  startedAtUtc?: string | null;
+  finishedAtUtc?: string | null;
 }
 
 export interface CreateAssessmentRequest {
