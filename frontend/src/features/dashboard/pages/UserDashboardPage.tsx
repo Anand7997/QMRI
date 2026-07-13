@@ -1,4 +1,4 @@
-import { Alert, Box, Button, LinearProgress, Stack, Typography } from "@mui/material";
+﻿import { Alert, Box, Button, LinearProgress, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
@@ -13,6 +13,8 @@ import { ProgressRing } from "../components/ProgressRing";
 import { Card3DBlock, userDashboardBlocks } from "../components/Card3DBlock";
 import { MotionReveal } from "../components/dashboardMotion";
 import { useAssessmentDashboardData } from "../assessmentData";
+import { DueDateReminderWidget } from "../components/DueDateReminderWidget";
+import { loadResumePointer } from "../governance/dashboardGovernanceState";
 
 export function UserDashboardPage() {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export function UserDashboardPage() {
 
   const firstName = (user?.userName ?? "there").split(/[.\s@]/)[0];
   const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  const resumePointer = loadResumePointer(user?.userId);
 
   const activeAssessments = useMemo(
     () =>
@@ -29,8 +32,12 @@ export function UserDashboardPage() {
           (assessment) =>
             assessment.status === AssessmentStatus.InProgress || assessment.status === AssessmentStatus.Draft,
         )
-        .sort((a, b) => new Date(resolveDate(b)).getTime() - new Date(resolveDate(a)).getTime()),
-    [dashboard.assessments],
+        .sort((a, b) => {
+          if (resumePointer?.assessmentId === a.assessmentId) return -1;
+          if (resumePointer?.assessmentId === b.assessmentId) return 1;
+          return new Date(resolveDate(b)).getTime() - new Date(resolveDate(a)).getTime();
+        }),
+    [dashboard.assessments, resumePointer?.assessmentId],
   );
 
   const activeAssessment = activeAssessments[0];
@@ -39,6 +46,10 @@ export function UserDashboardPage() {
     () => dashboard.assessments.filter((assessment) => assessment.status === AssessmentStatus.Draft).length,
     [dashboard.assessments],
   );
+
+  const openAssessment = (assessmentId: string) => {
+    navigate(RoutePaths.portalAssessments, { state: { assessmentId, resume: true } });
+  };
 
   return (
     <MotionConfig reducedMotion="user">
@@ -50,7 +61,6 @@ export function UserDashboardPage() {
           </Alert>
         ) : null}
 
-        {/* Greeting / continue hero */}
         <MotionReveal
           sx={{
             position: "relative",
@@ -90,20 +100,21 @@ export function UserDashboardPage() {
               {activeAssessment ? (
                 <>
                   <Typography variant="body1" sx={{ mt: 0.5, color: alpha("#fff", 0.85) }}>
-                    {isPendingActiveAssessment
-                      ? <>A new assessment is waiting - <b>{activeAssessment.title}</b></>
-                      : <>Continue where you left off - <b>{activeAssessment.title}</b></>}
+                    {isPendingActiveAssessment ? (
+                      <>A new assessment is waiting - <b>{activeAssessment.title}</b></>
+                    ) : (
+                      <>Continue where you left off - <b>{activeAssessment.title}</b></>
+                    )}
                   </Typography>
                   <Typography variant="caption" sx={{ color: alpha("#fff", 0.7) }}>
                     {activeAssessment.answeredCount} / {activeAssessment.questionCount} answered
+                    {resumePointer?.assessmentId === activeAssessment.assessmentId ? " - saved position ready" : ""}
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     <Button
                       variant="contained"
                       startIcon={<PlayArrowIcon />}
-                      onClick={() =>
-                        navigate(RoutePaths.portalAssessments, { state: { assessmentId: activeAssessment.assessmentId } })
-                      }
+                      onClick={() => openAssessment(activeAssessment.assessmentId)}
                       sx={{
                         bgcolor: "#fff",
                         color: brandTokens.blue700,
@@ -155,9 +166,14 @@ export function UserDashboardPage() {
           sx={{
             display: "grid",
             gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
+            gridAutoRows: { lg: "168px" },
           }}
         >
+          <MotionReveal sx={{ gridColumn: { xs: "1 / -1", lg: "span 1" }, gridRow: { lg: "span 2" } }}>
+            <DueDateReminderWidget assessments={dashboard.assessments} onOpenAssessment={openAssessment} />
+          </MotionReveal>
+
           {userDashboardBlocks.map((block) => (
             <Card3DBlock
               key={block.id}
@@ -183,3 +199,9 @@ function resolveDate(assessment: {
 }) {
   return assessment.scoredAtUtc ?? assessment.submittedAtUtc ?? assessment.startedAtUtc ?? assessment.createdAtUtc;
 }
+
+
+
+
+
+

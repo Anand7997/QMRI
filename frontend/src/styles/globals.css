@@ -1,5 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   color-scheme: light;
+}
+
+/* Spline <Suspense> fallback spinner */
+.loader {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(148, 163, 184, 0.35);
+  border-top-color: #2b88d8;
+  border-radius: 50%;
+  animation: loader-spin 0.8s linear infinite;
+}
+
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 * {

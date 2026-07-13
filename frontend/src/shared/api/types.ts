@@ -40,6 +40,7 @@ export interface QuestionDto {
   categoryName: string;
   text: string;
   guidance?: string | null;
+  expectedAnswer: AnswerOptionValue;
   weight: number;
   sortOrder: number;
   isActive: boolean;
@@ -138,6 +139,7 @@ export interface UpsertQuestionRequest {
   subModuleId: string;
   text: string;
   guidance?: string | null;
+  expectedAnswer: AnswerOptionValue;
   weight: number;
   sortOrder: number;
   isActive: boolean;

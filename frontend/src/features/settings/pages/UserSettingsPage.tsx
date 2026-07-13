@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Alert,
   Box,
@@ -11,21 +11,24 @@ import {
   Select,
   Stack,
   Switch,
+  TextField,
   Typography,
 } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import { PageHeader } from "shared/components";
+import { loadReminderPreferences, saveReminderPreferences } from "features/dashboard/governance/dashboardGovernanceState";
 
 export function UserSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [digest, setDigest] = useState("weekly");
-  const [reminders, setReminders] = useState(true);
+  const [reminderPreferences, setReminderPreferences] = useState(() => loadReminderPreferences());
   const [submissionUpdates, setSubmissionUpdates] = useState(true);
   const [compactTables, setCompactTables] = useState(false);
 
   function handleSave() {
+    saveReminderPreferences(reminderPreferences);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 3000);
   }
@@ -42,7 +45,7 @@ export function UserSettingsPage() {
         }
       />
 
-      {saved ? <Alert severity="success" sx={{ mb: 2 }}>Settings saved for this session.</Alert> : null}
+      {saved ? <Alert severity="success" sx={{ mb: 2 }}>Settings saved.</Alert> : null}
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
         <Card sx={{ p: 2.5 }}>
@@ -63,8 +66,24 @@ export function UserSettingsPage() {
               </Select>
             </FormControl>
             <FormControlLabel
-              control={<Switch checked={reminders} onChange={(event) => setReminders(event.target.checked)} />}
+              control={<Switch checked={reminderPreferences.enabled} onChange={(event) => setReminderPreferences((current) => ({ ...current, enabled: event.target.checked }))} />}
               label="Assessment due-date reminders"
+            />
+            <TextField
+              label="Remind before due date"
+              type="number"
+              value={reminderPreferences.remindBeforeDays}
+              onChange={(event) => setReminderPreferences((current) => ({ ...current, remindBeforeDays: Number(event.target.value) }))}
+              inputProps={{ min: 1, max: 30 }}
+              helperText="Days before due date to mark an assessment as due soon."
+            />
+            <TextField
+              label="Default due window"
+              type="number"
+              value={reminderPreferences.defaultDueInDays}
+              onChange={(event) => setReminderPreferences((current) => ({ ...current, defaultDueInDays: Number(event.target.value) }))}
+              inputProps={{ min: 1, max: 60 }}
+              helperText="Days after assignment/start used by the dashboard due-date widget."
             />
             <FormControlLabel
               control={<Switch checked={submissionUpdates} onChange={(event) => setSubmissionUpdates(event.target.checked)} />}
@@ -100,3 +119,6 @@ export function UserSettingsPage() {
     </Box>
   );
 }
+
+
+

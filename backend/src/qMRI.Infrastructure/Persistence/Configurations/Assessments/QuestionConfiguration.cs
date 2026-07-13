@@ -22,6 +22,10 @@ public sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         builder.Property(entity => entity.Guidance)
             .HasMaxLength(4000);
 
+        builder.Property(entity => entity.ExpectedAnswer)
+            .HasConversion<int>()
+            .IsRequired();
+
         builder.Property(entity => entity.Weight)
             .HasPrecision(5, 2);
 

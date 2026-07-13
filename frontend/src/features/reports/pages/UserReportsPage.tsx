@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -48,12 +48,14 @@ import { maturityFor } from "shared/domain/maturity";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { AnimatedNumber, MotionReveal } from "features/dashboard/components/dashboardMotion";
 import { useAuthContext } from "contexts/AuthContext";
+import { loadScoringPolicySettings } from "features/dashboard/governance/dashboardGovernanceState";
 
-const PASS_SCORE = 70;
+
 
 export function UserReportsPage() {
   const { user } = useAuthContext();
   const assessmentsQuery = useAssessments(user?.userId);
+  const passMark = loadScoringPolicySettings().passMark;
   const assessments = assessmentsQuery.data ?? [];
   const reports = useMemo(
     () =>
@@ -72,18 +74,18 @@ export function UserReportsPage() {
       return { count: 0, passRate: 0, avgScore: 0, bestScore: 0 };
     }
     const scores = reports.map((r) => Math.round(r.overallScore ?? 0));
-    const passed = scores.filter((s) => s >= PASS_SCORE).length;
+    const passed = scores.filter((s) => s >= passMark).length;
     return {
       count: reports.length,
       passRate: Math.round((passed / reports.length) * 100),
       avgScore: Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length),
       bestScore: Math.max(...scores),
     };
-  }, [reports]);
+  }, [passMark, reports]);
 
   if (selectedSummary) {
     return (
-      <ReportDetailPage assessment={selectedSummary} detailQuery={detail} onBack={() => setSelectedId(undefined)} />
+      <ReportDetailPage assessment={selectedSummary} detailQuery={detail} passMark={passMark} onBack={() => setSelectedId(undefined)} />
     );
   }
 
@@ -155,7 +157,7 @@ export function UserReportsPage() {
                     <TableBody>
                       {reports.map((assessment) => {
                         const score = Math.round(assessment.overallScore ?? 0);
-                        const passed = score >= PASS_SCORE;
+                        const passed = score >= passMark;
                         const maturity = maturityFor(score);
                         return (
                           <TableRow
@@ -236,15 +238,17 @@ export function UserReportsPage() {
 function ReportDetailPage({
   assessment,
   detailQuery,
+  passMark,
   onBack,
 }: {
   assessment: AssessmentSummaryDto;
   detailQuery: ReturnType<typeof useAssessment>;
+  passMark: number;
   onBack: () => void;
 }) {
   const selectedDetail = detailQuery.data;
   const overallScore = Math.round(assessment.overallScore ?? selectedDetail?.summary.overallScore ?? 0);
-  const passed = overallScore >= PASS_SCORE;
+  const passed = overallScore >= passMark;
   const resultColor = passed ? semanticTokens.successMain : semanticTokens.errorMain;
   const categoryScores = useMemo(() => buildCategoryScores(selectedDetail?.scores ?? []), [selectedDetail?.scores]);
   const recommendations = selectedDetail?.recommendations ?? [];
@@ -288,7 +292,7 @@ function ReportDetailPage({
                       <HighlightOffOutlinedIcon sx={{ color: resultColor }} />
                     )}
                     <Typography variant="overline" sx={{ color: resultColor, fontWeight: 800 }}>
-                      {passed ? "Passed" : "Below pass threshold"} · pass mark {PASS_SCORE}
+                      {passed ? "Passed" : "Below pass threshold"} - pass mark {passMark}
                     </Typography>
                   </Stack>
                   <Typography variant="h2" sx={{ mt: 0.5 }}>
@@ -332,7 +336,7 @@ function ReportDetailPage({
                     Category profile
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Score by category (0–100).
+                    Score by category (0â€“100).
                   </Typography>
                   <ResponsiveContainer width="100%" height={280}>
                     <RadarChart data={radarData} outerRadius="70%">
@@ -475,7 +479,7 @@ function ScoreRow({
 }) {
   const roundedScore = Math.round(score);
   const maturity = maturityFor(roundedScore);
-  const passed = roundedScore >= PASS_SCORE;
+  const passed = roundedScore >= loadScoringPolicySettings().passMark;
 
   return (
     <Box
@@ -536,3 +540,6 @@ function resolveDate(assessment: AssessmentSummaryDto) {
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
+
+
+

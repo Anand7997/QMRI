@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+﻿import { useCallback, useState, type ReactNode } from "react";
 import { Badge, Box, Card, Typography } from "@mui/material";
 import { motion } from "motion/react";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
@@ -79,8 +79,8 @@ export function Card3DBlock({ title, description, icon, gradient, onClick, badge
       sx={{
         position: "relative",
         overflow: "hidden",
-        height: 200,
-        p: 3,
+        height: 168,
+        p: 2.25,
         color: "#fff",
         background: gradient,
         cursor: onClick ? "pointer" : "default",
@@ -132,12 +132,12 @@ export function Card3DBlock({ title, description, icon, gradient, onClick, badge
       />
 
       <Box sx={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <Box sx={{ fontSize: 32, opacity: 0.9, display: "flex" }}>{icon}</Box>
+        <Box sx={{ fontSize: 28, opacity: 0.9, display: "flex" }}>{icon}</Box>
         <Box>
-          <Typography variant="h3" sx={{ color: "#fff", mb: 0.75 }}>
+          <Typography variant="h3" sx={{ color: "#fff", mb: 0.5, fontSize: "1rem", lineHeight: 1.2 }}>
             {title}
           </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)" }}>
+          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", fontSize: "0.8rem", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {description}
           </Typography>
         </Box>
@@ -266,3 +266,4 @@ export const userDashboardBlocks: DashboardBlockDef[] = [
     route: RoutePaths.portalSettings,
   },
 ];
+

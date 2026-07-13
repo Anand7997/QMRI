@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -51,6 +51,12 @@ import { useHierarchy } from "shared/api/catalog";
 import { AssessmentStatus, type AssessmentSummaryDto, type ModuleDto, type SubModuleDto } from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
 import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
+import {
+  appendGovernanceAuditEntry,
+  findIntensityTemplate,
+  loadIntensityTemplateSettings,
+  type IntensityTemplate,
+} from "features/dashboard/governance/dashboardGovernanceState";
 
 const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery"] as const;
 const unknownAssignedByValue = "__unknown_assigned_by__";
@@ -112,6 +118,7 @@ export function AssessmentListPage() {
   const [description, setDescription] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  const [selectedTemplateCode, setSelectedTemplateCode] = useState<IntensityTemplate["code"]>(() => loadIntensityTemplateSettings().defaultTemplateCode);
   const [departmentAnchor, setDepartmentAnchor] = useState<HTMLElement | null>(null);
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
   const [expandedModuleIds, setExpandedModuleIds] = useState<string[]>([]);
@@ -196,6 +203,7 @@ export function AssessmentListPage() {
     setDescription("");
     setSelectedDepartments([]);
     setSelectedQuestionIds([]);
+    setSelectedTemplateCode(loadIntensityTemplateSettings().defaultTemplateCode);
     setDepartmentAnchor(null);
     setFormError(null);
     setActionError(null);
@@ -234,6 +242,12 @@ export function AssessmentListPage() {
         setFormError("Select at least one assessment scope.");
         return;
       }
+
+      const template = findIntensityTemplate(selectedTemplateCode);
+      if (template && (selectedQuestionIds.length < template.minQuestions || selectedQuestionIds.length > template.maxQuestions)) {
+        setFormError(`${template.label} assessments require ${template.minQuestions}-${template.maxQuestions} questions. You selected ${selectedQuestionIds.length}.`);
+        return;
+      }
     }
 
     try {
@@ -244,6 +258,13 @@ export function AssessmentListPage() {
           ...baseBody,
           departments: selectedDepartments,
           questionIds: selectedQuestionIds,
+        });
+        appendGovernanceAuditEntry({
+          actor: "Admin",
+          action: "Created assessment from intensity template",
+          entityType: "Intensity Template",
+          entityName: selectedTemplateCode,
+          details: `${selectedQuestionIds.length} selected questions`,
         });
       }
 
@@ -522,6 +543,20 @@ export function AssessmentListPage() {
           {!editingId && (
             <>
               <Divider />
+              <TextField
+                select
+                label="Intensity template"
+                value={selectedTemplateCode}
+                onChange={(event) => setSelectedTemplateCode(event.target.value as IntensityTemplate["code"])} 
+                helperText="Locked templates validate the selected question count before assignment."
+              >
+                {loadIntensityTemplateSettings().templates.map((template) => (
+                  <MenuItem key={template.code} value={template.code}>
+                    {template.label} ({template.minQuestions}-{template.maxQuestions})
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Divider />
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>Department</Typography>
                 <Button
@@ -689,3 +724,6 @@ export function AssessmentListPage() {
     </Box>
   );
 }
+
+
+

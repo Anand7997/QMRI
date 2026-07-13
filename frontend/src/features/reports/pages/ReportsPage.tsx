@@ -1,6 +1,5 @@
-import { Alert, Box, Button, Card, Chip, LinearProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+﻿import { Alert, Box, Card, Chip, LinearProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
@@ -22,6 +21,7 @@ import { EmptyState, KpiTile, MaturityChip, PageHeader, StatusChip } from "share
 import { maturityFor } from "shared/domain/maturity";
 import { neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { useAssessmentDashboardData, type RecommendationItem } from "features/dashboard/assessmentData";
+import { ExportCenter } from "features/dashboard/components/ExportCenter";
 
 const priorityColor: Record<RecommendationItem["priority"], string> = {
   Critical: semanticTokens.errorMain,
@@ -41,15 +41,14 @@ export function ReportsPage() {
       <PageHeader
         title="Reports"
         subtitle="Assessment performance, maturity trends and priority recommendations."
-        actions={
-          <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} disabled={dashboard.assessmentCount === 0}>
-            Export report
-          </Button>
-        }
       />
 
       {dashboard.isLoading ? <LinearProgress sx={{ mb: 2 }} /> : null}
       {dashboard.isError ? <Alert severity="error" sx={{ mb: 2 }}>Unable to load report data.</Alert> : null}
+
+      <Box sx={{ mb: 2 }}>
+        <ExportCenter title="Reports Export Center" scope="Admin" assessments={dashboard.assessments} details={dashboard.details} actor="Admin" />
+      </Box>
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" } }}>
         <KpiTile label="Overall maturity" value={dashboard.overallScore} icon={<InsightsOutlinedIcon />} footer={<MaturityChip score={dashboard.overallScore} />} />
@@ -189,3 +188,6 @@ export function ReportsPage() {
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
+
+
+

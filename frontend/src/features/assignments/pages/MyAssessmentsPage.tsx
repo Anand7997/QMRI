@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Alert,
@@ -39,6 +39,7 @@ import {
 } from "shared/api/types";
 import { answerColor } from "shared/domain/maturity";
 import { useAuthContext } from "contexts/AuthContext";
+import { clearResumePointer, loadResumePointer, saveResumePointer } from "features/dashboard/governance/dashboardGovernanceState";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 type AssessmentDetailQuery = ReturnType<typeof useAssessment>;
@@ -58,7 +59,7 @@ export function MyAssessmentsPage() {
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const handledLocationKey = useRef<string | null>(null);
 
-  const navigationAssessmentId = (location.state as { assessmentId?: string } | null)?.assessmentId;
+  const navigationAssessmentId = (location.state as { assessmentId?: string; resume?: boolean } | null)?.assessmentId;
   const assessments = useMemo(
     () =>
       (assessmentsQuery.data ?? []).filter(
@@ -200,11 +201,25 @@ export function MyAssessmentsPage() {
   useEffect(() => {
     if (!questionMode) return;
     if (!selectedSub && submoduleSteps.length) {
-      const firstStep = submoduleSteps[0];
+      const pointer = loadResumePointer(user?.userId);
+      const pointerStep = pointer && pointer.assessmentId === assessmentId
+        ? submoduleSteps.find((step) => step.sub.subModuleId === pointer.subModuleId)
+        : undefined;
+      const firstStep = pointerStep ?? submoduleSteps[0];
       setSelectedSub(firstStep.sub.subModuleId);
       setOpenModules({ [firstStep.moduleId]: true });
     }
-  }, [questionMode, selectedSub, submoduleSteps]);
+  }, [assessmentId, questionMode, selectedSub, submoduleSteps, user?.userId]);
+
+  useEffect(() => {
+    if (!questionMode || !selectedSub) return;
+    const pointer = loadResumePointer(user?.userId);
+    if (!pointer || pointer.assessmentId !== assessmentId || pointer.subModuleId !== selectedSub || !pointer.questionId) return;
+
+    window.setTimeout(() => {
+      document.getElementById(`question-${pointer.questionId}`)?.scrollIntoView({ block: "center" });
+    }, 100);
+  }, [assessmentId, questionMode, selectedSub, user?.userId]);
 
   const selectAssessment = (id: string) => {
     setAssessmentId(id);
@@ -240,6 +255,9 @@ export function MyAssessmentsPage() {
 
   const answer = (questionId: string, value: number) => {
     if (!assessmentId) return;
+    if (selectedSub) {
+      saveResumePointer(user?.userId, { assessmentId, subModuleId: selectedSub, questionId, touchedAtUtc: new Date().toISOString() });
+    }
     saveResponse.mutate({ questionId, answer: value, findings: notes[questionId] || null });
   };
 
@@ -250,6 +268,9 @@ export function MyAssessmentsPage() {
 
   const goToStep = (step: (typeof submoduleSteps)[number] | null) => {
     if (!step) return;
+    if (assessmentId) {
+      saveResumePointer(user?.userId, { assessmentId, subModuleId: step.sub.subModuleId, touchedAtUtc: new Date().toISOString() });
+    }
     setSelectedSub(step.sub.subModuleId);
     setOpenModules((state) => ({ ...state, [step.moduleId]: true }));
   };
@@ -348,7 +369,7 @@ export function MyAssessmentsPage() {
                               direction="row"
                               spacing={1}
                               alignItems="center"
-                              onClick={() => setSelectedSub(s.subModuleId)}
+                              onClick={() => goToStep({ categoryId: c.categoryId, category: c.name, moduleId: m.moduleId, module: m.name, sub: s })}
                               sx={{
                                 ml: 2,
                                 px: 1.5,
@@ -401,7 +422,7 @@ export function MyAssessmentsPage() {
                 {currentSub.sub.questions.map((q, i) => {
                   const value = answersByQuestion.get(q.questionId);
                   return (
-                    <Box key={q.questionId} sx={{ pt: i === 0 ? 0 : 2.5 }}>
+                    <Box key={q.questionId} id={`question-${q.questionId}`} sx={{ pt: i === 0 ? 0 : 2.5 }}>
                       <Typography variant="body1" fontWeight={500} sx={{ mb: q.guidance ? 0.5 : 1.5 }}>
                         {i + 1}. {q.text}
                       </Typography>
@@ -578,6 +599,7 @@ export function MyAssessmentsPage() {
                   setOpenModules({});
                   setNotes({});
                   setOpenNotes({});
+                  clearResumePointer(user?.userId);
                 },
               });
             }}
@@ -769,4 +791,7 @@ function formatDate(value?: string | null) {
   if (!value) return "Not started";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
+
+
+
 

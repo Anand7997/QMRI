@@ -1,3 +1,5 @@
+using qMRI.Domain.Assessments.Enums;
+
 namespace qMRI.Domain.Assessments.Entities;
 
 /// <summary>An assessment question answered with Yes / No / Partial.</summary>
@@ -10,6 +12,8 @@ public sealed class Question
     public string Text { get; set; } = string.Empty;
 
     public string? Guidance { get; set; }
+
+    public AnswerOption ExpectedAnswer { get; set; }
 
     public decimal Weight { get; set; }
 

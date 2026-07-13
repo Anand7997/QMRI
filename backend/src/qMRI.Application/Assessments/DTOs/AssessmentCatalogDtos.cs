@@ -60,6 +60,7 @@ public sealed class QuestionDto
     public string CategoryName { get; set; } = string.Empty;
     public string Text { get; set; } = string.Empty;
     public string? Guidance { get; set; }
+    public AnswerOption ExpectedAnswer { get; set; }
     public decimal Weight { get; set; }
     public int SortOrder { get; set; }
     public bool IsActive { get; set; }
@@ -120,6 +121,7 @@ public sealed class UpsertQuestionRequest
     public Guid SubModuleId { get; set; }
     public string Text { get; set; } = string.Empty;
     public string? Guidance { get; set; }
+    public AnswerOption ExpectedAnswer { get; set; }
     public decimal Weight { get; set; } = 1;
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;

@@ -17,6 +17,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
       app: fileURLToPath(new URL("./src/app", import.meta.url)),
       layouts: fileURLToPath(new URL("./src/layouts", import.meta.url)),
       contexts: fileURLToPath(new URL("./src/contexts", import.meta.url)),

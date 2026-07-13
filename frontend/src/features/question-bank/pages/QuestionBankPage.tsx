@@ -35,12 +35,14 @@ import {
   TableSkeleton,
 } from "shared/components";
 import { useHierarchy, useQuestionMutations, useQuestions } from "shared/api/catalog";
-import type { QuestionDto, UpsertQuestionRequest } from "shared/api/types";
+import { AnswerOption, answerLabel, type QuestionDto, type UpsertQuestionRequest } from "shared/api/types";
+import { appendGovernanceAuditEntry } from "features/dashboard/governance/dashboardGovernanceState";
 
 const blankForm: UpsertQuestionRequest & { subCategoryId?: string; subModuleId: string } = {
   subModuleId: "",
   text: "",
   guidance: "",
+  expectedAnswer: AnswerOption.No,
   weight: 1,
   sortOrder: 0,
   isActive: true,
@@ -100,7 +102,7 @@ export function QuestionBankPage() {
   };
   const openEdit = (q: QuestionDto) => {
     setEditingId(q.questionId);
-    setForm({ subModuleId: q.subModuleId, text: q.text, guidance: q.guidance ?? "", weight: q.weight, sortOrder: q.sortOrder, isActive: q.isActive });
+    setForm({ subModuleId: q.subModuleId, text: q.text, guidance: q.guidance ?? "", expectedAnswer: q.expectedAnswer, weight: q.weight, sortOrder: q.sortOrder, isActive: q.isActive });
     setFormCat(q.categoryId);
     setFormMod(q.moduleId);
     setDrawerOpen(true);
@@ -111,16 +113,43 @@ export function QuestionBankPage() {
       subModuleId: form.subModuleId,
       text: form.text,
       guidance: form.guidance || null,
+      expectedAnswer: form.expectedAnswer,
       weight: Number(form.weight),
       sortOrder: Number(form.sortOrder),
       isActive: form.isActive,
     };
-    if (editingId) await update.mutateAsync({ id: editingId, body });
-    else await create.mutateAsync(body);
+    if (editingId) {
+      await update.mutateAsync({ id: editingId, body });
+      appendGovernanceAuditEntry({
+        actor: "Admin",
+        action: "Updated question",
+        entityType: "Question",
+        entityName: body.text.slice(0, 80),
+        details: `SubModule ${body.subModuleId}; active=${body.isActive}`,
+      });
+    } else {
+      await create.mutateAsync(body);
+      appendGovernanceAuditEntry({
+        actor: "Admin",
+        action: "Created question",
+        entityType: "Question",
+        entityName: body.text.slice(0, 80),
+        details: `SubModule ${body.subModuleId}; weight=${body.weight}`,
+      });
+    }
     setDrawerOpen(false);
   };
   const doDelete = async () => {
-    if (activeRow) await remove.mutateAsync(activeRow.questionId);
+    if (activeRow) {
+      await remove.mutateAsync(activeRow.questionId);
+      appendGovernanceAuditEntry({
+        actor: "Admin",
+        action: "Deleted question",
+        entityType: "Question",
+        entityName: activeRow.text.slice(0, 80),
+        details: `${activeRow.categoryName} / ${activeRow.moduleName} / ${activeRow.subModuleName}`,
+      });
+    }
   };
 
   const total = questionsQuery.data?.totalCount ?? 0;
@@ -170,7 +199,7 @@ export function QuestionBankPage() {
         {questionsQuery.isLoading ? (
           <TableSkeleton rows={8} cols={5} />
         ) : questionsQuery.isError ? (
-          <EmptyState title="Couldn’t load questions" description="Check the API connection and try again." />
+          <EmptyState title="Couldnâ€™t load questions" description="Check the API connection and try again." />
         ) : items.length === 0 ? (
           <EmptyState icon={<HelpOutlineIcon sx={{ fontSize: 40 }} />} title="No questions found"
             description="Adjust filters or add a new question."
@@ -185,6 +214,7 @@ export function QuestionBankPage() {
                     <TableCell>Category</TableCell>
                     <TableCell>Module</TableCell>
                     <TableCell>SubModule</TableCell>
+                    <TableCell>Answers</TableCell>
                     <TableCell align="right">Weight</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
@@ -197,6 +227,7 @@ export function QuestionBankPage() {
                       <TableCell>{q.categoryName}</TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>{q.moduleName}</TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>{q.subModuleName}</TableCell>
+                      <TableCell>{answerLabel[q.expectedAnswer]}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>{q.weight.toFixed(1)}</TableCell>
                       <TableCell><StatusChip status={q.isActive ? "Active" : "Inactive"} /></TableCell>
                       <TableCell align="right">
@@ -239,6 +270,12 @@ export function QuestionBankPage() {
             value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} />
           <TextField label="Guidance" multiline minRows={2}
             value={form.guidance ?? ""} onChange={(e) => setForm({ ...form, guidance: e.target.value })} />
+          <TextField select label="Answers" required value={form.expectedAnswer}
+            onChange={(e) => setForm({ ...form, expectedAnswer: Number(e.target.value) as UpsertQuestionRequest["expectedAnswer"] })}>
+            <MenuItem value={AnswerOption.Yes}>Yes</MenuItem>
+            <MenuItem value={AnswerOption.Partial}>Partial</MenuItem>
+            <MenuItem value={AnswerOption.No}>No</MenuItem>
+          </TextField>
           <TextField select label="Category" value={formCat}
             onChange={(e) => { setFormCat(e.target.value); setFormMod(""); setForm({ ...form, subModuleId: "" }); }}>
             {tree.map((c) => <MenuItem key={c.categoryId} value={c.categoryId}>{c.name}</MenuItem>)}
@@ -263,7 +300,7 @@ export function QuestionBankPage() {
       </FormDrawer>
 
       <ConfirmDialog open={confirmOpen} destructive title="Delete question?"
-        message={<>Permanently removes “{activeRow?.text.slice(0, 60)}…”.</>}
+        message={<>Permanently removes â€œ{activeRow?.text.slice(0, 60)}â€¦â€.</>}
         confirmLabel="Delete" onConfirm={doDelete} onClose={() => setConfirmOpen(false)} />
     </Box>
   );

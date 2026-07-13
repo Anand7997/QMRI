@@ -1,14 +1,67 @@
-import { Alert, Box, LinearProgress } from "@mui/material";
+﻿import { Alert, Box, Dialog, DialogContent, DialogTitle, IconButton, LinearProgress } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
+import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
+import HistoryEduOutlinedIcon from "@mui/icons-material/HistoryEduOutlined";
+import { useState, type ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { useNavigate } from "react-router-dom";
+import { useAuthContext } from "contexts/AuthContext";
 import { RecentAssessments } from "../components/RecentAssessments";
 import { Card3DBlock, dashboardBlocks } from "../components/Card3DBlock";
-import { MotionReveal } from "../components/dashboardMotion";
 import { useAssessmentDashboardData } from "../assessmentData";
+import { AuditGovernanceFeed } from "../components/AuditGovernanceFeed";
+import { ExportCenter } from "../components/ExportCenter";
+import { IntensityTemplateManager } from "../components/IntensityTemplateManager";
+import { ScoringPolicyManager } from "../components/ScoringPolicyManager";
+
+type AdminDashboardPanel = "recent" | "export" | "scoring" | "templates" | "audit" | null;
+
+const adminFeatureBlocks = [
+  {
+    id: "recent" as const,
+    title: "Recent Assessments",
+    description: "Review the latest assessment activity and status movement.",
+    icon: <AssessmentOutlinedIcon fontSize="inherit" />,
+    gradient: "linear-gradient(135deg, #2563eb 0%, #1e40af 100%)",
+  },
+  {
+    id: "export" as const,
+    title: "Admin Export Center",
+    description: "Generate filtered PDF, Excel, and CSV exports with branding.",
+    icon: <DownloadOutlinedIcon fontSize="inherit" />,
+    gradient: "linear-gradient(135deg, #0f766e 0%, #134e4a 100%)",
+  },
+  {
+    id: "scoring" as const,
+    title: "Scoring Policy Manager",
+    description: "Configure pass marks, recommendation bands, and pillar weights.",
+    icon: <RuleOutlinedIcon fontSize="inherit" />,
+    gradient: "linear-gradient(135deg, #9333ea 0%, #581c87 100%)",
+  },
+  {
+    id: "templates" as const,
+    title: "Intensity Templates",
+    description: "Manage Operational, Strategic, and Tactical question ranges.",
+    icon: <GridViewOutlinedIcon fontSize="inherit" />,
+    gradient: "linear-gradient(135deg, #b45309 0%, #78350f 100%)",
+  },
+  {
+    id: "audit" as const,
+    title: "Audit & Governance",
+    description: "Track changes to questions, scoring, templates, and exports.",
+    icon: <HistoryEduOutlinedIcon fontSize="inherit" />,
+    gradient: "linear-gradient(135deg, #475569 0%, #111827 100%)",
+  },
+];
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuthContext();
   const dashboard = useAssessmentDashboardData();
+  const [activePanel, setActivePanel] = useState<AdminDashboardPanel>(null);
 
   return (
     <MotionConfig reducedMotion="user">
@@ -24,12 +77,19 @@ export function DashboardPage() {
           sx={{
             display: "grid",
             gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
           }}
         >
-          <MotionReveal sx={{ gridColumn: "1 / -1" }}>
-            <RecentAssessments rows={dashboard.recentAssessments} />
-          </MotionReveal>
+          {adminFeatureBlocks.map((block) => (
+            <Card3DBlock
+              key={block.id}
+              title={block.title}
+              description={block.description}
+              icon={block.icon}
+              gradient={block.gradient}
+              onClick={() => setActivePanel(block.id)}
+            />
+          ))}
 
           {dashboardBlocks.map((block) => (
             <Card3DBlock
@@ -42,7 +102,57 @@ export function DashboardPage() {
             />
           ))}
         </Box>
+
+        <DashboardPanelDialog title={dialogTitle(activePanel)} open={Boolean(activePanel)} onClose={() => setActivePanel(null)}>
+          {activePanel === "recent" ? <RecentAssessments rows={dashboard.recentAssessments} /> : null}
+          {activePanel === "export" ? (
+            <ExportCenter
+              title="Admin Export Center"
+              scope="Admin"
+              assessments={dashboard.assessments}
+              details={dashboard.details}
+              actor={user?.fullName || user?.userName || "Admin"}
+            />
+          ) : null}
+          {activePanel === "scoring" ? <ScoringPolicyManager /> : null}
+          {activePanel === "templates" ? <IntensityTemplateManager /> : null}
+          {activePanel === "audit" ? <AuditGovernanceFeed /> : null}
+        </DashboardPanelDialog>
       </Box>
     </MotionConfig>
   );
 }
+
+function DashboardPanelDialog({
+  title,
+  open,
+  onClose,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+      <DialogTitle sx={{ pr: 7 }}>
+        {title}
+        <IconButton aria-label="Close" onClick={onClose} sx={{ position: "absolute", right: 12, top: 10 }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>{children}</DialogContent>
+    </Dialog>
+  );
+}
+
+function dialogTitle(panel: AdminDashboardPanel) {
+  if (panel === "recent") return "Recent Assessments";
+  if (panel === "export") return "Admin Export Center";
+  if (panel === "scoring") return "Scoring Policy Manager";
+  if (panel === "templates") return "Intensity Template Manager";
+  if (panel === "audit") return "Audit & Governance Feed";
+  return "Dashboard";
+}
+
