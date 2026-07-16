@@ -20,6 +20,46 @@ public sealed class UserRepository(qMRIDbContext dbContext) : IUserRepository
                 cancellationToken);
     }
 
+    public Task<User?> GetByEmailWithRolesAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim();
+
+        return dbContext.Users
+            .Include(user => user.UserRoles)
+                .ThenInclude(userRole => userRole.Role)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(user => user.Email == normalizedEmail, cancellationToken);
+    }
+
+    public Task<User?> GetByIdentityLinkTokenHashWithRolesAsync(string tokenHash, CancellationToken cancellationToken = default)
+
+    {
+
+        var normalizedTokenHash = tokenHash.Trim();
+
+
+
+        return dbContext.Users
+
+            .Include(user => user.UserRoles)
+
+                .ThenInclude(userRole => userRole.Role)
+
+            .SingleOrDefaultAsync(user => user.IdentityLinkTokenHash == normalizedTokenHash, cancellationToken);
+
+    }
+
+
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+
+    {
+
+        return dbContext.SaveChangesAsync(cancellationToken);
+
+    }
+
+
     public Task<bool> ExistsByUserNameOrEmailAsync(string userName, string email, CancellationToken cancellationToken = default)
     {
         var normalizedUserName = userName.Trim();

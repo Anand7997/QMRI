@@ -43,7 +43,7 @@ export const privateRoutes: RouteObject[] = [
         ],
       },
       {
-        element: <RoleGuard allowedRoles={["USER"]} />,
+        element: <RoleGuard allowedRoles={["USER", "GUEST"]} />,
         children: [
           {
             path: "portal",

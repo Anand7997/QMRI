@@ -233,7 +233,8 @@ public sealed class AssessmentExecutionService(
 
         var questionCount = await CountAssessmentQuestionsAsync(assessment, cancellationToken);
         var assignedByMetadata = await GetAssessmentAssignedByMetadataAsync(assessment.AssessmentId, cancellationToken);
-        return MapDetail(assessment, questionCount, assignedByMetadata);
+        var questionResults = await BuildQuestionResultsAsync(assessment, cancellationToken);
+        return MapDetail(assessment, questionCount, questionResults, assignedByMetadata);
     }
 
     public async Task<Guid?> GetAssessmentOwnerUserIdAsync(Guid assessmentId, CancellationToken cancellationToken = default)
@@ -1012,6 +1013,7 @@ public sealed class AssessmentExecutionService(
     private static AssessmentDetailDto MapDetail(
         Assessment assessment,
         int questionCount,
+        IReadOnlyList<AssessmentQuestionResultDto> questionResults,
         AssessmentAssignedByMetadata? assignedByMetadata = null)
     {
         return new AssessmentDetailDto
@@ -1021,6 +1023,7 @@ public sealed class AssessmentExecutionService(
                 .OrderBy(response => response.AnsweredAtUtc)
                 .Select(MapResponse)
                 .ToArray(),
+            QuestionResults = questionResults,
             Scores = assessment.Scores
                 .OrderBy(score => score.Scope)
                 .ThenBy(score => score.Category?.SortOrder)
@@ -1062,6 +1065,73 @@ public sealed class AssessmentExecutionService(
                 })
                 .ToArray()
         };
+    }
+
+    private async Task<AssessmentQuestionResultDto[]> BuildQuestionResultsAsync(
+        Assessment assessment,
+        CancellationToken cancellationToken)
+    {
+        var selectedQuestionIds = GetSelectedQuestionIds(assessment);
+        var responsesByQuestionId = assessment.Responses
+            .GroupBy(response => response.QuestionId)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(response => response.AnsweredAtUtc).First());
+
+        var questionsQuery = dbContext.Questions
+            .AsNoTracking()
+            .Include(question => question.SubModule)
+                .ThenInclude(subModule => subModule!.Module)
+                    .ThenInclude(module => module!.Category)
+            .Where(question =>
+                question.SubModule != null &&
+                question.SubModule.Module != null &&
+                question.SubModule.Module.Category != null);
+
+        if (selectedQuestionIds.Count > 0)
+        {
+            questionsQuery = questionsQuery.Where(question => selectedQuestionIds.Contains(question.QuestionId));
+        }
+        else
+        {
+            questionsQuery = questionsQuery.Where(question =>
+                question.IsActive &&
+                question.SubModule!.IsActive &&
+                question.SubModule.Module!.IsActive &&
+                question.SubModule.Module.Category!.IsActive);
+        }
+
+        var questions = await questionsQuery
+            .OrderBy(question => question.SubModule!.Module!.Category!.SortOrder)
+            .ThenBy(question => question.SubModule!.Module!.SortOrder)
+            .ThenBy(question => question.SubModule!.SortOrder)
+            .ThenBy(question => question.SortOrder)
+            .ToArrayAsync(cancellationToken);
+
+        return questions
+            .Select(question =>
+            {
+                responsesByQuestionId.TryGetValue(question.QuestionId, out var response);
+
+                return new AssessmentQuestionResultDto
+                {
+                    QuestionId = question.QuestionId,
+                    CategoryId = question.SubModule!.Module!.Category!.CategoryId,
+                    CategoryName = question.SubModule.Module.Category.Name,
+                    ModuleId = question.SubModule.Module.ModuleId,
+                    ModuleName = question.SubModule.Module.Name,
+                    SubModuleId = question.SubModule.SubModuleId,
+                    SubModuleName = question.SubModule.Name,
+                    QuestionText = question.Text,
+                    Guidance = question.Guidance,
+                    ExpectedAnswer = question.ExpectedAnswer,
+                    Answer = response?.Answer,
+                    Points = response?.Points,
+                    Findings = response?.Findings,
+                    AnsweredAtUtc = response?.AnsweredAtUtc,
+                    Intensity = question.Intensity,
+                    SortOrder = question.SortOrder
+                };
+            })
+            .ToArray();
     }
 
     private static AssessmentResponseDto MapResponse(AssessmentResponse response)

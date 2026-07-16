@@ -105,6 +105,7 @@ public sealed class AssessmentCatalogService(qMRIDbContext dbContext) : IAssessm
                 Text = question.Text,
                 Guidance = question.Guidance,
                 ExpectedAnswer = question.ExpectedAnswer,
+                Intensity = question.Intensity,
                 Weight = question.Weight,
                 SortOrder = question.SortOrder,
                 IsActive = question.IsActive
@@ -364,6 +365,7 @@ public sealed class AssessmentCatalogService(qMRIDbContext dbContext) : IAssessm
             Text = RequireName(request.Text),
             Guidance = NormalizeOptional(request.Guidance),
             ExpectedAnswer = request.ExpectedAnswer,
+            Intensity = request.Intensity,
             Weight = NormalizeWeight(request.Weight),
             SortOrder = request.SortOrder,
             IsActive = request.IsActive
@@ -394,6 +396,7 @@ public sealed class AssessmentCatalogService(qMRIDbContext dbContext) : IAssessm
         question.Text = RequireName(request.Text);
         question.Guidance = NormalizeOptional(request.Guidance);
         question.ExpectedAnswer = request.ExpectedAnswer;
+        question.Intensity = request.Intensity;
         question.Weight = NormalizeWeight(request.Weight);
         question.SortOrder = request.SortOrder;
         question.IsActive = request.IsActive;
@@ -463,6 +466,7 @@ public sealed class AssessmentCatalogService(qMRIDbContext dbContext) : IAssessm
                 Text = question.Text,
                 Guidance = question.Guidance,
                 ExpectedAnswer = question.ExpectedAnswer,
+                Intensity = question.Intensity,
                 Weight = question.Weight,
                 SortOrder = question.SortOrder,
                 IsActive = question.IsActive
@@ -565,6 +569,7 @@ public sealed class AssessmentCatalogService(qMRIDbContext dbContext) : IAssessm
                 Text = question.Text,
                 Guidance = question.Guidance,
                 ExpectedAnswer = question.ExpectedAnswer,
+                Intensity = question.Intensity,
                 Weight = question.Weight,
                 SortOrder = question.SortOrder,
                 IsActive = question.IsActive
@@ -626,3 +631,5 @@ public sealed class AssessmentCatalogService(qMRIDbContext dbContext) : IAssessm
         return weight <= 0 ? 1 : weight;
     }
 }
+
+

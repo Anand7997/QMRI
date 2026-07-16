@@ -1,6 +1,6 @@
-[CmdletBinding(SupportsShouldProcess = $true)]
+﻿[CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [int[]]$Ports = @(5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180, 5254, 7018, 4173),
+    [int[]]$Ports = @(8081, 5000, 7018, 4173),
     [switch]$SkipProjectProcessSweep
 )
 

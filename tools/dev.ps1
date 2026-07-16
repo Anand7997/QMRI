@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$SmokeTestSeconds = 0
 )
 
@@ -65,8 +65,8 @@ function Stop-DevProcesses {
 }
 
 try {
-    if (Test-DevPort -Port 5254) {
-        Write-Host 'Backend already running on http://localhost:5254; reusing it.'
+    if (Test-DevPort -Port 5000) {
+        Write-Host 'Backend already running on http://localhost:5000; reusing it.'
     }
     else {
         $processes += Start-DevProcess `
@@ -83,8 +83,8 @@ try {
 
     Write-Host ''
     Write-Host 'qMRI dev servers are starting.'
-    Write-Host 'Backend:  http://localhost:5254'
-    Write-Host 'Frontend: Vite will print its local URL below, usually http://localhost:5173'
+    Write-Host 'Backend:  http://localhost:5000'
+    Write-Host 'Frontend: Vite will print its local URL below, usually http://localhost:8081'
     Write-Host 'Press Ctrl+C to stop the servers started by this command.'
     Write-Host ''
 

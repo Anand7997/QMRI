@@ -18,30 +18,41 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request, CancellationToken cancellationToken)
     {
         var result = await authenticationService.LoginAsync(request, cancellationToken);
-        if (result.Response is not null)
-        {
-            return Ok(result.Response);
-        }
-
-        return result.FailureReason switch
-        {
-            AuthenticationFailureReason.ApprovalPending => StatusCode(StatusCodes.Status403Forbidden, new
-            {
-                code = "ApprovalPending",
-                message = result.Message
-            }),
-            AuthenticationFailureReason.AccessDisabled => StatusCode(StatusCodes.Status403Forbidden, new
-            {
-                code = "AccessDisabled",
-                message = result.Message
-            }),
-            _ => Unauthorized(new
-            {
-                code = "InvalidCredentials",
-                message = result.Message
-            })
-        };
+        return ToActionResult(result);
     }
+
+    [AllowAnonymous]
+    [HttpPost("identity-access/login")]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> LoginWithIdentityAccess([FromBody] IdentityAccessLoginRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await authenticationService.LoginWithIdentityAccessAsync(request, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    [AllowAnonymous]
+
+    [HttpPost("identity-link/login")]
+
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+
+    public async Task<IActionResult> LoginWithIdentityLink([FromBody] IdentityLinkLoginRequestDto request, CancellationToken cancellationToken)
+
+    {
+
+        var result = await authenticationService.LoginWithIdentityLinkAsync(request, cancellationToken);
+
+        return ToActionResult(result);
+
+    }
+
+
 
     [AllowAnonymous]
     [HttpPost("register")]
@@ -80,5 +91,32 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
             email = User.FindFirstValue(ClaimTypes.Email),
             roles
         });
+    }
+
+    private IActionResult ToActionResult(LoginResultDto result)
+    {
+        if (result.Response is not null)
+        {
+            return Ok(result.Response);
+        }
+
+        return result.FailureReason switch
+        {
+            AuthenticationFailureReason.ApprovalPending => StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                code = "ApprovalPending",
+                message = result.Message
+            }),
+            AuthenticationFailureReason.AccessDisabled => StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                code = "AccessDisabled",
+                message = result.Message
+            }),
+            _ => Unauthorized(new
+            {
+                code = "InvalidCredentials",
+                message = result.Message
+            })
+        };
     }
 }

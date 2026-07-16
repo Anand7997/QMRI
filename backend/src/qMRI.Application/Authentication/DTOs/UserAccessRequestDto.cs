@@ -26,6 +26,11 @@ public sealed class UserAccessRequestDto
 
     public Guid? ApprovedByUserId { get; set; }
 
+    public DateTime? IdentityAccessExpiresAtUtc { get; set; }
+
+
+
+    public DateTime? IdentityLinkExpiresAtUtc { get; set; }
+
     public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
 }
-

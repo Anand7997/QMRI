@@ -76,27 +76,27 @@ const DEFAULT_SCORING_POLICY: ScoringPolicySettings = {
 const DEFAULT_INTENSITY_TEMPLATES: IntensityTemplate[] = [
   {
     code: "Operational",
-    label: "Operational",
+    label: "Operational (Low difficulty)",
     minQuestions: 30,
     maxQuestions: 40,
     lockedRange: true,
-    description: "Focused operational readiness baseline.",
+    description: "Focused operational readiness baseline with lower-difficulty core questions.",
   },
   {
     code: "Strategic",
-    label: "Strategic",
+    label: "Strategic (High difficulty)",
     minQuestions: 100,
     maxQuestions: 100,
     lockedRange: true,
-    description: "Enterprise-level strategic capability assessment.",
+    description: "Enterprise-level strategic capability assessment with the highest-difficulty questions.",
   },
   {
     code: "Tactical",
-    label: "Tactical",
+    label: "Tactical (Medium difficulty)",
     minQuestions: 300,
     maxQuestions: 300,
     lockedRange: true,
-    description: "Detailed tactical depth assessment.",
+    description: "Detailed tactical depth assessment with medium-difficulty questions.",
   },
 ];
 
@@ -182,10 +182,11 @@ export function loadIntensityTemplateSettings(): IntensityTemplateSettings {
     }
 
     return {
-      ...defaultTemplate,
       ...existing,
+      ...defaultTemplate,
       minQuestions: Math.max(1, Math.floor(existing.minQuestions)),
       maxQuestions: Math.max(1, Math.floor(existing.maxQuestions)),
+      lockedRange: existing.lockedRange ?? defaultTemplate.lockedRange,
     };
   });
 

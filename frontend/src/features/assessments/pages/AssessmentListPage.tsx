@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -31,6 +31,7 @@ import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   ConfirmDialog,
   EmptyState,
@@ -48,7 +49,15 @@ import {
   useUpdateAssessment,
 } from "shared/api/assessments";
 import { useHierarchy } from "shared/api/catalog";
-import { AssessmentStatus, type AssessmentSummaryDto, type ModuleDto, type SubModuleDto } from "shared/api/types";
+import { useUsers } from "shared/api/users";
+import {
+  AssessmentStatus,
+  QuestionIntensity,
+  type AssessmentSummaryDto,
+  type CategoryDto,
+  type ModuleDto,
+  type SubModuleDto,
+} from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
 import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 import {
@@ -60,6 +69,236 @@ import {
 
 const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery"] as const;
 const unknownAssignedByValue = "__unknown_assigned_by__";
+
+const recommendedQuestionCountByTemplate: Record<IntensityTemplate["code"], number> = {
+  Operational: 40,
+  Tactical: 80,
+  Strategic: 100,
+};
+
+const templateIntensityByCode: Record<IntensityTemplate["code"], number> = {
+  Operational: QuestionIntensity.Operational,
+  Tactical: QuestionIntensity.Tactical,
+  Strategic: QuestionIntensity.Strategic,
+};
+
+const importanceKeywordsByTemplate: Record<IntensityTemplate["code"], readonly string[]> = {
+  Operational: [
+    "ci/cd",
+    "automation",
+    "environment",
+    "test data",
+    "customer",
+    "defect",
+    "quality",
+    "coverage",
+    "release",
+    "production",
+    "shift-left",
+    "collaboration",
+    "compliance",
+    "risk",
+    "dashboard",
+    "integration",
+  ],
+  Tactical: [
+    "regression",
+    "coverage",
+    "automation",
+    "framework",
+    "traceability",
+    "defect",
+    "api",
+    "performance",
+    "security",
+    "environment",
+    "data",
+    "pipeline",
+    "execution",
+    "monitoring",
+    "reporting",
+    "triage",
+  ],
+  Strategic: [
+    "strategy",
+    "governance",
+    "enterprise",
+    "leadership",
+    "business",
+    "portfolio",
+    "roadmap",
+    "operating model",
+    "transformation",
+    "standard",
+    "kpi",
+    "innovation",
+    "scalability",
+    "investment",
+    "alignment",
+    "target",
+  ],
+};
+
+interface TemplateQuestionCandidate {
+  questionId: string;
+  categoryId: string;
+  categoryName: string;
+  moduleName: string;
+  subModuleName: string;
+  text: string;
+  guidance?: string | null;
+  intensity: number;
+  weight: number;
+  sortOrder: number;
+}
+
+function flattenTemplateQuestions(categories: CategoryDto[]): TemplateQuestionCandidate[] {
+  return categories.flatMap((category) =>
+    category.modules.flatMap((module) =>
+      module.subModules.flatMap((subModule) =>
+        subModule.questions.map((question) => ({
+          questionId: question.questionId,
+          categoryId: category.categoryId,
+          categoryName: category.name,
+          moduleName: module.name,
+          subModuleName: subModule.name,
+          text: question.text,
+          guidance: question.guidance,
+          intensity: question.intensity,
+          weight: question.weight,
+          sortOrder: question.sortOrder,
+        })),
+      ),
+    ),
+  );
+}
+
+function scoreQuestionImportance(question: TemplateQuestionCandidate, templateCode: IntensityTemplate["code"]) {
+  const haystack = [
+    question.categoryName,
+    question.moduleName,
+    question.subModuleName,
+    question.text,
+    question.guidance ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  let score = Math.round(question.weight * 10) + Math.max(0, 20 - question.sortOrder);
+  const targetIntensity = templateIntensityByCode[templateCode];
+
+  if (question.intensity == targetIntensity) {
+    score += 220;
+  } else if (templateCode === "Operational" && question.intensity === QuestionIntensity.Tactical) {
+    score += 110;
+  } else if (templateCode === "Operational" && question.intensity === QuestionIntensity.Strategic) {
+    score += 70;
+  }
+
+  for (const keyword of importanceKeywordsByTemplate[templateCode]) {
+    if (haystack.includes(keyword)) {
+      score += 28;
+    }
+  }
+
+  if (haystack.includes("mandatory")) {
+    score += 40;
+  }
+
+  return score;
+}
+
+function pickBalancedQuestionIds(
+  candidates: TemplateQuestionCandidate[],
+  templateCode: IntensityTemplate["code"],
+  targetCount: number,
+  excluded = new Set<string>(),
+) {
+  const grouped = new Map<string, Array<TemplateQuestionCandidate & { score: number }>>();
+
+  candidates.forEach((question) => {
+    if (excluded.has(question.questionId)) {
+      return;
+    }
+
+    const scoredQuestion = {
+      ...question,
+      score: scoreQuestionImportance(question, templateCode),
+    };
+    const lane = grouped.get(question.categoryId) ?? [];
+    lane.push(scoredQuestion);
+    grouped.set(question.categoryId, lane);
+  });
+
+  const lanes = Array.from(grouped.values())
+    .map((lane) =>
+      lane.sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.sortOrder - right.sortOrder ||
+          right.weight - left.weight ||
+          left.text.localeCompare(right.text),
+      ),
+    )
+    .sort((left, right) => (left[0]?.categoryName ?? "").localeCompare(right[0]?.categoryName ?? ""));
+
+  const selected: string[] = [];
+
+  while (selected.length < targetCount) {
+    let progressed = false;
+
+    for (const lane of lanes) {
+      const next = lane.shift();
+      if (!next || excluded.has(next.questionId)) {
+        continue;
+      }
+
+      excluded.add(next.questionId);
+      selected.push(next.questionId);
+      progressed = true;
+
+      if (selected.length === targetCount) {
+        break;
+      }
+    }
+
+    if (!progressed) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function buildRecommendedQuestionIds(categories: CategoryDto[], templateCode: IntensityTemplate["code"]) {
+  const targetCount = recommendedQuestionCountByTemplate[templateCode];
+  const allQuestions = flattenTemplateQuestions(categories);
+  const selected = new Set<string>();
+  const questionIds: string[] = [];
+  const targetIntensity = templateIntensityByCode[templateCode];
+
+  questionIds.push(
+    ...pickBalancedQuestionIds(
+      allQuestions.filter((question) => question.intensity === targetIntensity),
+      templateCode,
+      targetCount,
+      selected,
+    ),
+  );
+
+  if (questionIds.length < targetCount) {
+    questionIds.push(
+      ...pickBalancedQuestionIds(
+        allQuestions.filter((question) => question.intensity !== targetIntensity),
+        templateCode,
+        targetCount - questionIds.length,
+        selected,
+      ),
+    );
+  }
+
+  return questionIds;
+}
 
 const statusByValue: Record<number, EntityStatus> = {
   [AssessmentStatus.Draft]: "Draft",
@@ -95,6 +334,9 @@ function progressLabel(row: AssessmentSummaryDto) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message || fallback;
+  }
   if (error instanceof Error) return error.message;
   return fallback;
 }
@@ -108,6 +350,7 @@ export function AssessmentListPage() {
   const location = useLocation();
   const assessmentsQuery = useAssessments();
   const catalogQuery = useHierarchy(false, true);
+  const approvedUsersQuery = useUsers("Approved");
   const createAssessment = useCreateAssessment();
   const updateAssessment = useUpdateAssessment();
   const deleteAssessment = useDeleteAssessment();
@@ -119,6 +362,7 @@ export function AssessmentListPage() {
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [selectedTemplateCode, setSelectedTemplateCode] = useState<IntensityTemplate["code"]>(() => loadIntensityTemplateSettings().defaultTemplateCode);
+  const [shouldSeedRecommendedQuestions, setShouldSeedRecommendedQuestions] = useState(false);
   const [departmentAnchor, setDepartmentAnchor] = useState<HTMLElement | null>(null);
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
   const [expandedModuleIds, setExpandedModuleIds] = useState<string[]>([]);
@@ -175,17 +419,20 @@ export function AssessmentListPage() {
   }, [assignedByFilter, rows]);
 
   const catalog = catalogQuery.data ?? [];
+  const scopedCatalog = catalog;
   const selectedQuestionSet = useMemo(() => new Set(selectedQuestionIds), [selectedQuestionIds]);
   const expandedCategorySet = useMemo(() => new Set(expandedCategoryIds), [expandedCategoryIds]);
   const expandedModuleSet = useMemo(() => new Set(expandedModuleIds), [expandedModuleIds]);
   const isSubmitting = createAssessment.isPending || updateAssessment.isPending;
+  const eligibleUserCountByDepartment = useMemo(() => {
+    const counts = new Map<string, number>();
+    (approvedUsersQuery.data ?? [])
+      .filter((user) => user.isActive)
+      .forEach((user) => counts.set(user.category, (counts.get(user.category) ?? 0) + 1));
+    return counts;
+  }, [approvedUsersQuery.data]);
+  const recommendedQuestionCount = recommendedQuestionCountByTemplate[selectedTemplateCode];
 
-  useEffect(() => {
-    if (!catalog.length || expandedCategoryIds.length > 0 || expandedModuleIds.length > 0) return;
-
-    setExpandedCategoryIds(catalog.map((category) => category.categoryId));
-    setExpandedModuleIds(catalog.flatMap((category) => category.modules.map((module) => module.moduleId)));
-  }, [catalog, expandedCategoryIds.length, expandedModuleIds.length]);
 
   useEffect(() => {
     if (assignedByFilter === "all") {
@@ -197,14 +444,28 @@ export function AssessmentListPage() {
     }
   }, [assignedByFilter, assignedByOptions]);
 
+  useEffect(() => {
+    if (!shouldSeedRecommendedQuestions || !drawerOpen || Boolean(editingId) || !catalog.length) {
+      return;
+    }
+
+    setSelectedQuestionIds(buildRecommendedQuestionIds(catalog, selectedTemplateCode));
+    setShouldSeedRecommendedQuestions(false);
+  }, [catalog, drawerOpen, editingId, selectedTemplateCode, shouldSeedRecommendedQuestions]);
+
   function openCreate() {
+    const defaultTemplateCode = loadIntensityTemplateSettings().defaultTemplateCode;
+
     setEditingId(null);
     setTitle(defaultTitle());
     setDescription("");
     setSelectedDepartments([]);
-    setSelectedQuestionIds([]);
-    setSelectedTemplateCode(loadIntensityTemplateSettings().defaultTemplateCode);
+    setSelectedTemplateCode(defaultTemplateCode);
+    setSelectedQuestionIds(buildRecommendedQuestionIds(catalog, defaultTemplateCode));
+    setShouldSeedRecommendedQuestions(!catalog.length);
     setDepartmentAnchor(null);
+    setExpandedCategoryIds([]);
+    setExpandedModuleIds([]);
     setFormError(null);
     setActionError(null);
     setDrawerOpen(true);
@@ -216,7 +477,10 @@ export function AssessmentListPage() {
     setDescription(row.description ?? "");
     setSelectedDepartments(row.departments ?? []);
     setSelectedQuestionIds(row.questionIds ?? []);
+    setShouldSeedRecommendedQuestions(false);
     setDepartmentAnchor(null);
+    setExpandedCategoryIds([]);
+    setExpandedModuleIds([]);
     setFormError(null);
     setActionError(null);
     setMenuAnchor(null);
@@ -244,8 +508,10 @@ export function AssessmentListPage() {
       }
 
       const template = findIntensityTemplate(selectedTemplateCode);
-      if (template && (selectedQuestionIds.length < template.minQuestions || selectedQuestionIds.length > template.maxQuestions)) {
-        setFormError(`${template.label} assessments require ${template.minQuestions}-${template.maxQuestions} questions. You selected ${selectedQuestionIds.length}.`);
+      if (selectedQuestionIds.length < recommendedQuestionCount) {
+        setFormError(
+          `${template?.label ?? selectedTemplateCode} assessments start with ${recommendedQuestionCount} recommended questions. You selected ${selectedQuestionIds.length}. Add more questions or use the recommended selection.`,
+        );
         return;
       }
     }
@@ -274,7 +540,19 @@ export function AssessmentListPage() {
     }
   }
 
+  function applyRecommendedQuestions(templateCode = selectedTemplateCode) {
+    if (!catalog.length) {
+      setSelectedQuestionIds([]);
+      setShouldSeedRecommendedQuestions(true);
+      return;
+    }
+
+    setSelectedQuestionIds(buildRecommendedQuestionIds(catalog, templateCode));
+    setShouldSeedRecommendedQuestions(false);
+  }
+
   function setQuestions(questionIds: string[], checked: boolean) {
+    setShouldSeedRecommendedQuestions(false);
     setSelectedQuestionIds((current) => {
       const next = new Set(current);
       questionIds.forEach((questionId) => {
@@ -547,14 +825,24 @@ export function AssessmentListPage() {
                 select
                 label="Intensity template"
                 value={selectedTemplateCode}
-                onChange={(event) => setSelectedTemplateCode(event.target.value as IntensityTemplate["code"])} 
-                helperText="Locked templates validate the selected question count before assignment."
+                onChange={(event) => {
+                  const nextTemplateCode = event.target.value as IntensityTemplate["code"];
+                  setSelectedTemplateCode(nextTemplateCode);
+                  setFormError(null);
+                  applyRecommendedQuestions(nextTemplateCode);
+                }}
+                helperText={`${selectedTemplateCode} starts with ${recommendedQuestionCount} important questions across all categories. Admins can add more questions manually.`}
               >
-                {loadIntensityTemplateSettings().templates.map((template) => (
-                  <MenuItem key={template.code} value={template.code}>
-                    {template.label} ({template.minQuestions}-{template.maxQuestions})
-                  </MenuItem>
-                ))}
+                {loadIntensityTemplateSettings().templates.map((template) => {
+                  const recommendedCount = recommendedQuestionCountByTemplate[template.code];
+                  const maxLabel = template.maxQuestions > recommendedCount ? `, up to ${template.maxQuestions}` : "";
+
+                  return (
+                    <MenuItem key={template.code} value={template.code}>
+                      {template.label} ({recommendedCount} recommended{maxLabel})
+                    </MenuItem>
+                  );
+                })}
               </TextField>
               <Divider />
               <Box>
@@ -578,20 +866,35 @@ export function AssessmentListPage() {
                     <MenuItem
                       key={department}
                       dense
+                      disabled={(eligibleUserCountByDepartment.get(department) ?? 0) === 0}
                       onClick={() => toggleDepartment(department, !selectedDepartments.includes(department))}
                     >
                       <Checkbox size="small" checked={selectedDepartments.includes(department)} />
-                      <Typography variant="body2">{department}</Typography>
+                      <Typography variant="body2" sx={{ flex: 1 }}>{department}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {(eligibleUserCountByDepartment.get(department) ?? 0) > 0
+                          ? `${eligibleUserCountByDepartment.get(department)} eligible`
+                          : "No eligible users"}
+                      </Typography>
                     </MenuItem>
                   ))}
                 </Menu>
               </Box>
               <Divider />
               <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle2">Assessment scope</Typography>
-                  <Chip size="small" label={`${selectedQuestionIds.length} questions`} />
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1, gap: 1, flexWrap: "wrap" }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap" }}>
+                    <Typography variant="subtitle2">Assessment scope</Typography>
+                    <Chip size="small" label={`${selectedQuestionIds.length} selected`} />
+                    <Chip size="small" variant="outlined" label={`${recommendedQuestionCount} recommended`} />
+                  </Stack>
+                  <Button size="small" onClick={() => applyRecommendedQuestions()} disabled={catalogQuery.isLoading}>
+                    Use recommended
+                  </Button>
                 </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.25 }}>
+                  The most important questions are preselected from all categories. You can keep them and add more questions before assignment.
+                </Typography>
                 {catalogQuery.isLoading ? (
                   <LinearProgress />
                 ) : catalogQuery.isError ? (
@@ -610,7 +913,7 @@ export function AssessmentListPage() {
                       p: 1,
                     }}
                   >
-                    {catalog.map((category) => {
+                    {scopedCatalog.map((category) => {
                       const categoryQuestionIds = category.modules.flatMap((module) => questionIdsForModule(module));
                       const categoryState = checkboxState(categoryQuestionIds);
                       const categoryExpanded = expandedCategorySet.has(category.categoryId);
@@ -724,6 +1027,12 @@ export function AssessmentListPage() {
     </Box>
   );
 }
+
+
+
+
+
+
 
 
 

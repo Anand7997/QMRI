@@ -14,6 +14,7 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
+import { useAuthContext } from "contexts/AuthContext";
 import { RoutePaths } from "shared/constants/routePaths";
 import type { PortalProfile } from "./types";
 
@@ -25,6 +26,7 @@ export function UserProfileMenu({ profile }: UserProfileMenuProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
   const navigate = useNavigate();
+  const { logout } = useAuthContext();
   const close = () => setAnchorEl(null);
 
   return (
@@ -87,7 +89,8 @@ export function UserProfileMenu({ profile }: UserProfileMenuProps) {
         <MenuItem
           onClick={() => {
             close();
-            navigate(RoutePaths.login);
+            logout();
+            navigate(RoutePaths.landing, { replace: true });
           }}
         >
           <ListItemIcon>

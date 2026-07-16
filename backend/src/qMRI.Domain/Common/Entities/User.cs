@@ -28,11 +28,23 @@ public sealed class User
 
     public Guid? ApprovedByUserId { get; set; }
 
+    public DateTime? IdentityAccessExpiresAtUtc { get; set; }
+
+
+
+    public string? IdentityLinkTokenHash { get; set; }
+
+
+
+    public DateTime? IdentityLinkExpiresAtUtc { get; set; }
+
+
+
+    public DateTime? IdentityLinkConsumedAtUtc { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
-
-

@@ -9,6 +9,7 @@ import { useState, type ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { useAuthContext } from "contexts/AuthContext";
+import { useUsers } from "shared/api/users";
 import { RecentAssessments } from "../components/RecentAssessments";
 import { Card3DBlock, dashboardBlocks } from "../components/Card3DBlock";
 import { useAssessmentDashboardData } from "../assessmentData";
@@ -61,6 +62,8 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const dashboard = useAssessmentDashboardData();
+  const pendingUsersQuery = useUsers("Pending");
+  const pendingSignupCount = pendingUsersQuery.data?.length ?? 0;
   const [activePanel, setActivePanel] = useState<AdminDashboardPanel>(null);
 
   return (
@@ -98,6 +101,7 @@ export function DashboardPage() {
               description={block.description}
               icon={block.icon}
               gradient={block.gradient}
+              badgeCount={block.id === "authentication" ? pendingSignupCount : undefined}
               onClick={() => navigate(block.route)}
             />
           ))}

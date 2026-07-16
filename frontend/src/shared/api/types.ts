@@ -5,6 +5,14 @@ export const AnswerOption = { No: 0, Partial: 1, Yes: 2 } as const;
 export type AnswerOptionValue = (typeof AnswerOption)[keyof typeof AnswerOption];
 export const answerLabel: Record<number, "No" | "Partial" | "Yes"> = { 0: "No", 1: "Partial", 2: "Yes" };
 
+export const QuestionIntensity = { Operational: 0, Tactical: 1, Strategic: 2 } as const;
+export type QuestionIntensityValue = (typeof QuestionIntensity)[keyof typeof QuestionIntensity];
+export const questionIntensityLabel: Record<number, string> = {
+  0: "Operational (Low difficulty)",
+  1: "Tactical (Medium difficulty)",
+  2: "Strategic (High difficulty)",
+};
+
 export const AssessmentStatus = {
   Draft: 0,
   InProgress: 1,
@@ -41,6 +49,7 @@ export interface QuestionDto {
   text: string;
   guidance?: string | null;
   expectedAnswer: AnswerOptionValue;
+  intensity: QuestionIntensityValue;
   weight: number;
   sortOrder: number;
   isActive: boolean;
@@ -140,6 +149,7 @@ export interface UpsertQuestionRequest {
   text: string;
   guidance?: string | null;
   expectedAnswer: AnswerOptionValue;
+  intensity: QuestionIntensityValue;
   weight: number;
   sortOrder: number;
   isActive: boolean;
@@ -178,6 +188,25 @@ export interface AssessmentResponseDto {
   answeredAtUtc: string;
 }
 
+export interface AssessmentQuestionResultDto {
+  questionId: string;
+  categoryId: string;
+  categoryName: string;
+  moduleId: string;
+  moduleName: string;
+  subModuleId: string;
+  subModuleName: string;
+  questionText: string;
+  guidance?: string | null;
+  expectedAnswer: AnswerOptionValue;
+  answer?: AnswerOptionValue | null;
+  points?: number | null;
+  findings?: string | null;
+  answeredAtUtc?: string | null;
+  intensity: QuestionIntensityValue;
+  sortOrder: number;
+}
+
 export interface AssessmentScoreDto {
   assessmentScoreId: string;
   assessmentId: string;
@@ -211,6 +240,7 @@ export interface RecommendationDto {
 export interface AssessmentDetailDto {
   summary: AssessmentSummaryDto;
   responses: AssessmentResponseDto[];
+  questionResults: AssessmentQuestionResultDto[];
   scores: AssessmentScoreDto[];
   recommendations: RecommendationDto[];
 }
@@ -250,5 +280,7 @@ export interface UpsertAssessmentResponseRequest {
   answer: number;
   findings?: string | null;
 }
+
+
 
 

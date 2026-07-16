@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Box, Typography } from "@mui/material";
-import { motion } from "motion/react";
 
 interface ScrollExpandMediaProps {
   mediaType?: "video" | "image";
@@ -20,9 +19,9 @@ interface ScrollExpandMediaProps {
 const TEXT_BLUE = "#BFDBFE";
 
 /**
- * Scroll-to-expand hero. Wheel/touch drives a 0->1 progress that grows the
- * centred media; at full expansion the page unlocks and `children` fade in.
- * Ported from a Next.js/Tailwind original to this Vite + MUI + motion stack.
+ * Hero banner: a full-viewport media focal point with logo + title over a blurred
+ * background, followed by the page content in normal document flow. The page scrolls
+ * naturally — no wheel/touch hijacking or scroll-locking.
  */
 export function ScrollExpandMedia({
   mediaType = "image",
@@ -37,289 +36,203 @@ export function ScrollExpandMedia({
   textBlend,
   children,
 }: ScrollExpandMediaProps) {
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [showContent, setShowContent] = useState(false);
-  const [mediaFullyExpanded, setMediaFullyExpanded] = useState(false);
-  const [touchStartY, setTouchStartY] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
+  const isYouTube = mediaSrc.includes("youtube.com");
 
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-
+  // scroll-linked split of the two title words — driven by native scroll, never blocks it
+  const [progress, setProgress] = useState(0);
   useEffect(() => {
-    setScrollProgress(0);
-    setShowContent(false);
-    setMediaFullyExpanded(false);
-  }, [mediaType]);
-
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      if (mediaFullyExpanded && e.deltaY < 0 && window.scrollY <= 5) {
-        setMediaFullyExpanded(false);
-        e.preventDefault();
-      } else if (!mediaFullyExpanded) {
-        e.preventDefault();
-        const scrollDelta = e.deltaY * 0.0009;
-        const newProgress = Math.min(Math.max(scrollProgress + scrollDelta, 0), 1);
-        setScrollProgress(newProgress);
-
-        if (newProgress >= 1) {
-          setMediaFullyExpanded(true);
-          setShowContent(true);
-        } else if (newProgress < 0.75) {
-          setShowContent(false);
-        }
-      }
+    const onScroll = () => {
+      const p = Math.min(Math.max(window.scrollY / window.innerHeight, 0), 1);
+      setProgress(p);
     };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      setTouchStartY(e.touches[0].clientY);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!touchStartY) return;
-
-      const touchY = e.touches[0].clientY;
-      const deltaY = touchStartY - touchY;
-
-      if (mediaFullyExpanded && deltaY < -20 && window.scrollY <= 5) {
-        setMediaFullyExpanded(false);
-        e.preventDefault();
-      } else if (!mediaFullyExpanded) {
-        e.preventDefault();
-        const scrollFactor = deltaY < 0 ? 0.008 : 0.005;
-        const scrollDelta = deltaY * scrollFactor;
-        const newProgress = Math.min(Math.max(scrollProgress + scrollDelta, 0), 1);
-        setScrollProgress(newProgress);
-
-        if (newProgress >= 1) {
-          setMediaFullyExpanded(true);
-          setShowContent(true);
-        } else if (newProgress < 0.75) {
-          setShowContent(false);
-        }
-
-        setTouchStartY(touchY);
-      }
-    };
-
-    const handleTouchEnd = () => setTouchStartY(0);
-
-    const handleScroll = () => {
-      if (!mediaFullyExpanded) window.scrollTo(0, 0);
-    };
-
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    window.addEventListener("scroll", handleScroll);
-    window.addEventListener("touchstart", handleTouchStart, { passive: false });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
-    window.addEventListener("touchend", handleTouchEnd);
-
-    return () => {
-      window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [scrollProgress, mediaFullyExpanded, touchStartY]);
-
-  useEffect(() => {
-    const checkIfMobile = () => setIsMobile(window.innerWidth < 768);
-    checkIfMobile();
-    window.addEventListener("resize", checkIfMobile);
-    return () => window.removeEventListener("resize", checkIfMobile);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  const mediaWidth = 300 + scrollProgress * (isMobile ? 650 : 1250);
-  const mediaHeight = 400 + scrollProgress * (isMobile ? 200 : 400);
-  const textTranslateX = scrollProgress * (isMobile ? 180 : 150);
 
   const firstWord = title ? title.split(" ")[0] : "";
   const restOfTitle = title ? title.split(" ").slice(1).join(" ") : "";
-
-  const isYouTube = mediaSrc.includes("youtube.com");
+  const shift = progress * 26; // vw each word travels apart
 
   return (
-    <Box ref={sectionRef} sx={{ transition: "background-color 0.7s ease-in-out", overflowX: "hidden" }}>
+    <Box sx={{ overflowX: "hidden" }}>
       <Box
         component="section"
-        sx={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", minHeight: "100dvh" }}
+        sx={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100dvh",
+          py: { xs: 6, md: 8 },
+        }}
       >
-        <Box sx={{ position: "relative", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100dvh" }}>
-          {/* Background */}
-          <motion.div
-            style={{ position: "absolute", inset: 0, zIndex: 0, height: "100%" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 - scrollProgress }}
-            transition={{ duration: 0.1 }}
-          >
-            <Box
-              component="img"
-              src={bgImageSrc}
-              alt="Background"
-              sx={{ width: "100vw", height: "100vh", objectFit: "cover", objectPosition: "center" }}
-            />
-            <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.35)" }} />
-          </motion.div>
+        {/* Background */}
+        <Box sx={{ position: "absolute", inset: 0, zIndex: 0 }}>
+          <Box
+            component="img"
+            src={bgImageSrc}
+            alt="Background"
+            sx={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+          />
+          <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.45)" }} />
+        </Box>
 
-          <Box sx={{ position: "relative", zIndex: 10, width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <Box sx={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", height: "100dvh" }}>
-              {/* Expanding media */}
+        {/* Foreground */}
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 10,
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            px: 2,
+          }}
+        >
+          {/* Media focal point */}
+          <Box
+            sx={{
+              position: "relative",
+              width: { xs: "92vw", md: "min(1100px, 90vw)" },
+              height: { xs: 300, md: 500 },
+              borderRadius: 4,
+              overflow: "hidden",
+              boxShadow: "0px 0px 50px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            {mediaType === "video" ? (
+              isYouTube ? (
+                <Box
+                  component="iframe"
+                  src={
+                    mediaSrc.includes("embed")
+                      ? mediaSrc + (mediaSrc.includes("?") ? "&" : "?") + "autoplay=1&mute=1&loop=1&controls=0&showinfo=0&rel=0&disablekb=1&modestbranding=1"
+                      : mediaSrc.replace("watch?v=", "embed/") + "?autoplay=1&mute=1&loop=1&controls=0&showinfo=0&rel=0&disablekb=1&modestbranding=1&playlist=" + mediaSrc.split("v=")[1]
+                  }
+                  sx={{ width: "100%", height: "100%", border: 0, pointerEvents: "none" }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <Box
+                  component="video"
+                  src={mediaSrc}
+                  poster={posterSrc}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="auto"
+                  controls={false}
+                  sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              )
+            ) : (
               <Box
+                component="img"
+                src={mediaSrc}
+                alt={title || "Media content"}
+                sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            )}
+
+            <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.5)" }} />
+
+            {logoSrc && (
+              <Box
+                component="img"
+                src={logoSrc}
+                alt={logoAlt}
                 sx={{
                   position: "absolute",
-                  zIndex: 0,
                   top: "50%",
                   left: "50%",
                   transform: "translate(-50%, -50%)",
-                  width: `${mediaWidth}px`,
-                  height: `${mediaHeight}px`,
-                  maxWidth: "95vw",
-                  maxHeight: "85vh",
-                  borderRadius: 4,
-                  boxShadow: "0px 0px 50px rgba(0, 0, 0, 0.3)",
+                  zIndex: 20,
+                  width: { xs: "62%", md: "48%" },
+                  maxWidth: 460,
+                  height: "auto",
+                  objectFit: "contain",
+                  pointerEvents: "none",
+                  filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.45))",
                 }}
-              >
-                {mediaType === "video" ? (
-                  isYouTube ? (
-                    <Box sx={{ position: "relative", width: "100%", height: "100%", pointerEvents: "none" }}>
-                      <Box
-                        component="iframe"
-                        src={
-                          mediaSrc.includes("embed")
-                            ? mediaSrc + (mediaSrc.includes("?") ? "&" : "?") + "autoplay=1&mute=1&loop=1&controls=0&showinfo=0&rel=0&disablekb=1&modestbranding=1"
-                            : mediaSrc.replace("watch?v=", "embed/") + "?autoplay=1&mute=1&loop=1&controls=0&showinfo=0&rel=0&disablekb=1&modestbranding=1&playlist=" + mediaSrc.split("v=")[1]
-                        }
-                        width="100%"
-                        height="100%"
-                        sx={{ width: "100%", height: "100%", borderRadius: 3, border: 0 }}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                      <motion.div
-                        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", borderRadius: 12 }}
-                        initial={{ opacity: 0.7 }}
-                        animate={{ opacity: 0.5 - scrollProgress * 0.3 }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    </Box>
-                  ) : (
-                    <Box sx={{ position: "relative", width: "100%", height: "100%", pointerEvents: "none" }}>
-                      <Box
-                        component="video"
-                        src={mediaSrc}
-                        poster={posterSrc}
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="auto"
-                        controls={false}
-                        disablePictureInPicture
-                        disableRemotePlayback
-                        sx={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 3 }}
-                      />
-                      <motion.div
-                        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", borderRadius: 12 }}
-                        initial={{ opacity: 0.7 }}
-                        animate={{ opacity: 0.5 - scrollProgress * 0.3 }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    </Box>
-                  )
-                ) : (
-                  <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
-                    <Box
-                      component="img"
-                      src={mediaSrc}
-                      alt={title || "Media content"}
-                      sx={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 3 }}
-                    />
-                    <motion.div
-                      style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", borderRadius: 12 }}
-                      initial={{ opacity: 0.7 }}
-                      animate={{ opacity: 0.7 - scrollProgress * 0.3 }}
-                      transition={{ duration: 0.2 }}
-                    />
-                  </Box>
-                )}
+              />
+            )}
+          </Box>
 
-                {logoSrc && (
-                  <Box
-                    component="img"
-                    src={logoSrc}
-                    alt={logoAlt}
-                    sx={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      zIndex: 20,
-                      width: { xs: "62%", md: "48%" },
-                      maxWidth: 460,
-                      height: "auto",
-                      objectFit: "contain",
-                      pointerEvents: "none",
-                      filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.45))",
-                    }}
-                  />
-                )}
-
-                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", position: "relative", zIndex: 10, mt: 2 }}>
-                  {date && (
-                    <Typography sx={{ fontSize: "1.5rem", color: TEXT_BLUE, transform: `translateX(-${textTranslateX}vw)` }}>
-                      {date}
-                    </Typography>
-                  )}
-                  {scrollToExpand && (
-                    <Typography sx={{ color: TEXT_BLUE, fontWeight: 500, textAlign: "center", transform: `translateX(${textTranslateX}vw)` }}>
-                      {scrollToExpand}
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-
-              {/* Title */}
+          {/* Title + captions */}
+          <Box
+            sx={{
+              mt: { xs: 4, md: 5 },
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              mixBlendMode: textBlend ? "difference" : "normal",
+            }}
+          >
+            {date && (
+              <Typography sx={{ fontSize: { xs: "1.05rem", md: "1.35rem" }, color: TEXT_BLUE, letterSpacing: "0.04em" }}>
+                {date}
+              </Typography>
+            )}
+            {title && (
               <Box
                 sx={{
+                  mt: 1,
                   display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
                   justifyContent: "center",
-                  textAlign: "center",
-                  gap: { xs: 10, md: 16 },
+                  alignItems: "baseline",
+                  gap: { xs: 1.5, md: 3 },
                   width: "100%",
-                  position: "relative",
-                  zIndex: 10,
-                  mixBlendMode: textBlend ? "difference" : "normal",
                 }}
               >
                 <Typography
                   component="h2"
-                  sx={{ fontSize: { xs: "2.25rem", md: "3rem", lg: "3.75rem" }, fontWeight: 700, color: TEXT_BLUE, transform: `translateX(-${textTranslateX}vw)` }}
+                  sx={{
+                    fontSize: { xs: "2.25rem", md: "3rem", lg: "3.75rem" },
+                    fontWeight: 700,
+                    color: TEXT_BLUE,
+                    lineHeight: 1.1,
+                    whiteSpace: "nowrap",
+                    transform: `translateX(-${shift}vw)`,
+                    willChange: "transform",
+                  }}
                 >
                   {firstWord}
                 </Typography>
-                <Typography
-                  component="h2"
-                  sx={{ fontSize: { xs: "2.25rem", md: "3rem", lg: "3.75rem" }, fontWeight: 700, color: TEXT_BLUE, textAlign: "center", transform: `translateX(${textTranslateX}vw)` }}
-                >
-                  {restOfTitle}
-                </Typography>
+                {restOfTitle && (
+                  <Typography
+                    component="h2"
+                    sx={{
+                      fontSize: { xs: "2.25rem", md: "3rem", lg: "3.75rem" },
+                      fontWeight: 700,
+                      color: TEXT_BLUE,
+                      lineHeight: 1.1,
+                      whiteSpace: "nowrap",
+                      transform: `translateX(${shift}vw)`,
+                      willChange: "transform",
+                    }}
+                  >
+                    {restOfTitle}
+                  </Typography>
+                )}
               </Box>
-            </Box>
-
-            {/* Revealed content */}
-            <motion.section
-              style={{ display: "flex", flexDirection: "column", width: "100%" }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: showContent ? 1 : 0 }}
-              transition={{ duration: 0.7 }}
-            >
-              {children}
-            </motion.section>
+            )}
+            {scrollToExpand && (
+              <Typography sx={{ mt: 2, color: TEXT_BLUE, fontWeight: 500, opacity: 0.85 }}>
+                {scrollToExpand}
+              </Typography>
+            )}
           </Box>
         </Box>
+      </Box>
+
+      {/* Page content — normal document flow */}
+      <Box component="section" sx={{ width: "100%" }}>
+        {children}
       </Box>
     </Box>
   );

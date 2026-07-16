@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
+import axios from "axios";
 import {
   Alert,
   Box,
   Button,
   Card,
-  Checkbox,
   Chip,
+  Checkbox,
   CircularProgress,
   FormControl,
   MenuItem,
@@ -18,28 +19,42 @@ import {
   TableHead,
   TableRow,
   Tabs,
+  TextField,
   Typography,
   type SelectChangeEvent,
 } from "@mui/material";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
+import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import LockClockOutlinedIcon from "@mui/icons-material/LockClockOutlined";
 import PersonAddAltOutlinedIcon from "@mui/icons-material/PersonAddAltOutlined";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import SelectAllOutlinedIcon from "@mui/icons-material/SelectAllOutlined";
 import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
-import { EmptyState, KpiTile, PageHeader, TableSkeleton } from "shared/components";
+import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
+import { EmptyState, FormDrawer, KpiTile, PageHeader, TableSkeleton } from "shared/components";
 import {
   useApproveUser,
+  useCreateIdentityAccess,
+  useCreateIdentityLink,
+  useDeactivateUser,
+  useUpdateUserAccess,
   useUsers,
   type ApprovalCategoryCode,
   type ApprovalRoleCode,
+  type CreateIdentityAccessResponse,
+  type CreateIdentityLinkResponse,
   type UserAccessRequest,
   type UserStatusFilter,
 } from "shared/api/users";
 
 type FilterTab = UserStatusFilter;
+type IdentityDurationUnit = "hours" | "days";
+type Feedback = { severity: "error" | "info" | "success"; message: string };
 
 const filterTabs: { label: string; value: FilterTab }[] = [
   { label: "Pending", value: "Pending" },
@@ -48,9 +63,13 @@ const filterTabs: { label: string; value: FilterTab }[] = [
 ];
 
 const defaultApprovalRole: ApprovalRoleCode = "USER";
+const guestApprovalRole: ApprovalRoleCode = "GUEST";
 const defaultApprovalCategory: ApprovalCategoryCode = "Fresher";
+const guestApprovalCategory: ApprovalCategoryCode = "Guest";
 
-const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery"];
+const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest"];
+const standardApprovalRoles: ApprovalRoleCode[] = ["USER", "ADMIN"];
+const guestAwareApprovalRoles: ApprovalRoleCode[] = ["USER", "ADMIN", "GUEST"];
 
 export function AuthenticationDashboardPage() {
   const [filter, setFilter] = useState<FilterTab>("Pending");
@@ -58,8 +77,33 @@ export function AuthenticationDashboardPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [roleByUserId, setRoleByUserId] = useState<Record<string, ApprovalRoleCode>>({});
   const [categoryByUserId, setCategoryByUserId] = useState<Record<string, ApprovalCategoryCode>>({});
+  const [identityDrawerOpen, setIdentityDrawerOpen] = useState(false);
+  const [identityEmail, setIdentityEmail] = useState("");
+  const [identityDurationValue, setIdentityDurationValue] = useState("7");
+  const [identityDurationUnit, setIdentityDurationUnit] = useState<IdentityDurationUnit>("days");
+  const [identityExpiresAtLocal, setIdentityExpiresAtLocal] = useState(() =>
+    toLocalDateTimeInput(addDuration(new Date(), 7, "days")),
+  );
+  const [identityFeedback, setIdentityFeedback] = useState<Feedback | null>(null);
+  const [createdIdentityAccess, setCreatedIdentityAccess] = useState<CreateIdentityAccessResponse | null>(null);
+  const [identityLinkDrawerOpen, setIdentityLinkDrawerOpen] = useState(false);
+  const [identityLinkFullName, setIdentityLinkFullName] = useState("");
+  const [identityLinkEmail, setIdentityLinkEmail] = useState("");
+  const [identityLinkCategory, setIdentityLinkCategory] = useState<ApprovalCategoryCode>(defaultApprovalCategory);
+  const [identityLinkDurationValue, setIdentityLinkDurationValue] = useState("7");
+  const [identityLinkDurationUnit, setIdentityLinkDurationUnit] = useState<IdentityDurationUnit>("days");
+  const [identityLinkExpiresAtLocal, setIdentityLinkExpiresAtLocal] = useState(() =>
+    toLocalDateTimeInput(addDuration(new Date(), 7, "days")),
+  );
+  const [identityLinkFeedback, setIdentityLinkFeedback] = useState<Feedback | null>(null);
+  const [createdIdentityLink, setCreatedIdentityLink] = useState<CreateIdentityLinkResponse | null>(null);
+
   const { data: users = [], isLoading, isError } = useUsers("all");
   const approveUser = useApproveUser();
+  const createIdentityAccess = useCreateIdentityAccess();
+  const createIdentityLink = useCreateIdentityLink();
+  const updateUserAccess = useUpdateUserAccess();
+  const deactivateUser = useDeactivateUser();
 
   const filteredUsers = useMemo(() => {
     return filter === "all" ? users : users.filter((user) => user.approvalStatus === filter);
@@ -67,21 +111,37 @@ export function AuthenticationDashboardPage() {
 
   const pendingFilteredUsers = filteredUsers.filter((user) => user.approvalStatus === "Pending");
   const pendingFilteredIds = pendingFilteredUsers.map((user) => user.userId);
+  const approvedFilteredIds = filteredUsers.filter((user) => user.approvalStatus === "Approved" && user.isActive).map((user) => user.userId);
+  const filteredIds = filteredUsers.map((user) => user.userId);
   const selectedPendingIds = selectedIds.filter((id) => pendingFilteredIds.includes(id));
-  const isAllPendingSelected = pendingFilteredIds.length > 0 && pendingFilteredIds.every((id) => selectedIds.includes(id));
-  const isSomePendingSelected = selectedPendingIds.length > 0 && !isAllPendingSelected;
+  const selectedApprovedIds = selectedIds.filter((id) => approvedFilteredIds.includes(id));
+  const isAllFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
+  const isSomeFilteredSelected = selectedIds.some((id) => filteredIds.includes(id)) && !isAllFilteredSelected;
 
   const pendingCount = users.filter((user) => user.approvalStatus === "Pending").length;
   const approvedCount = users.filter((user) => user.approvalStatus === "Approved").length;
   const adminRequestCount = users.filter((user) => user.requestedRoleCode.toUpperCase() === "ADMIN").length;
   const activeUserCount = users.filter((user) => user.isActive).length;
 
-  function approvalRoleFor(userId: string) {
-    return roleByUserId[userId] ?? defaultApprovalRole;
+  function approvalRoleFor(user: UserAccessRequest) {
+    return roleByUserId[user.userId]
+      ?? (user.roles.some((role) => role.toUpperCase() === guestApprovalRole) || user.requestedRoleCode.toUpperCase() === guestApprovalRole
+        ? guestApprovalRole
+        : user.roles.some((role) => role.toUpperCase() === "ADMIN") || user.requestedRoleCode.toUpperCase() === "ADMIN"
+          ? "ADMIN"
+          : defaultApprovalRole);
   }
 
   function approvalCategoryFor(user: UserAccessRequest) {
-    return categoryByUserId[user.userId] ?? normalizeCategory(user.category);
+    return approvalRoleFor(user) === guestApprovalRole
+      ? guestApprovalCategory
+      : categoryByUserId[user.userId] ?? normalizeCategory(user.category);
+  }
+
+  function roleOptionsFor(user: UserAccessRequest) {
+    return user.roles.some((role) => role.toUpperCase() === guestApprovalRole) || user.requestedRoleCode.toUpperCase() === guestApprovalRole
+      ? guestAwareApprovalRoles
+      : standardApprovalRoles;
   }
 
   function handleToggleUser(userId: string) {
@@ -90,23 +150,23 @@ export function AuthenticationDashboardPage() {
     );
   }
 
-  function handleToggleAllPending() {
+  function handleToggleAllFiltered() {
     setSelectedIds((current) => {
-      if (isAllPendingSelected) {
-        return current.filter((id) => !pendingFilteredIds.includes(id));
+      if (isAllFilteredSelected) {
+        return current.filter((id) => !filteredIds.includes(id));
       }
 
-      return Array.from(new Set([...current, ...pendingFilteredIds]));
+      return Array.from(new Set([...current, ...filteredIds]));
     });
   }
 
-  function handleSelectAllPending() {
-    setSelectedIds((current) => Array.from(new Set([...current, ...pendingFilteredIds])));
-  }
-
-
   function handleRoleChange(userId: string, event: SelectChangeEvent<ApprovalRoleCode>) {
-    setRoleByUserId((current) => ({ ...current, [userId]: event.target.value as ApprovalRoleCode }));
+    const nextRole = event.target.value as ApprovalRoleCode;
+    setRoleByUserId((current) => ({ ...current, [userId]: nextRole }));
+    setCategoryByUserId((current) => ({
+      ...current,
+      [userId]: nextRole === guestApprovalRole ? guestApprovalCategory : current[userId] === guestApprovalCategory ? defaultApprovalCategory : current[userId] ?? defaultApprovalCategory,
+    }));
   }
 
   function handleCategoryChange(userId: string, event: SelectChangeEvent<ApprovalCategoryCode>) {
@@ -120,7 +180,7 @@ export function AuthenticationDashboardPage() {
     approveUser.mutate(
       {
         userId,
-        roleCode: approvalRoleFor(userId),
+        roleCode: user ? approvalRoleFor(user) : defaultApprovalRole,
         category: user ? approvalCategoryFor(user) : defaultApprovalCategory,
       },
       {
@@ -137,7 +197,7 @@ export function AuthenticationDashboardPage() {
         const user = users.find((candidate) => candidate.userId === userId);
         await approveUser.mutateAsync({
           userId,
-          roleCode: approvalRoleFor(userId),
+          roleCode: user ? approvalRoleFor(user) : defaultApprovalRole,
           category: user ? approvalCategoryFor(user) : defaultApprovalCategory,
         });
       }
@@ -147,11 +207,201 @@ export function AuthenticationDashboardPage() {
     }
   }
 
+  async function handleSaveUser(user: UserAccessRequest) {
+    setApprovingUserId(user.userId);
+    try {
+      await updateUserAccess.mutateAsync({
+        userId: user.userId,
+        roleCode: approvalRoleFor(user),
+        category: approvalCategoryFor(user),
+        isActive: true,
+      });
+    } finally {
+      setApprovingUserId(null);
+    }
+  }
+
+  async function handleDeactivateUsers(userIds: string[]) {
+    setApprovingUserId("deactivate");
+    try {
+      for (const userId of userIds) {
+        await deactivateUser.mutateAsync(userId);
+      }
+      setSelectedIds((current) => current.filter((id) => !userIds.includes(id)));
+    } finally {
+      setApprovingUserId(null);
+    }
+  }
+
+  function openIdentityDrawer() {
+    setIdentityDrawerOpen(true);
+    setIdentityEmail("");
+    setIdentityDurationValue("7");
+    setIdentityDurationUnit("days");
+    setIdentityExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), 7, "days")));
+    setIdentityFeedback(null);
+    setCreatedIdentityAccess(null);
+  }
+
+  function updateIdentityExpiry(durationValue: string, unit: IdentityDurationUnit) {
+    setIdentityDurationValue(durationValue);
+    setIdentityDurationUnit(unit);
+
+    const parsedDuration = Number(durationValue);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      return;
+    }
+
+    setIdentityExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), parsedDuration, unit)));
+  }
+
+  async function handleCreateIdentityAccess() {
+    setIdentityFeedback(null);
+
+    if (!identityEmail.trim()) {
+      setIdentityFeedback({ severity: "error", message: "Enter the guest email address." });
+      return;
+    }
+
+    const parsedDuration = Number(identityDurationValue);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      setIdentityFeedback({ severity: "error", message: "Enter a valid access duration." });
+      return;
+    }
+
+    const expiresAt = new Date(identityExpiresAtLocal);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      setIdentityFeedback({ severity: "error", message: "Set an expiry date and time in the future." });
+      return;
+    }
+
+    try {
+      const result = await createIdentityAccess.mutateAsync({
+        email: identityEmail.trim(),
+        expiresAtUtc: expiresAt.toISOString(),
+      });
+
+      setCreatedIdentityAccess(result);
+      setIdentityFeedback({
+        severity: "success",
+        message: "Guest identity access created. Copy the access code now because it is only shown once.",
+      });
+      setFilter("Approved");
+    } catch (error) {
+      setCreatedIdentityAccess(null);
+      setIdentityFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to create guest identity access right now.",
+      });
+    }
+  }
+
+  async function copyAccessCode() {
+    if (!createdIdentityAccess) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdIdentityAccess.accessCode);
+    setIdentityFeedback({ severity: "success", message: "Access code copied to the clipboard." });
+  }
+
+
+  function openIdentityLinkDrawer() {
+    setIdentityLinkDrawerOpen(true);
+    setIdentityLinkFullName("");
+    setIdentityLinkEmail("");
+    setIdentityLinkCategory(defaultApprovalCategory);
+    setIdentityLinkDurationValue("7");
+    setIdentityLinkDurationUnit("days");
+    setIdentityLinkExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), 7, "days")));
+    setIdentityLinkFeedback(null);
+    setCreatedIdentityLink(null);
+  }
+
+  function updateIdentityLinkExpiry(durationValue: string, unit: IdentityDurationUnit) {
+    setIdentityLinkDurationValue(durationValue);
+    setIdentityLinkDurationUnit(unit);
+
+    const parsedDuration = Number(durationValue);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      return;
+    }
+
+    setIdentityLinkExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), parsedDuration, unit)));
+  }
+
+  async function handleCreateIdentityLink() {
+    setIdentityLinkFeedback(null);
+
+    if (!identityLinkFullName.trim()) {
+      setIdentityLinkFeedback({ severity: "error", message: "Enter the client name." });
+      return;
+    }
+
+    if (!identityLinkEmail.trim()) {
+      setIdentityLinkFeedback({ severity: "error", message: "Enter the client email address." });
+      return;
+    }
+
+    const parsedDuration = Number(identityLinkDurationValue);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      setIdentityLinkFeedback({ severity: "error", message: "Enter a valid link duration." });
+      return;
+    }
+
+    const expiresAt = new Date(identityLinkExpiresAtLocal);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      setIdentityLinkFeedback({ severity: "error", message: "Set an expiry date and time in the future." });
+      return;
+    }
+
+    try {
+      const result = await createIdentityLink.mutateAsync({
+        fullName: identityLinkFullName.trim(),
+        email: identityLinkEmail.trim(),
+        category: identityLinkCategory,
+        expiresAtUtc: expiresAt.toISOString(),
+        frontendBaseUrl: window.location.origin,
+      });
+
+      setCreatedIdentityLink(result);
+      setIdentityLinkFeedback({
+        severity: "success",
+        message: "Client identity link generated. Copy it now because it is only shown once.",
+      });
+      setFilter("Approved");
+    } catch (error) {
+      setCreatedIdentityLink(null);
+      setIdentityLinkFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to generate a client identity link right now.",
+      });
+    }
+  }
+
+  async function copyIdentityLink() {
+    if (!createdIdentityLink) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdIdentityLink.link);
+    setIdentityLinkFeedback({ severity: "success", message: "Identity link copied to the clipboard." });
+  }
   return (
     <Box>
       <PageHeader
         title="Authentication"
         subtitle="Approve signup requests before users can access their dashboards."
+        actions={(
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+            <Button variant="outlined" startIcon={<LinkOutlinedIcon />} onClick={openIdentityLinkDrawer} sx={{ whiteSpace: "nowrap" }}>
+              Identity Link
+            </Button>
+            <Button variant="contained" startIcon={<VpnKeyOutlinedIcon />} onClick={openIdentityDrawer} sx={{ whiteSpace: "nowrap" }}>
+              Identity Access
+            </Button>
+          </Stack>
+        )}
       />
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }, mb: 2 }}>
@@ -182,8 +432,8 @@ export function AuthenticationDashboardPage() {
             <Button
               variant="outlined"
               startIcon={<SelectAllOutlinedIcon />}
-              disabled={pendingFilteredIds.length === 0 || approveUser.isPending}
-              onClick={handleSelectAllPending}
+              disabled={filteredIds.length === 0 || approveUser.isPending || updateUserAccess.isPending || deactivateUser.isPending}
+              onClick={handleToggleAllFiltered}
             >
               Select all
             </Button>
@@ -195,6 +445,15 @@ export function AuthenticationDashboardPage() {
             >
               Approve all ({selectedPendingIds.length})
             </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              disabled={selectedApprovedIds.length === 0 || deactivateUser.isPending}
+              onClick={() => handleDeactivateUsers(selectedApprovedIds)}
+            >
+              Delete ({selectedApprovedIds.length})
+            </Button>
             <Tabs value={filter} onChange={(_, value: FilterTab) => setFilter(value)}>
               {filterTabs.map((tab) => (
                 <Tab key={tab.value} label={tab.label} value={tab.value} sx={{ cursor: "pointer" }} />
@@ -203,11 +462,13 @@ export function AuthenticationDashboardPage() {
           </Stack>
         </Stack>
 
-        {approveUser.isError ? <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to approve one or more users.</Alert> : null}
+        {approveUser.isError || updateUserAccess.isError || deactivateUser.isError ? (
+          <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to save one or more account changes.</Alert>
+        ) : null}
         {isError ? <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to load authentication requests.</Alert> : null}
 
         {isLoading ? (
-          <TableSkeleton rows={6} cols={8} />
+          <TableSkeleton rows={6} cols={9} />
         ) : filteredUsers.length === 0 ? (
           <EmptyState
             icon={<PersonAddAltOutlinedIcon sx={{ fontSize: 40 }} />}
@@ -216,16 +477,16 @@ export function AuthenticationDashboardPage() {
           />
         ) : (
           <Box sx={{ width: "100%", overflowX: "auto" }}>
-            <Table sx={{ minWidth: 1180 }}>
+            <Table sx={{ minWidth: 1260 }}>
               <TableHead>
                 <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox
-                      checked={isAllPendingSelected}
-                      indeterminate={isSomePendingSelected}
-                      disabled={pendingFilteredIds.length === 0}
-                      onChange={handleToggleAllPending}
-                      inputProps={{ "aria-label": "Select all pending requests" }}
+                      checked={isAllFilteredSelected}
+                      indeterminate={isSomeFilteredSelected}
+                      disabled={filteredIds.length === 0}
+                      onChange={handleToggleAllFiltered}
+                      inputProps={{ "aria-label": "Select all visible accounts" }}
                     />
                   </TableCell>
                   <TableCell>Account</TableCell>
@@ -233,6 +494,7 @@ export function AuthenticationDashboardPage() {
                   <TableCell>Approve as</TableCell>
                   <TableCell>Category</TableCell>
                   <TableCell>Status</TableCell>
+                  <TableCell>Expires</TableCell>
                   <TableCell>Requested</TableCell>
                   <TableCell align="right">Action</TableCell>
                 </TableRow>
@@ -240,15 +502,16 @@ export function AuthenticationDashboardPage() {
               <TableBody>
                 {filteredUsers.map((user) => {
                   const isPending = user.approvalStatus === "Pending";
-                  const selectedRole = approvalRoleFor(user.userId);
+                  const selectedRole = approvalRoleFor(user);
                   const selectedCategory = approvalCategoryFor(user);
+                  const roleOptions = roleOptionsFor(user);
 
                   return (
                     <TableRow key={user.userId} hover selected={selectedIds.includes(user.userId)}>
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={selectedIds.includes(user.userId)}
-                          disabled={!isPending || approveUser.isPending}
+                          disabled={approveUser.isPending || updateUserAccess.isPending || deactivateUser.isPending}
                           onChange={() => handleToggleUser(user.userId)}
                           inputProps={{ "aria-label": `Select ${user.fullName}` }}
                         />
@@ -267,35 +530,35 @@ export function AuthenticationDashboardPage() {
                         <RoleChip role={user.requestedRoleCode} />
                       </TableCell>
                       <TableCell>
-                        {isPending ? (
-                          <FormControl size="small" sx={{ minWidth: 112 }}>
-                            <Select value={selectedRole} onChange={(event) => handleRoleChange(user.userId, event)}>
-                              <MenuItem value="USER">User</MenuItem>
-                              <MenuItem value="ADMIN">Admin</MenuItem>
-                            </Select>
-                          </FormControl>
-                        ) : (
-                          <RoleChip role={user.roles.includes("ADMIN") ? "ADMIN" : user.requestedRoleCode} />
-                        )}
+                        <FormControl size="small" sx={{ minWidth: 112 }}>
+                          <Select value={selectedRole} onChange={(event) => handleRoleChange(user.userId, event)}>
+                            {roleOptions.map((role) => (
+                              <MenuItem key={role} value={role}>
+                                {labelRole(role)}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       </TableCell>
                       <TableCell>
-                        {isPending ? (
-                          <FormControl size="small" sx={{ minWidth: 132 }}>
-                            <Select value={selectedCategory} onChange={(event) => handleCategoryChange(user.userId, event)}>
-                              {approvalCategories.map((category) => (
-                                <MenuItem key={category} value={category}>
-                                  {category}
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        ) : (
-                          <CategoryChip category={selectedCategory} />
-                        )}
+                        <FormControl size="small" sx={{ minWidth: 132 }}>
+                          <Select
+                            value={selectedCategory}
+                            onChange={(event) => handleCategoryChange(user.userId, event)}
+                            disabled={selectedRole === guestApprovalRole}
+                          >
+                            {(selectedRole === guestApprovalRole ? [guestApprovalCategory] : approvalCategories.filter((category) => category !== guestApprovalCategory)).map((category) => (
+                              <MenuItem key={category} value={category}>
+                                {category}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       </TableCell>
                       <TableCell>
                         <ApprovalChip user={user} />
                       </TableCell>
+                      <TableCell>{formatIdentityExpiry(user.identityAccessExpiresAtUtc ?? user.identityLinkExpiresAtUtc)}</TableCell>
                       <TableCell>{formatDateTime(user.requestedAtUtc)}</TableCell>
                       <TableCell align="right">
                         {isPending ? (
@@ -306,12 +569,31 @@ export function AuthenticationDashboardPage() {
                             disabled={approveUser.isPending}
                             onClick={() => handleApprove(user.userId)}
                           >
-                            Accept as {selectedRole === "ADMIN" ? "Admin" : "User"}
+                            Accept as {labelRole(selectedRole)}
                           </Button>
                         ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            {user.approvedAtUtc ? `Approved ${formatDate(user.approvedAtUtc)}` : "Approved"}
-                          </Typography>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<SaveOutlinedIcon />}
+                              disabled={updateUserAccess.isPending || deactivateUser.isPending}
+                              onClick={() => handleSaveUser(user)}
+                            >
+                              Save
+                            </Button>
+                            {user.isActive ? (
+                              <Button
+                                size="small"
+                                color="error"
+                                startIcon={<DeleteOutlineIcon />}
+                                disabled={deactivateUser.isPending}
+                                onClick={() => handleDeactivateUsers([user.userId])}
+                              >
+                                Delete
+                              </Button>
+                            ) : null}
+                          </Stack>
                         )}
                       </TableCell>
                     </TableRow>
@@ -322,21 +604,208 @@ export function AuthenticationDashboardPage() {
           </Box>
         )}
       </Card>
+
+      <FormDrawer
+        open={identityDrawerOpen}
+        onClose={() => setIdentityDrawerOpen(false)}
+        onSubmit={handleCreateIdentityAccess}
+        title="Identity Access"
+        submitLabel={createIdentityAccess.isPending ? "Creating..." : "Create guest access"}
+        submitting={createIdentityAccess.isPending}
+        width={520}
+      >
+        <Stack spacing={2.25}>
+          {identityFeedback ? <Alert severity={identityFeedback.severity}>{identityFeedback.message}</Alert> : null}
+          <Alert severity="info">
+            Guests receive approved access immediately. Share the one-time access code securely after creating the record.
+          </Alert>
+
+          <TextField
+            label="Guest email"
+            type="email"
+            value={identityEmail}
+            onChange={(event) => setIdentityEmail(event.target.value)}
+            fullWidth
+            required
+            disabled={createIdentityAccess.isPending}
+          />
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <TextField
+              label="Amount of time"
+              type="number"
+              value={identityDurationValue}
+              onChange={(event) => updateIdentityExpiry(event.target.value, identityDurationUnit)}
+              inputProps={{ min: 1 }}
+              fullWidth
+              disabled={createIdentityAccess.isPending}
+            />
+            <FormControl fullWidth>
+              <Select
+                value={identityDurationUnit}
+                onChange={(event) => updateIdentityExpiry(identityDurationValue, event.target.value as IdentityDurationUnit)}
+                disabled={createIdentityAccess.isPending}
+              >
+                <MenuItem value="hours">Hours</MenuItem>
+                <MenuItem value="days">Days</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+
+          <TextField
+            label="Expiry date and time"
+            type="datetime-local"
+            value={identityExpiresAtLocal}
+            onChange={(event) => setIdentityExpiresAtLocal(event.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+            required
+            disabled={createIdentityAccess.isPending}
+          />
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <TextField label="Approval" value="Approved" fullWidth disabled />
+            <TextField label="Category" value="Guest" fullWidth disabled />
+          </Stack>
+
+          {createdIdentityAccess ? (
+            <Card variant="outlined" sx={{ p: 2 }}>
+              <Stack spacing={1.25}>
+                <Typography variant="h4">Guest access created</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Email: {createdIdentityAccess.user.email}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Expires: {formatDateTime(createdIdentityAccess.identityAccessExpiresAtUtc)}
+                </Typography>
+                <TextField label="One-time access code" value={createdIdentityAccess.accessCode} fullWidth InputProps={{ readOnly: true }} />
+                <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyAccessCode} sx={{ alignSelf: "flex-start" }}>
+                  Copy access code
+                </Button>
+              </Stack>
+            </Card>
+          ) : null}
+        </Stack>
+      </FormDrawer>
+      <FormDrawer
+        open={identityLinkDrawerOpen}
+        onClose={() => setIdentityLinkDrawerOpen(false)}
+        onSubmit={handleCreateIdentityLink}
+        title="Identity Link"
+        submitLabel={createIdentityLink.isPending ? "Generating..." : "Generate link"}
+        submitting={createIdentityLink.isPending}
+        width={560}
+      >
+        <Stack spacing={2.25}>
+          {identityLinkFeedback ? <Alert severity={identityLinkFeedback.severity}>{identityLinkFeedback.message}</Alert> : null}
+          <Alert severity="info">
+            This creates an approved client account and a secure one-time link that opens My Assessments directly.
+          </Alert>
+
+          <TextField
+            label="Client name"
+            value={identityLinkFullName}
+            onChange={(event) => setIdentityLinkFullName(event.target.value)}
+            fullWidth
+            required
+            disabled={createIdentityLink.isPending}
+          />
+
+          <TextField
+            label="Client email"
+            type="email"
+            value={identityLinkEmail}
+            onChange={(event) => setIdentityLinkEmail(event.target.value)}
+            fullWidth
+            required
+            disabled={createIdentityLink.isPending}
+          />
+
+          <TextField
+            select
+            label="Category"
+            value={identityLinkCategory}
+            onChange={(event) => setIdentityLinkCategory(event.target.value as ApprovalCategoryCode)}
+            fullWidth
+            disabled={createIdentityLink.isPending}
+          >
+            {approvalCategories.filter((category) => category !== guestApprovalCategory).map((category) => (
+              <MenuItem key={category} value={category}>
+                {category}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <TextField
+              label="Amount of time"
+              type="number"
+              value={identityLinkDurationValue}
+              onChange={(event) => updateIdentityLinkExpiry(event.target.value, identityLinkDurationUnit)}
+              inputProps={{ min: 1 }}
+              fullWidth
+              disabled={createIdentityLink.isPending}
+            />
+            <FormControl fullWidth>
+              <Select
+                value={identityLinkDurationUnit}
+                onChange={(event) => updateIdentityLinkExpiry(identityLinkDurationValue, event.target.value as IdentityDurationUnit)}
+                disabled={createIdentityLink.isPending}
+              >
+                <MenuItem value="hours">Hours</MenuItem>
+                <MenuItem value="days">Days</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+
+          <TextField
+            label="Expiry date and time"
+            type="datetime-local"
+            value={identityLinkExpiresAtLocal}
+            onChange={(event) => setIdentityLinkExpiresAtLocal(event.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+            required
+            disabled={createIdentityLink.isPending}
+          />
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <TextField label="Approval" value="Approved" fullWidth disabled />
+            <TextField label="Role" value="Client" fullWidth disabled />
+          </Stack>
+
+          {createdIdentityLink ? (
+            <Card variant="outlined" sx={{ p: 2 }}>
+              <Stack spacing={1.25}>
+                <Typography variant="h4">Client link generated</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Client: {createdIdentityLink.user.fullName} / {createdIdentityLink.user.email}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Expires: {formatDateTime(createdIdentityLink.identityLinkExpiresAtUtc)}
+                </Typography>
+                <TextField label="Direct assessment link" value={createdIdentityLink.link} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
+                <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyIdentityLink} sx={{ alignSelf: "flex-start" }}>
+                  Copy link
+                </Button>
+              </Stack>
+            </Card>
+          ) : null}
+        </Stack>
+      </FormDrawer>
     </Box>
   );
 }
 
 function RoleChip({ role }: { role: string }) {
-  const isAdmin = role.toUpperCase() === "ADMIN";
+  const normalizedRole = role.toUpperCase();
+
+  if (normalizedRole === guestApprovalRole) {
+    return <Chip size="small" label="Guest" color="info" />;
+  }
+
+  const isAdmin = normalizedRole === "ADMIN";
   return <Chip size="small" label={isAdmin ? "Admin" : "User"} color={isAdmin ? "primary" : "default"} />;
-}
-
-function CategoryChip({ category }: { category: string }) {
-  return <Chip size="small" label={normalizeCategory(category)} variant="outlined" />;
-}
-
-function normalizeCategory(category?: string | null): ApprovalCategoryCode {
-  return approvalCategories.find((option) => option.toLowerCase() === category?.toLowerCase()) ?? defaultApprovalCategory;
 }
 
 function ApprovalChip({ user }: { user: UserAccessRequest }) {
@@ -351,6 +820,21 @@ function ApprovalChip({ user }: { user: UserAccessRequest }) {
   return <Chip size="small" label={user.isActive ? "Approved" : "Inactive"} color={user.isActive ? "success" : "default"} />;
 }
 
+function normalizeCategory(category?: string | null): ApprovalCategoryCode {
+  return approvalCategories.find((option) => option.toLowerCase() === category?.toLowerCase()) ?? defaultApprovalCategory;
+}
+
+function labelRole(role: ApprovalRoleCode) {
+  switch (role) {
+    case "ADMIN":
+      return "Admin";
+    case "GUEST":
+      return "Guest";
+    default:
+      return "User";
+  }
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -358,9 +842,31 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+function formatIdentityExpiry(value?: string | null) {
+  return value ? formatDateTime(value) : "--";
 }
 
+function addDuration(value: Date, amount: number, unit: IdentityDurationUnit) {
+  const next = new Date(value);
+  if (unit === "hours") {
+    next.setHours(next.getHours() + amount);
+  } else {
+    next.setDate(next.getDate() + amount);
+  }
+  return next;
+}
 
+function toLocalDateTimeInput(value: Date) {
+  const pad = (part: number) => String(part).padStart(2, "0");
+
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+function getApiMessage(error: unknown) {
+  if (!axios.isAxiosError<{ message?: string }>(error)) {
+    return null;
+  }
+
+  return error.response?.data?.message ?? null;
+}
 

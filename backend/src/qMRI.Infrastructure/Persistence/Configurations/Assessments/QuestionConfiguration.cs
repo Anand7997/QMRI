@@ -25,6 +25,9 @@ public sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         builder.Property(entity => entity.ExpectedAnswer)
             .HasConversion<int>()
             .IsRequired();
+        builder.Property(entity => entity.Intensity)
+            .HasConversion<int>()
+            .IsRequired();
 
         builder.Property(entity => entity.Weight)
             .HasPrecision(5, 2);
@@ -36,3 +39,4 @@ public sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         builder.HasIndex(entity => entity.SubModuleId);
     }
 }
+

@@ -4,8 +4,8 @@ import { QueryKeys } from "shared/query/keys";
 
 export type UserApprovalStatus = "Pending" | "Approved" | "Rejected";
 export type UserStatusFilter = UserApprovalStatus | "all";
-export type ApprovalRoleCode = "USER" | "ADMIN";
-export type ApprovalCategoryCode = "Fresher" | "Digital" | "Ai" | "QE" | "Delevery";
+export type ApprovalRoleCode = "USER" | "ADMIN" | "GUEST";
+export type ApprovalCategoryCode = "Fresher" | "Digital" | "Ai" | "QE" | "Delevery" | "Guest";
 
 export interface UserAccessRequest {
   userId: string;
@@ -20,6 +20,8 @@ export interface UserAccessRequest {
   createdAtUtc: string;
   approvedAtUtc?: string | null;
   approvedByUserId?: string | null;
+  identityAccessExpiresAtUtc?: string | null;
+  identityLinkExpiresAtUtc?: string | null;
   roles: string[];
 }
 
@@ -27,6 +29,37 @@ export interface ApproveUserInput {
   userId: string;
   roleCode?: ApprovalRoleCode;
   category?: ApprovalCategoryCode;
+}
+
+export interface UpdateUserAccessInput {
+  userId: string;
+  roleCode: ApprovalRoleCode;
+  category: ApprovalCategoryCode;
+  isActive: boolean;
+}
+
+export interface CreateIdentityAccessInput {
+  email: string;
+  expiresAtUtc: string;
+}
+
+export interface CreateIdentityLinkInput {
+  fullName: string;
+  email: string;
+  category?: ApprovalCategoryCode;
+  expiresAtUtc: string;
+  frontendBaseUrl?: string;
+}
+
+export interface CreateIdentityLinkResponse {
+  link: string;
+  identityLinkExpiresAtUtc: string;
+  user: UserAccessRequest;
+}
+export interface CreateIdentityAccessResponse {
+  accessCode: string;
+  identityAccessExpiresAtUtc: string;
+  user: UserAccessRequest;
 }
 
 export async function getUsers(status: UserStatusFilter = "all"): Promise<UserAccessRequest[]> {
@@ -43,10 +76,20 @@ export async function approveUser(input: ApproveUserInput): Promise<UserAccessRe
   return data;
 }
 
+export async function createIdentityLink(input: CreateIdentityLinkInput): Promise<CreateIdentityLinkResponse> {
+  const { data } = await axiosClient.post<CreateIdentityLinkResponse>("/users/identity-link", input);
+  return data;
+}
+export async function createIdentityAccess(input: CreateIdentityAccessInput): Promise<CreateIdentityAccessResponse> {
+  const { data } = await axiosClient.post<CreateIdentityAccessResponse>("/users/identity-access", input);
+  return data;
+}
+
 export function useUsers(status: UserStatusFilter = "all") {
   return useQuery({
     queryKey: [...QueryKeys.users, status],
     queryFn: () => getUsers(status),
+    refetchInterval: status === "Pending" ? 15_000 : false,
   });
 }
 
@@ -61,4 +104,40 @@ export function useApproveUser() {
   });
 }
 
+export function useCreateIdentityLink() {
+  const queryClient = useQueryClient();
 
+  return useMutation({
+    mutationFn: createIdentityLink,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QueryKeys.users });
+    },
+  });
+}
+export function useCreateIdentityAccess() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createIdentityAccess,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QueryKeys.users });
+    },
+  });
+}
+
+export function useUpdateUserAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, ...body }: UpdateUserAccessInput) =>
+      axiosClient.put<UserAccessRequest>(`/users/${userId}`, body).then((response) => response.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QueryKeys.users }),
+  });
+}
+
+export function useDeactivateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => axiosClient.delete(`/users/${userId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QueryKeys.users }),
+  });
+}

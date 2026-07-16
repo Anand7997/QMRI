@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import axios from "axios";
 import {
   Alert,
   Box,
@@ -35,6 +36,9 @@ type ActionFeedback = {
 };
 
 function errorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message || fallback;
+  }
   if (error instanceof Error) return error.message;
   return fallback;
 }

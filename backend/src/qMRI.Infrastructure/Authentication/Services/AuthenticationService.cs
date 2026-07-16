@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using qMRI.Application.Authentication.Abstractions;
 using qMRI.Application.Authentication.DTOs;
@@ -16,6 +18,7 @@ public sealed class AuthenticationService(
 {
     private const string AdminRoleCode = "ADMIN";
     private const string UserRoleCode = "USER";
+    private const string GuestRoleCode = "GUEST";
     private readonly int _refreshTokenDays = configuration.GetValue<int?>("Jwt:RefreshTokenDays") ?? 7;
 
     public async Task<LoginResultDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
@@ -37,69 +40,80 @@ public sealed class AuthenticationService(
             return LoginResultDto.Failure(AuthenticationFailureReason.InvalidCredentials, "Invalid username/email or password.");
         }
 
-        if (user.ApprovalStatus == UserApprovalStatus.Pending)
+        var eligibilityFailure = ValidateLoginEligibility(user);
+        if (eligibilityFailure is not null)
         {
-            return LoginResultDto.Failure(
-                AuthenticationFailureReason.ApprovalPending,
-                "Your request has been sent to an administrator and is waiting for approval.");
+            return eligibilityFailure;
         }
 
-        if (!user.IsActive || user.ApprovalStatus == UserApprovalStatus.Rejected)
-        {
-            return LoginResultDto.Failure(
-                AuthenticationFailureReason.AccessDisabled,
-                "This account is not active. Please contact your qMRI administrator.");
-        }
-
-        var roles = user.UserRoles
-            .Where(userRole => userRole.Role is not null && userRole.Role.IsActive)
-            .Select(userRole => userRole.Role!.Code.ToUpperInvariant())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (roles.Length == 0)
-        {
-            return LoginResultDto.Failure(
-                AuthenticationFailureReason.AccessDisabled,
-                "This account has not been assigned a portal role yet.");
-        }
-
-        var (accessToken, accessTokenExpiresAtUtc) = jwtTokenGenerator.GenerateAccessToken(user, roles);
-
-        var refreshTokenValue = refreshTokenFactory.CreateToken();
-        var refreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(_refreshTokenDays);
-        var refreshToken = new RefreshToken
-        {
-            RefreshTokenId = Guid.NewGuid(),
-            UserId = user.UserId,
-            TokenHash = passwordHashingService.HashPassword(refreshTokenValue),
-            ExpiresAtUtc = refreshTokenExpiresAtUtc,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        await refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
-
-        return LoginResultDto.Success(new LoginResponseDto
-        {
-            AccessToken = accessToken,
-            AccessTokenExpiresAtUtc = accessTokenExpiresAtUtc,
-            RefreshToken = new RefreshTokenDto
-            {
-                Token = refreshTokenValue,
-                ExpiresAtUtc = refreshTokenExpiresAtUtc
-            },
-            User = new AuthenticatedUserDto
-            {
-                UserId = user.UserId,
-                FullName = user.FullName,
-                UserName = user.UserName,
-                Email = user.Email,
-                ApprovalStatus = user.ApprovalStatus.ToString(),
-                Roles = roles
-            }
-        });
+        return await CreateLoginResponseAsync(user, cancellationToken);
     }
 
+    public async Task<LoginResultDto> LoginWithIdentityAccessAsync(IdentityAccessLoginRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.AccessCode))
+        {
+            return LoginResultDto.Failure(AuthenticationFailureReason.InvalidCredentials, "Enter the guest email and access code.");
+        }
+
+        var user = await userRepository.GetByEmailWithRolesAsync(request.Email, cancellationToken);
+        if (user is null || !string.Equals(user.RequestedRoleCode, GuestRoleCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return LoginResultDto.Failure(AuthenticationFailureReason.InvalidCredentials, "Invalid email or access code.");
+        }
+
+        var isAccessCodeValid = passwordHashingService.VerifyPassword(request.AccessCode, user.PasswordHash);
+        if (!isAccessCodeValid)
+        {
+            return LoginResultDto.Failure(AuthenticationFailureReason.InvalidCredentials, "Invalid email or access code.");
+        }
+
+        var eligibilityFailure = ValidateLoginEligibility(user);
+        if (eligibilityFailure is not null)
+        {
+            return eligibilityFailure;
+        }
+
+        return await CreateLoginResponseAsync(user, cancellationToken);
+    }
+
+    public async Task<LoginResultDto> LoginWithIdentityLinkAsync(IdentityLinkLoginRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var token = request.Token?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return LoginResultDto.Failure(AuthenticationFailureReason.InvalidCredentials, "Invalid identity link.");
+        }
+
+        var tokenHash = HashIdentityLinkToken(token);
+        var user = await userRepository.GetByIdentityLinkTokenHashWithRolesAsync(tokenHash, cancellationToken);
+        if (user is null || !string.Equals(user.RequestedRoleCode, UserRoleCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return LoginResultDto.Failure(AuthenticationFailureReason.InvalidCredentials, "Invalid identity link.");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        if (!user.IdentityLinkExpiresAtUtc.HasValue
+            || user.IdentityLinkExpiresAtUtc.Value.ToUniversalTime() <= nowUtc
+            || user.IdentityLinkConsumedAtUtc.HasValue)
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.AccessDisabled,
+                "This identity link has expired or has already been used. Please contact your qMRI administrator.");
+        }
+
+        var eligibilityFailure = ValidateLoginEligibility(user);
+        if (eligibilityFailure is not null)
+        {
+            return eligibilityFailure;
+        }
+
+        user.IdentityLinkConsumedAtUtc = nowUtc;
+        user.IdentityLinkTokenHash = null;
+        await userRepository.SaveChangesAsync(cancellationToken);
+
+        return await CreateLoginResponseAsync(user, cancellationToken);
+    }
     public async Task<RegisterResultDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken = default)
     {
         var fullName = request.FullName.Trim();
@@ -157,10 +171,108 @@ public sealed class AuthenticationService(
         });
     }
 
+    private async Task<LoginResultDto> CreateLoginResponseAsync(User user, CancellationToken cancellationToken)
+    {
+        var roles = user.UserRoles
+            .Where(userRole => userRole.Role is not null && userRole.Role.IsActive)
+            .Select(userRole => userRole.Role!.Code.ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (roles.Length == 0)
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.AccessDisabled,
+                "This account has not been assigned a portal role yet.");
+        }
+
+        var (accessToken, accessTokenExpiresAtUtc) = jwtTokenGenerator.GenerateAccessToken(user, roles);
+
+        var refreshTokenValue = refreshTokenFactory.CreateToken();
+        var refreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(_refreshTokenDays);
+        if (user.IdentityAccessExpiresAtUtc is { } identityAccessExpiresAtUtc
+            && string.Equals(user.RequestedRoleCode, GuestRoleCode, StringComparison.OrdinalIgnoreCase)
+            && identityAccessExpiresAtUtc.ToUniversalTime() < refreshTokenExpiresAtUtc)
+        {
+            refreshTokenExpiresAtUtc = identityAccessExpiresAtUtc.ToUniversalTime();
+        }
+
+        var refreshToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            TokenHash = passwordHashingService.HashPassword(refreshTokenValue),
+            ExpiresAtUtc = refreshTokenExpiresAtUtc,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
+
+        return LoginResultDto.Success(new LoginResponseDto
+        {
+            AccessToken = accessToken,
+            AccessTokenExpiresAtUtc = accessTokenExpiresAtUtc,
+            RefreshToken = new RefreshTokenDto
+            {
+                Token = refreshTokenValue,
+                ExpiresAtUtc = refreshTokenExpiresAtUtc
+            },
+            User = new AuthenticatedUserDto
+            {
+                UserId = user.UserId,
+                FullName = user.FullName,
+                UserName = user.UserName,
+                Email = user.Email,
+                ApprovalStatus = user.ApprovalStatus.ToString(),
+                Roles = roles
+            }
+        });
+    }
+
+    private static LoginResultDto? ValidateLoginEligibility(User user)
+    {
+        if (user.ApprovalStatus == UserApprovalStatus.Pending)
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.ApprovalPending,
+                "Your request has been sent to an administrator and is waiting for approval.");
+        }
+
+        if (!user.IsActive || user.ApprovalStatus == UserApprovalStatus.Rejected)
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.AccessDisabled,
+                "This account is not active. Please contact your qMRI administrator.");
+        }
+
+        if (string.Equals(user.RequestedRoleCode, GuestRoleCode, StringComparison.OrdinalIgnoreCase)
+            && (!user.IdentityAccessExpiresAtUtc.HasValue || user.IdentityAccessExpiresAtUtc.Value.ToUniversalTime() <= DateTime.UtcNow))
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.AccessDisabled,
+                "This identity access has expired. Please contact your qMRI administrator.");
+        }
+
+        return null;
+    }
+
+    public static string HashIdentityLinkToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token.Trim()));
+        return Convert.ToHexString(bytes);
+    }
     private static string NormalizeRequestedRole(string? requestedRole)
     {
-        return string.Equals(requestedRole, AdminRoleCode, StringComparison.OrdinalIgnoreCase)
-            ? AdminRoleCode
-            : UserRoleCode;
+        if (string.Equals(requestedRole, AdminRoleCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return AdminRoleCode;
+        }
+
+        if (string.Equals(requestedRole, GuestRoleCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return GuestRoleCode;
+        }
+
+        return UserRoleCode;
     }
 }

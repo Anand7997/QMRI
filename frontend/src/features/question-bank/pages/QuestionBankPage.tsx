@@ -35,7 +35,14 @@ import {
   TableSkeleton,
 } from "shared/components";
 import { useHierarchy, useQuestionMutations, useQuestions } from "shared/api/catalog";
-import { AnswerOption, answerLabel, type QuestionDto, type UpsertQuestionRequest } from "shared/api/types";
+import {
+  AnswerOption,
+  QuestionIntensity,
+  answerLabel,
+  questionIntensityLabel,
+  type QuestionDto,
+  type UpsertQuestionRequest,
+} from "shared/api/types";
 import { appendGovernanceAuditEntry } from "features/dashboard/governance/dashboardGovernanceState";
 
 const blankForm: UpsertQuestionRequest & { subCategoryId?: string; subModuleId: string } = {
@@ -43,6 +50,7 @@ const blankForm: UpsertQuestionRequest & { subCategoryId?: string; subModuleId: 
   text: "",
   guidance: "",
   expectedAnswer: AnswerOption.No,
+  intensity: QuestionIntensity.Tactical,
   weight: 1,
   sortOrder: 0,
   isActive: true,
@@ -102,7 +110,16 @@ export function QuestionBankPage() {
   };
   const openEdit = (q: QuestionDto) => {
     setEditingId(q.questionId);
-    setForm({ subModuleId: q.subModuleId, text: q.text, guidance: q.guidance ?? "", expectedAnswer: q.expectedAnswer, weight: q.weight, sortOrder: q.sortOrder, isActive: q.isActive });
+    setForm({
+      subModuleId: q.subModuleId,
+      text: q.text,
+      guidance: q.guidance ?? "",
+      expectedAnswer: q.expectedAnswer,
+      intensity: q.intensity,
+      weight: q.weight,
+      sortOrder: q.sortOrder,
+      isActive: q.isActive,
+    });
     setFormCat(q.categoryId);
     setFormMod(q.moduleId);
     setDrawerOpen(true);
@@ -114,6 +131,7 @@ export function QuestionBankPage() {
       text: form.text,
       guidance: form.guidance || null,
       expectedAnswer: form.expectedAnswer,
+      intensity: form.intensity,
       weight: Number(form.weight),
       sortOrder: Number(form.sortOrder),
       isActive: form.isActive,
@@ -215,6 +233,7 @@ export function QuestionBankPage() {
                     <TableCell>Module</TableCell>
                     <TableCell>SubModule</TableCell>
                     <TableCell>Answers</TableCell>
+                    <TableCell>Intensity</TableCell>
                     <TableCell align="right">Weight</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
@@ -228,6 +247,7 @@ export function QuestionBankPage() {
                       <TableCell sx={{ color: "text.secondary" }}>{q.moduleName}</TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>{q.subModuleName}</TableCell>
                       <TableCell>{answerLabel[q.expectedAnswer]}</TableCell>
+                      <TableCell>{questionIntensityLabel[q.intensity]}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>{q.weight.toFixed(1)}</TableCell>
                       <TableCell><StatusChip status={q.isActive ? "Active" : "Inactive"} /></TableCell>
                       <TableCell align="right">
@@ -276,6 +296,12 @@ export function QuestionBankPage() {
             <MenuItem value={AnswerOption.Partial}>Partial</MenuItem>
             <MenuItem value={AnswerOption.No}>No</MenuItem>
           </TextField>
+          <TextField select label="Intensity" required value={form.intensity}
+            onChange={(e) => setForm({ ...form, intensity: Number(e.target.value) as UpsertQuestionRequest["intensity"] })}>
+            <MenuItem value={QuestionIntensity.Operational}>{questionIntensityLabel[QuestionIntensity.Operational]}</MenuItem>
+            <MenuItem value={QuestionIntensity.Tactical}>{questionIntensityLabel[QuestionIntensity.Tactical]}</MenuItem>
+            <MenuItem value={QuestionIntensity.Strategic}>{questionIntensityLabel[QuestionIntensity.Strategic]}</MenuItem>
+          </TextField>
           <TextField select label="Category" value={formCat}
             onChange={(e) => { setFormCat(e.target.value); setFormMod(""); setForm({ ...form, subModuleId: "" }); }}>
             {tree.map((c) => <MenuItem key={c.categoryId} value={c.categoryId}>{c.name}</MenuItem>)}
@@ -305,3 +331,7 @@ export function QuestionBankPage() {
     </Box>
   );
 }
+
+
+
+

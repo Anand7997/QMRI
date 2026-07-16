@@ -61,6 +61,7 @@ public sealed class QuestionDto
     public string Text { get; set; } = string.Empty;
     public string? Guidance { get; set; }
     public AnswerOption ExpectedAnswer { get; set; }
+    public QuestionIntensity Intensity { get; set; }
     public decimal Weight { get; set; }
     public int SortOrder { get; set; }
     public bool IsActive { get; set; }
@@ -122,6 +123,7 @@ public sealed class UpsertQuestionRequest
     public string Text { get; set; } = string.Empty;
     public string? Guidance { get; set; }
     public AnswerOption ExpectedAnswer { get; set; }
+    public QuestionIntensity Intensity { get; set; } = QuestionIntensity.Tactical;
     public decimal Weight { get; set; } = 1;
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;

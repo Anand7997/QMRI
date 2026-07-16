@@ -59,6 +59,27 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(entity => entity.ApprovedByUserId);
 
+        builder.Property(entity => entity.IdentityAccessExpiresAtUtc)
+            .HasColumnType("datetime2");
+
+
+
+        builder.Property(entity => entity.IdentityLinkTokenHash)
+
+            .HasMaxLength(512);
+
+
+
+        builder.Property(entity => entity.IdentityLinkExpiresAtUtc)
+
+            .HasColumnType("datetime2");
+
+
+
+        builder.Property(entity => entity.IdentityLinkConsumedAtUtc)
+
+            .HasColumnType("datetime2");
+
         builder.Property(entity => entity.CreatedAtUtc)
             .HasColumnType("datetime2")
             .IsRequired();

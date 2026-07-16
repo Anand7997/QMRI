@@ -22,7 +22,8 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import { login as loginRequest, register as registerRequest } from "shared/api/auth";
+import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
+import { login as loginRequest, loginWithIdentityAccess as loginWithIdentityAccessRequest, register as registerRequest } from "shared/api/auth";
 import { SplineScene } from "@/components/ui/splite";
 import { Spotlight } from "@/components/ui/spotlight";
 import { Card } from "@/components/ui/card";
@@ -37,9 +38,19 @@ import { QmriLogo } from "shared/components";
 
 type Mode = "signin" | "signup";
 type Audience = "admin" | "user";
+type SignInMethod = "account" | "identity";
 type Feedback = { severity: "error" | "info" | "success"; message: string };
 type ApiErrorBody = { code?: string; message?: string };
-type ActiveField = "identifier" | "password" | "fullName" | "userName" | "email" | "signUpPassword" | null;
+type ActiveField =
+  | "identifier"
+  | "password"
+  | "identityEmail"
+  | "identityCode"
+  | "fullName"
+  | "userName"
+  | "email"
+  | "signUpPassword"
+  | null;
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -49,9 +60,12 @@ export function LoginPage() {
   const audience: Audience = location.pathname.startsWith("/admin") ? "admin" : "user";
   const initialMode: Mode = location.pathname.endsWith("signup") ? "signup" : "signin";
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [signInMethod, setSignInMethod] = useState<SignInMethod>("account");
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [identityEmail, setIdentityEmail] = useState("");
+  const [identityCode, setIdentityCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [userName, setUserName] = useState("");
@@ -67,6 +81,7 @@ export function LoginPage() {
 
   useEffect(() => {
     setMode(initialMode);
+    setSignInMethod("account");
     setFeedback(null);
     setRequestSent(false);
     setActiveField(null);
@@ -169,6 +184,55 @@ export function LoginPage() {
     }
   }
 
+  async function handleIdentityAccessSignIn(event: FormEvent) {
+    event.preventDefault();
+    setFeedback(null);
+
+    if (!identityEmail.trim() || !identityCode.trim()) {
+      setFeedback({ severity: "error", message: "Enter the guest email and access code." });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await loginWithIdentityAccessRequest({
+        email: identityEmail.trim(),
+        accessCode: identityCode.trim(),
+      });
+
+      const isGuestUser = response.user.roles.some((role) => role.toUpperCase() === "GUEST");
+      if (!isGuestUser) {
+        setFeedback({ severity: "error", message: "This account is not configured for identity access." });
+        setSubmitting(false);
+        return;
+      }
+
+      login({
+        accessToken: response.accessToken,
+        accessTokenExpiresAtUtc: response.accessTokenExpiresAtUtc,
+        user: response.user,
+      });
+
+      navigate(redirectTarget ?? RoutePaths.portalDashboard, { replace: true });
+    } catch (err) {
+      const apiError = getApiError(err);
+
+      if (apiError?.code === "AccessDisabled") {
+        setFeedback({
+          severity: "error",
+          message: apiError.message ?? "This identity access is no longer active. Please contact your administrator.",
+        });
+      } else if (axios.isAxiosError(err) && err.response?.status === 401) {
+        setFeedback({ severity: "error", message: "Invalid guest email or access code." });
+      } else {
+        setFeedback({ severity: "error", message: "Unable to sign in with identity access right now. Please try again." });
+      }
+      logout();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleSignUp(event: FormEvent) {
     event.preventDefault();
     setFeedback(null);
@@ -215,7 +279,9 @@ export function LoginPage() {
     mode === "signin"
       ? isAdmin
         ? "Administrator sign in"
-        : "Welcome back"
+        : signInMethod === "identity"
+          ? "Identity access"
+          : "Welcome back"
       : isAdmin
         ? "Request admin access"
         : "Create your account";
@@ -223,7 +289,9 @@ export function LoginPage() {
     mode === "signin"
       ? isAdmin
         ? "Use the secured console entrance for QMRI administrators."
-        : "Your workspace is ready. Sign in and continue your maturity journey."
+        : signInMethod === "identity"
+          ? "Guest users can sign in with the email and access code created in Authentication > Identity Access."
+          : "Your workspace is ready. Sign in and continue your maturity journey."
       : isAdmin
         ? "Submit an administrator access request for approval."
         : "Submit a user access request for approval.";
@@ -232,12 +300,13 @@ export function LoginPage() {
     if (submitting) return "loading";
     if (feedback?.severity === "error") return "error";
     if (feedback?.severity === "success") return "success";
-    const isPassword = activeField === "password" || activeField === "signUpPassword";
+    const isPassword = activeField === "password" || activeField === "signUpPassword" || activeField === "identityCode";
     const isName =
-      activeField === "identifier" ||
-      activeField === "userName" ||
-      activeField === "email" ||
-      activeField === "fullName";
+      activeField === "identifier"
+      || activeField === "identityEmail"
+      || activeField === "userName"
+      || activeField === "email"
+      || activeField === "fullName";
     if (isPassword) return isTyping ? "password-typing" : "password-focus";
     if (isName) return isTyping ? "typing" : "username-focus";
     return "idle";
@@ -266,7 +335,7 @@ export function LoginPage() {
           bgcolor: neutralTokens.surface0,
         }}
       >
-        <AuthVisualPanel audience={audience} characterState={characterState} mouseX={formMouse.x} mouseY={formMouse.y} />
+        <AuthVisualPanel audience={audience} signInMethod={signInMethod} characterState={characterState} mouseX={formMouse.x} mouseY={formMouse.y} />
 
         <Box
           sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}
@@ -316,6 +385,18 @@ export function LoginPage() {
                         fontWeight: 800,
                       }}
                     />
+                  ) : signInMethod === "identity" && mode === "signin" ? (
+                    <Chip
+                      icon={<VpnKeyOutlinedIcon sx={{ fontSize: 18 }} />}
+                      label="Guest identity access"
+                      size="small"
+                      sx={{
+                        mt: 1,
+                        bgcolor: brandTokens.blue50,
+                        color: brandTokens.blue700,
+                        fontWeight: 800,
+                      }}
+                    />
                   ) : null}
                 </Stack>
 
@@ -329,6 +410,7 @@ export function LoginPage() {
                 <Tabs
                   value={mode}
                   onChange={(_, value: Mode) => {
+                    setMode(value);
                     navigate(value === "signup" ? paths.signup : paths.signin, {
                       replace: true,
                       state: location.state,
@@ -341,62 +423,142 @@ export function LoginPage() {
                 </Tabs>
 
                 {mode === "signin" ? (
-                  <Box component="form" onSubmit={handleSignIn} sx={{ mt: 3 }} noValidate>
-                    <Stack spacing={2.25}>
-                      {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
-
-                      <TextField
-                        label="Email or username"
-                        type="text"
-                        value={identifier}
-                        onFocus={() => setActiveField("identifier")}
-                        onBlur={() => setActiveField(null)}
-                        onChange={(e) => {
-                          setIdentifier(e.target.value);
-                          markTyping();
+                  <Box sx={{ mt: 3 }}>
+                    {!isAdmin ? (
+                      <Tabs
+                        value={signInMethod}
+                        onChange={(_, value: SignInMethod) => {
+                          setSignInMethod(value);
+                          setFeedback(null);
+                          setActiveField(null);
                         }}
-                        autoComplete="username"
-                        autoFocus
-                        fullWidth
-                        required
-                        disabled={submitting}
-                      />
+                        sx={{ mb: 2, borderBottom: `1px solid ${neutralTokens.line300}` }}
+                      >
+                        <Tab label="Account" value="account" sx={{ cursor: "pointer", fontWeight: 800 }} />
+                        <Tab label="Identity Access" value="identity" sx={{ cursor: "pointer", fontWeight: 800 }} />
+                      </Tabs>
+                    ) : null}
 
-                      <TextField
-                        label="Password"
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onFocus={() => setActiveField("password")}
-                        onBlur={() => setActiveField(null)}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          markTyping();
-                        }}
-                        autoComplete="current-password"
-                        fullWidth
-                        required
-                        disabled={submitting}
-                        InputProps={{
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label={showPassword ? "Hide password" : "Show password"}
-                                onClick={() => setShowPassword((v) => !v)}
-                                edge="end"
-                                size="small"
-                                sx={{ cursor: "pointer" }}
-                              >
-                                {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
+                    {signInMethod === "identity" && !isAdmin ? (
+                      <Box component="form" onSubmit={handleIdentityAccessSignIn} noValidate>
+                        <Stack spacing={2.25}>
+                          {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
+                          <Alert severity="info">
+                            Use the guest email and one-time access code shared by your administrator.
+                          </Alert>
 
-                      <Button type="submit" variant="contained" size="large" disabled={submitting} sx={{ minHeight: 50, cursor: "pointer", fontWeight: 850 }}>
-                        {submitting ? <CircularProgress size={22} color="inherit" /> : "Sign In"}
-                      </Button>
-                    </Stack>
+                          <TextField
+                            label="Guest email"
+                            type="email"
+                            value={identityEmail}
+                            onFocus={() => setActiveField("identityEmail")}
+                            onBlur={() => setActiveField(null)}
+                            onChange={(e) => {
+                              setIdentityEmail(e.target.value);
+                              markTyping();
+                            }}
+                            autoComplete="email"
+                            autoFocus
+                            fullWidth
+                            required
+                            disabled={submitting}
+                          />
+
+                          <TextField
+                            label="Access code"
+                            type={showPassword ? "text" : "password"}
+                            value={identityCode}
+                            onFocus={() => setActiveField("identityCode")}
+                            onBlur={() => setActiveField(null)}
+                            onChange={(e) => {
+                              setIdentityCode(e.target.value);
+                              markTyping();
+                            }}
+                            autoComplete="one-time-code"
+                            fullWidth
+                            required
+                            disabled={submitting}
+                            InputProps={{
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <IconButton
+                                    aria-label={showPassword ? "Hide access code" : "Show access code"}
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    edge="end"
+                                    size="small"
+                                    sx={{ cursor: "pointer" }}
+                                  >
+                                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                  </IconButton>
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+
+                          <Button type="submit" variant="contained" size="large" disabled={submitting} sx={{ minHeight: 50, cursor: "pointer", fontWeight: 850 }}>
+                            {submitting ? <CircularProgress size={22} color="inherit" /> : "Login"}
+                          </Button>
+                        </Stack>
+                      </Box>
+                    ) : (
+                      <Box component="form" onSubmit={handleSignIn} noValidate>
+                        <Stack spacing={2.25}>
+                          {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
+
+                          <TextField
+                            label="Email or username"
+                            type="text"
+                            value={identifier}
+                            onFocus={() => setActiveField("identifier")}
+                            onBlur={() => setActiveField(null)}
+                            onChange={(e) => {
+                              setIdentifier(e.target.value);
+                              markTyping();
+                            }}
+                            autoComplete="username"
+                            autoFocus
+                            fullWidth
+                            required
+                            disabled={submitting}
+                          />
+
+                          <TextField
+                            label="Password"
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onFocus={() => setActiveField("password")}
+                            onBlur={() => setActiveField(null)}
+                            onChange={(e) => {
+                              setPassword(e.target.value);
+                              markTyping();
+                            }}
+                            autoComplete="current-password"
+                            fullWidth
+                            required
+                            disabled={submitting}
+                            InputProps={{
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <IconButton
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    edge="end"
+                                    size="small"
+                                    sx={{ cursor: "pointer" }}
+                                  >
+                                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                  </IconButton>
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+
+                          <Button type="submit" variant="contained" size="large" disabled={submitting} sx={{ minHeight: 50, cursor: "pointer", fontWeight: 850 }}>
+                            {submitting ? <CircularProgress size={22} color="inherit" /> : "Sign In"}
+                          </Button>
+                        </Stack>
+                      </Box>
+                    )}
                   </Box>
                 ) : (
                   <Box component="form" onSubmit={handleSignUp} sx={{ mt: 3 }} noValidate>
@@ -434,16 +596,19 @@ export function LoginPage() {
 
 function AuthVisualPanel({
   audience,
+  signInMethod,
   characterState,
   mouseX,
   mouseY,
 }: {
   audience: Audience;
+  signInMethod: SignInMethod;
   characterState: CharacterState;
   mouseX: number;
   mouseY: number;
 }) {
   const isAdmin = audience === "admin";
+  const isIdentityAccess = !isAdmin && signInMethod === "identity";
 
   return (
     <Box
@@ -489,7 +654,7 @@ function AuthVisualPanel({
       <Stack spacing={1.25} sx={{ position: "relative", zIndex: 1 }}>
         <QmriLogo to={RoutePaths.landing} size="md" light={isAdmin} />
         <Typography variant="overline" sx={{ color: isAdmin ? brandTokens.blue300 : brandTokens.blue700, fontWeight: 900 }}>
-          {isAdmin ? "Admin console" : "User sign in"}
+          {isAdmin ? "Admin console" : isIdentityAccess ? "Guest access" : "User sign in"}
         </Typography>
       </Stack>
 
@@ -503,16 +668,22 @@ function AuthVisualPanel({
 
       <Box sx={{ position: "relative", zIndex: 1 }}>
         <Typography variant="h1" sx={{ fontSize: { md: "2rem", lg: "2.35rem" }, fontWeight: 900, lineHeight: 1.08 }}>
-          {isAdmin ? "A quieter gate for platform control." : "A sign-in that pays attention."}
+          {isAdmin ? "A quieter gate for platform control." : isIdentityAccess ? "Time-boxed access, without the admin maze." : "A sign-in that pays attention."}
         </Typography>
         <Typography variant="body1" sx={{ mt: 2, color: isAdmin ? "rgba(229,237,247,0.72)" : neutralTokens.ink500, maxWidth: 440, lineHeight: 1.65 }}>
           {isAdmin
             ? "Separate access, clear role checks, and a focused route into the QMRI administration workspace."
-            : "The little guide follows your field activity while you sign in, then lets you get back to the work that matters."}
+            : isIdentityAccess
+              ? "Guest accounts move through the same portal, but the session is capped by the expiry set by your administrator."
+              : "The little guide follows your field activity while you sign in, then lets you get back to the work that matters."}
         </Typography>
         <Divider sx={{ my: 3, borderColor: isAdmin ? "rgba(148,163,184,0.22)" : brandTokens.blue100 }} />
         <Stack spacing={1.25}>
-          {(isAdmin ? ["Role checked at sign in", "JWT-secured session", "Admin routes stay separated"] : ["Resume assigned assessments", "Track due-date urgency", "Review scored reports"]).map((item) => (
+          {(isAdmin
+            ? ["Role checked at sign in", "JWT-secured session", "Admin routes stay separated"]
+            : isIdentityAccess
+              ? ["Guest email plus access code", "Expiry checked on every login", "Portal opens for guest users"]
+              : ["Resume assigned assessments", "Track due-date urgency", "Review scored reports"]).map((item) => (
             <Stack key={item} direction="row" spacing={1.25} alignItems="center">
               <CheckCircleOutlineIcon sx={{ fontSize: 20, color: isAdmin ? brandTokens.blue300 : semanticTokens.successMain }} />
               <Typography variant="body2" sx={{ fontWeight: 750, color: isAdmin ? "rgba(229,237,247,0.84)" : neutralTokens.ink700 }}>
@@ -547,4 +718,3 @@ function getApiError(error: unknown): ApiErrorBody | null {
 
   return error.response?.data ?? null;
 }
-

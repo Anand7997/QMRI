@@ -1,7 +1,7 @@
-import json, urllib.request, urllib.error
+﻿import json, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
-BASE = "http://localhost:5254/api/v1"
+BASE = "http://localhost:5000/api/v1"
 SCORING_MODEL = "30000000-0000-0000-0000-000000000001"
 
 
@@ -71,7 +71,7 @@ def main():
     qs = all_questions(tok)
     print("questions", len(qs))
     wipe(tok)
-    # Scored, high (mostly Yes, some Partial) -> should pass
+    # Scored, tight (mostly Yes, some Partial) -> should pass
     build(tok, qs, "Q1 QA Maturity Assessment", "First quarter baseline.", lambda i: 2 if i % 5 else 1)
     # Scored, mixed (Yes/Partial/No) -> lower score
     build(tok, qs, "Q2 QA Maturity Assessment", "Second quarter review.", lambda i: [2, 1, 0][i % 3])

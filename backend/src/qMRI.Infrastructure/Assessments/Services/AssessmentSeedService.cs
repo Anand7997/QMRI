@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -307,6 +307,8 @@ public sealed class AssessmentSeedService(
                             {
                                 QuestionId = seedQuestion.QuestionId,
                                 SubModuleId = seedSubModule.SubModuleId,
+                                ExpectedAnswer = seedQuestion.ExpectedAnswer ?? AnswerOption.No,
+                                Intensity = seedQuestion.Intensity ?? QuestionIntensity.Tactical,
                                 IsActive = true
                             };
                             dbContext.Questions.Add(question);
@@ -319,6 +321,11 @@ public sealed class AssessmentSeedService(
                             question.SubModuleId = seedSubModule.SubModuleId;
                             question.Text = seedQuestion.Text;
                             question.Guidance = seedQuestion.Guidance;
+                            if (seedQuestion.ExpectedAnswer.HasValue)
+                            {
+                                question.ExpectedAnswer = seedQuestion.ExpectedAnswer.Value;
+                            }
+                            question.Intensity = seedQuestion.Intensity ?? question.Intensity;
                             question.Weight = seedQuestion.Weight <= 0 ? 1 : seedQuestion.Weight;
                             question.SortOrder = seedQuestion.SortOrder;
                             question.IsActive = true;
@@ -397,6 +404,8 @@ public sealed class AssessmentSeedService(
         public Guid QuestionId { get; set; }
         public string Text { get; set; } = string.Empty;
         public string? Guidance { get; set; }
+        public AnswerOption? ExpectedAnswer { get; set; }
+        public QuestionIntensity? Intensity { get; set; }
         public decimal Weight { get; set; }
         public int SortOrder { get; set; }
     }
@@ -412,6 +421,9 @@ public sealed class AssessmentSeedService(
         public int SortOrder { get; set; }
     }
 }
+
+
+
 
 
 

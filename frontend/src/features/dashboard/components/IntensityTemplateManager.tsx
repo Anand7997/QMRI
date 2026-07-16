@@ -67,7 +67,7 @@ export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTempla
       actor: user?.fullName || user?.userName || "Admin",
       action: "Updated intensity templates",
       entityType: "Intensity Template",
-      entityName: "Operational/Strategic/Tactical",
+      entityName: "Operational (Low) / Tactical (Medium) / Strategic (High)",
       details: settings.templates
         .map((template) => `${template.code} ${template.minQuestions}-${template.maxQuestions}`)
         .join("; "),
@@ -83,7 +83,7 @@ export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTempla
         <Typography variant="h3">Intensity Template Manager</Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Manage reusable Operational, Strategic and Tactical templates with locked question-count ranges.
+        Manage reusable Operational (Low difficulty), Tactical (Medium difficulty) and Strategic (High difficulty) templates with locked question-count ranges.
       </Typography>
 
       {feedback ? (

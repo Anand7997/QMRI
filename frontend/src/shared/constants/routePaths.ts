@@ -5,6 +5,7 @@ export const RoutePaths = {
   signup: "/signup",
   adminLogin: "/admin/login",
   adminSignup: "/admin/signup",
+  identityLink: "/identity-link",
   dashboard: "/dashboard",
   authentication: "/authentication",
   assessments: "/assessments",

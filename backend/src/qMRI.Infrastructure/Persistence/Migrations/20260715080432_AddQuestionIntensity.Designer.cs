@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using qMRI.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using qMRI.Infrastructure.Persistence;
 namespace qMRI.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(qMRIDbContext))]
-    partial class qMRIDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715080432_AddQuestionIntensity")]
+    partial class AddQuestionIntensity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -683,16 +686,6 @@ namespace qMRI.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("IdentityAccessExpiresAtUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("IdentityLinkConsumedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("IdentityLinkExpiresAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("IdentityLinkTokenHash")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()

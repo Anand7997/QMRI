@@ -84,10 +84,22 @@ public static class ApiDependencyInjection
         {
             options.AddPolicy("DefaultCors", policy =>
             {
+                var allowedOrigins = configuration
+                    .GetSection("Cors:AllowedOrigins")
+                    .Get<string[]>();
+
                 policy
                     .AllowAnyHeader()
-                    .AllowAnyMethod()
-                    .AllowAnyOrigin();
+                    .AllowAnyMethod();
+
+                if (allowedOrigins is { Length: > 0 })
+                {
+                    policy.WithOrigins(allowedOrigins);
+                }
+                else
+                {
+                    policy.AllowAnyOrigin();
+                }
             });
         });
 

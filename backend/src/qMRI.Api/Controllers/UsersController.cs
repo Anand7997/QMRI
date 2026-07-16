@@ -32,6 +32,51 @@ public sealed class UsersController(IUserAdministrationService userAdministratio
         return Ok(users);
     }
 
+    [HttpPost("identity-access")]
+    [ProducesResponseType(typeof(CreateIdentityAccessResultDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> CreateIdentityAccess(
+        [FromBody] CreateIdentityAccessRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var createdByUserId = TryGetCurrentUserId();
+        if (createdByUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await userAdministrationService.CreateIdentityAccessAsync(
+            createdByUserId.Value,
+            request,
+            cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    [HttpPost("identity-link")]
+    [ProducesResponseType(typeof(CreateIdentityLinkResultDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> CreateIdentityLink(
+        [FromBody] CreateIdentityLinkRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var createdByUserId = TryGetCurrentUserId();
+        if (createdByUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await userAdministrationService.CreateIdentityLinkAsync(
+            createdByUserId.Value,
+            request,
+            cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
     [HttpPost("{userId:guid}/approve")]
     [ProducesResponseType(typeof(UserAccessRequestDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -52,6 +97,49 @@ public sealed class UsersController(IUserAdministrationService userAdministratio
             request?.Category,
             cancellationToken);
         return user is null ? NotFound() : Ok(user);
+    }
+
+    [HttpPut("{userId:guid}")]
+    public async Task<IActionResult> UpdateUser(Guid userId, [FromBody] UpdateUserAccessRequest request, CancellationToken cancellationToken)
+    {
+        var modifiedByUserId = TryGetCurrentUserId();
+        if (modifiedByUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (userId == modifiedByUserId.Value && !request.IsActive)
+        {
+            return BadRequest(new { message = "You cannot delete your own account." });
+        }
+
+        var user = await userAdministrationService.UpdateUserAccessAsync(
+            userId,
+            modifiedByUserId.Value,
+            request.RoleCode,
+            request.Category,
+            request.IsActive,
+            cancellationToken);
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    [HttpDelete("{userId:guid}")]
+    public async Task<IActionResult> DeactivateUser(Guid userId, CancellationToken cancellationToken)
+    {
+        var currentUserId = TryGetCurrentUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (userId == currentUserId.Value)
+        {
+            return BadRequest(new { message = "You cannot delete your own account." });
+        }
+
+        return await userAdministrationService.DeactivateUserAsync(userId, cancellationToken)
+            ? NoContent()
+            : NotFound();
     }
 
     private static bool TryParseStatus(string? status, out UserApprovalStatus? approvalStatus)
@@ -86,4 +174,11 @@ public sealed class ApproveUserRequest
     public string? Category { get; set; }
 }
 
+public sealed class UpdateUserAccessRequest
+{
+    public string? RoleCode { get; set; }
 
+    public string? Category { get; set; }
+
+    public bool IsActive { get; set; } = true;
+}

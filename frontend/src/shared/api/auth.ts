@@ -6,6 +6,14 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface IdentityLinkLoginRequest {
+  token: string;
+}
+export interface IdentityAccessLoginRequest {
+  email: string;
+  accessCode: string;
+}
+
 export interface LoginResponse {
   accessToken: string;
   accessTokenExpiresAtUtc: string;
@@ -39,6 +47,15 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
   return data;
 }
 
+export async function loginWithIdentityAccess(request: IdentityAccessLoginRequest): Promise<LoginResponse> {
+  const { data } = await axiosClient.post<LoginResponse>("/auth/identity-access/login", request);
+  return data;
+}
+
+export async function loginWithIdentityLink(request: IdentityLinkLoginRequest): Promise<LoginResponse> {
+  const { data } = await axiosClient.post<LoginResponse>("/auth/identity-link/login", request);
+  return data;
+}
 export async function register(request: RegisterRequest): Promise<RegisterResponse> {
   const { data } = await axiosClient.post<RegisterResponse>("/auth/register", request);
   return data;

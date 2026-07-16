@@ -55,8 +55,8 @@ const children = commands.map((entry) => {
 });
 
 console.log('qMRI dev servers starting...');
-console.log('Backend:  http://localhost:5254');
-console.log('Frontend: Vite will print its local URL below');
+console.log('Backend:  http://localhost:5000');
+console.log('Frontend: http://localhost:8081');
 console.log('Press Ctrl+C to stop both.');
 
 process.on('SIGINT', () => {

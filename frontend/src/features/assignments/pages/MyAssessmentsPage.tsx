@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -20,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CloseIcon from "@mui/icons-material/Close";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -40,12 +41,19 @@ import {
 import { answerColor } from "shared/domain/maturity";
 import { useAuthContext } from "contexts/AuthContext";
 import { clearResumePointer, loadResumePointer, saveResumePointer } from "features/dashboard/governance/dashboardGovernanceState";
+import { RoutePaths } from "shared/constants/routePaths";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 type AssessmentDetailQuery = ReturnType<typeof useAssessment>;
+type SubmittedAssessmentPrompt = {
+  assessmentId: string;
+  title: string;
+  score?: number | null;
+};
 
 export function MyAssessmentsPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuthContext();
   const assessmentsQuery = useAssessments(user?.userId);
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
@@ -57,6 +65,7 @@ export function MyAssessmentsPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
+  const [submittedPrompt, setSubmittedPrompt] = useState<SubmittedAssessmentPrompt | null>(null);
   const handledLocationKey = useRef<string | null>(null);
 
   const navigationAssessmentId = (location.state as { assessmentId?: string; resume?: boolean } | null)?.assessmentId;
@@ -275,48 +284,79 @@ export function MyAssessmentsPage() {
     setOpenModules((state) => ({ ...state, [step.moduleId]: true }));
   };
 
-  if (assessmentsQuery.isLoading) return <LoadingState label="Loading your assessments..." />;
+  const resultDialog = (
+    <AssessmentResultDialog
+      prompt={submittedPrompt}
+      onClose={() => setSubmittedPrompt(null)}
+      onViewReport={() => {
+        if (!submittedPrompt) return;
+        const targetAssessmentId = submittedPrompt.assessmentId;
+        setSubmittedPrompt(null);
+        navigate(RoutePaths.portalReports, {
+          state: { assessmentId: targetAssessmentId, focus: "steps" },
+        });
+      }}
+    />
+  );
+
+  if (assessmentsQuery.isLoading) {
+    return (
+      <>
+        <LoadingState label="Loading your assessments..." />
+        {resultDialog}
+      </>
+    );
+  }
 
   if (assessmentsQuery.isError) {
     return (
-      <Box>
-        <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
-        <Card sx={{ p: 4 }}>
-          <EmptyState
-            title="Could not load assessments"
-            description="Your assigned assessments could not be loaded. Please try again in a moment."
-          />
-        </Card>
-      </Box>
+      <>
+        <Box>
+          <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
+          <Card sx={{ p: 4 }}>
+            <EmptyState
+              title="Could not load assessments"
+              description="Your assigned assessments could not be loaded. Please try again in a moment."
+            />
+          </Card>
+        </Box>
+        {resultDialog}
+      </>
     );
   }
 
   if (!assessments.length) {
     return (
-      <Box>
-        <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
-        <Card sx={{ p: 4 }}>
-          <EmptyState
-            title="No assessment is assigned to you"
-            description="Completed assessments are available in History and Reports."
-          />
-        </Card>
-      </Box>
+      <>
+        <Box>
+          <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
+          <Card sx={{ p: 4 }}>
+            <EmptyState
+              title="No assessment is assigned to you"
+              description="Completed assessments are available in History and Reports."
+            />
+          </Card>
+        </Box>
+        {resultDialog}
+      </>
     );
   }
 
   if (!questionMode) {
     return (
-      <AssessmentDetailView
-        assessments={assessments}
-        selectedId={assessmentId}
-        selectedSummary={selectedSummary}
-        detail={detail}
-        startError={startError}
-        isStarting={startAssessment.isPending}
-        onSelect={selectAssessment}
-        onStartQuestions={openQuestions}
-      />
+      <>
+        <AssessmentDetailView
+          assessments={assessments}
+          selectedId={assessmentId}
+          selectedSummary={selectedSummary}
+          detail={detail}
+          startError={startError}
+          isStarting={startAssessment.isPending}
+          onSelect={selectAssessment}
+          onStartQuestions={openQuestions}
+        />
+        {resultDialog}
+      </>
     );
   }
 
@@ -584,11 +624,17 @@ export function MyAssessmentsPage() {
             disabled={submit.isPending || answeredCount === 0}
             onClick={() => {
               submit.mutate(undefined, {
-                onSuccess: () => {
-                  if (assessmentId) {
+                onSuccess: (submittedDetail) => {
+                  const submittedAssessmentId = submittedDetail.summary.assessmentId;
+                  setSubmittedPrompt({
+                    assessmentId: submittedAssessmentId,
+                    title: submittedDetail.summary.title,
+                    score: submittedDetail.summary.overallScore,
+                  });
+                  if (submittedAssessmentId) {
                     setCompletedAssessmentIds((ids) => {
                       const next = new Set(ids);
-                      next.add(assessmentId);
+                      next.add(submittedAssessmentId);
                       return next;
                     });
                   }
@@ -608,7 +654,59 @@ export function MyAssessmentsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      {resultDialog}
     </Box>
+  );
+}
+
+function AssessmentResultDialog({
+  prompt,
+  onClose,
+  onViewReport,
+}: {
+  prompt: SubmittedAssessmentPrompt | null;
+  onClose: () => void;
+  onViewReport: () => void;
+}) {
+  const scoreLabel = typeof prompt?.score === "number" ? `${Math.round(prompt.score)}/100` : "Ready";
+
+  return (
+    <Dialog open={Boolean(prompt)} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ pr: 7 }}>
+        <Stack direction="row" spacing={1.25} alignItems="center">
+          <CheckCircleIcon color="success" fontSize="small" />
+          <span>Results are ready</span>
+        </Stack>
+        <IconButton
+          aria-label="Close results popup"
+          onClick={onClose}
+          size="small"
+          sx={{ position: "absolute", top: 12, right: 12 }}
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2}>
+          <Typography variant="body2" color="text.secondary">
+            Your assessment has been submitted and scored. Open the report to review the detailed step-by-step results.
+          </Typography>
+          <Box sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+            <Typography variant="caption" color="text.secondary">
+              {prompt?.title ?? "Submitted assessment"}
+            </Typography>
+            <Typography variant="h2" sx={{ mt: 0.5 }}>
+              {scoreLabel}
+            </Typography>
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button variant="contained" onClick={onViewReport} fullWidth>
+          View detailed steps
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 

@@ -46,6 +46,7 @@ public sealed class AssessmentDetailDto
 {
     public AssessmentSummaryDto Summary { get; set; } = new();
     public IReadOnlyList<AssessmentResponseDto> Responses { get; set; } = Array.Empty<AssessmentResponseDto>();
+    public IReadOnlyList<AssessmentQuestionResultDto> QuestionResults { get; set; } = Array.Empty<AssessmentQuestionResultDto>();
     public IReadOnlyList<AssessmentScoreDto> Scores { get; set; } = Array.Empty<AssessmentScoreDto>();
     public IReadOnlyList<RecommendationDto> Recommendations { get; set; } = Array.Empty<RecommendationDto>();
 }
@@ -75,6 +76,26 @@ public sealed class AssessmentResponseDto
     public decimal Points { get; set; }
     public string? Findings { get; set; }
     public DateTime AnsweredAtUtc { get; set; }
+}
+
+public sealed class AssessmentQuestionResultDto
+{
+    public Guid QuestionId { get; set; }
+    public Guid CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public Guid ModuleId { get; set; }
+    public string ModuleName { get; set; } = string.Empty;
+    public Guid SubModuleId { get; set; }
+    public string SubModuleName { get; set; } = string.Empty;
+    public string QuestionText { get; set; } = string.Empty;
+    public string? Guidance { get; set; }
+    public AnswerOption ExpectedAnswer { get; set; }
+    public AnswerOption? Answer { get; set; }
+    public decimal? Points { get; set; }
+    public string? Findings { get; set; }
+    public DateTime? AnsweredAtUtc { get; set; }
+    public QuestionIntensity Intensity { get; set; }
+    public int SortOrder { get; set; }
 }
 
 public sealed class UpsertAssessmentResponseRequest

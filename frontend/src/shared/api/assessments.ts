@@ -106,7 +106,11 @@ export function useSubmitAssessment(assessmentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      axiosClient.post<AssessmentSummaryDto>(`/assessments/${assessmentId}/submit`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["assessments"] }),
+      axiosClient.post<AssessmentDetailDto>(`/assessments/${assessmentId}/submit`).then((r) => r.data),
+    onSuccess: (detail) => {
+      qc.setQueryData(keys.detail(assessmentId), detail);
+      qc.invalidateQueries({ queryKey: ["assessments"] });
+      qc.invalidateQueries({ queryKey: keys.detail(assessmentId) });
+    },
   });
 }

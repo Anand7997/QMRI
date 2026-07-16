@@ -15,6 +15,8 @@ public sealed class Question
 
     public AnswerOption ExpectedAnswer { get; set; }
 
+    public QuestionIntensity Intensity { get; set; } = QuestionIntensity.Tactical;
+
     public decimal Weight { get; set; }
 
     public int SortOrder { get; set; }

@@ -15,6 +15,31 @@ public interface IUserAdministrationService
         string? roleCode = null,
         string? category = null,
         CancellationToken cancellationToken = default);
+
+    Task<CreateIdentityAccessResultDto> CreateIdentityAccessAsync(
+        Guid createdByUserId,
+        CreateIdentityAccessRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    Task<CreateIdentityLinkResultDto> CreateIdentityLinkAsync(
+
+        Guid createdByUserId,
+
+        CreateIdentityLinkRequestDto request,
+
+        CancellationToken cancellationToken = default);
+
+
+
+    Task<UserAccessRequestDto?> UpdateUserAccessAsync(
+        Guid userId,
+        Guid modifiedByUserId,
+        string? roleCode,
+        string? category,
+        bool isActive,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DeactivateUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }
-
-
