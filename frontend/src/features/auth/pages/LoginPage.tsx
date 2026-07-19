@@ -705,6 +705,7 @@ function AdminSplineScene() {
         <SplineScene
           scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
           className="w-full h-full"
+          onLoad={(app) => app.setGlobalEvents(true)}
         />
       </Card>
     </Box>

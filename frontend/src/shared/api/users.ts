@@ -5,7 +5,7 @@ import { QueryKeys } from "shared/query/keys";
 export type UserApprovalStatus = "Pending" | "Approved" | "Rejected";
 export type UserStatusFilter = UserApprovalStatus | "all";
 export type ApprovalRoleCode = "USER" | "ADMIN" | "GUEST";
-export type ApprovalCategoryCode = "Fresher" | "Digital" | "Ai" | "QE" | "Delevery" | "Guest";
+export type ApprovalCategoryCode = "Fresher" | "Digital" | "Ai" | "QE" | "Delevery" | "Guest" | "Client";
 
 export interface UserAccessRequest {
   userId: string;

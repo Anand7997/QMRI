@@ -1,11 +1,15 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using qMRI.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace qMRI.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(qMRIDbContext))]
+    [Migration("20260716120000_AddIdentityLinkClientAccess")]
     public partial class AddIdentityLinkClientAccess : Migration
     {
         /// <inheritdoc />

@@ -27,7 +27,8 @@ public sealed class UserAdministrationService(
         "Ai",
         "QE",
         "Delevery",
-        GuestCategory
+        GuestCategory,
+        "Client"
     ];
 
     public async Task<IReadOnlyCollection<UserAccessRequestDto>> GetUsersAsync(

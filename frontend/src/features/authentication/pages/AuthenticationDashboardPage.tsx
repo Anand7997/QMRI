@@ -54,6 +54,7 @@ import {
 
 type FilterTab = UserStatusFilter;
 type IdentityDurationUnit = "hours" | "days";
+type IdentityGenerationMode = "tokens" | "link";
 type Feedback = { severity: "error" | "info" | "success"; message: string };
 
 const filterTabs: { label: string; value: FilterTab }[] = [
@@ -67,7 +68,7 @@ const guestApprovalRole: ApprovalRoleCode = "GUEST";
 const defaultApprovalCategory: ApprovalCategoryCode = "Fresher";
 const guestApprovalCategory: ApprovalCategoryCode = "Guest";
 
-const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest"];
+const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest", "Client"];
 const standardApprovalRoles: ApprovalRoleCode[] = ["USER", "ADMIN"];
 const guestAwareApprovalRoles: ApprovalRoleCode[] = ["USER", "ADMIN", "GUEST"];
 
@@ -78,6 +79,7 @@ export function AuthenticationDashboardPage() {
   const [roleByUserId, setRoleByUserId] = useState<Record<string, ApprovalRoleCode>>({});
   const [categoryByUserId, setCategoryByUserId] = useState<Record<string, ApprovalCategoryCode>>({});
   const [identityDrawerOpen, setIdentityDrawerOpen] = useState(false);
+  const [identityGenerationMode, setIdentityGenerationMode] = useState<IdentityGenerationMode>("tokens");
   const [identityEmail, setIdentityEmail] = useState("");
   const [identityDurationValue, setIdentityDurationValue] = useState("7");
   const [identityDurationUnit, setIdentityDurationUnit] = useState<IdentityDurationUnit>("days");
@@ -86,7 +88,6 @@ export function AuthenticationDashboardPage() {
   );
   const [identityFeedback, setIdentityFeedback] = useState<Feedback | null>(null);
   const [createdIdentityAccess, setCreatedIdentityAccess] = useState<CreateIdentityAccessResponse | null>(null);
-  const [identityLinkDrawerOpen, setIdentityLinkDrawerOpen] = useState(false);
   const [identityLinkFullName, setIdentityLinkFullName] = useState("");
   const [identityLinkEmail, setIdentityLinkEmail] = useState("");
   const [identityLinkCategory, setIdentityLinkCategory] = useState<ApprovalCategoryCode>(defaultApprovalCategory);
@@ -235,12 +236,21 @@ export function AuthenticationDashboardPage() {
 
   function openIdentityDrawer() {
     setIdentityDrawerOpen(true);
+    setIdentityGenerationMode("tokens");
     setIdentityEmail("");
     setIdentityDurationValue("7");
     setIdentityDurationUnit("days");
     setIdentityExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), 7, "days")));
     setIdentityFeedback(null);
     setCreatedIdentityAccess(null);
+    setIdentityLinkFullName("");
+    setIdentityLinkEmail("");
+    setIdentityLinkCategory(defaultApprovalCategory);
+    setIdentityLinkDurationValue("7");
+    setIdentityLinkDurationUnit("days");
+    setIdentityLinkExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), 7, "days")));
+    setIdentityLinkFeedback(null);
+    setCreatedIdentityLink(null);
   }
 
   function updateIdentityExpiry(durationValue: string, unit: IdentityDurationUnit) {
@@ -303,19 +313,6 @@ export function AuthenticationDashboardPage() {
 
     await navigator.clipboard.writeText(createdIdentityAccess.accessCode);
     setIdentityFeedback({ severity: "success", message: "Access code copied to the clipboard." });
-  }
-
-
-  function openIdentityLinkDrawer() {
-    setIdentityLinkDrawerOpen(true);
-    setIdentityLinkFullName("");
-    setIdentityLinkEmail("");
-    setIdentityLinkCategory(defaultApprovalCategory);
-    setIdentityLinkDurationValue("7");
-    setIdentityLinkDurationUnit("days");
-    setIdentityLinkExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), 7, "days")));
-    setIdentityLinkFeedback(null);
-    setCreatedIdentityLink(null);
   }
 
   function updateIdentityLinkExpiry(durationValue: string, unit: IdentityDurationUnit) {
@@ -387,20 +384,31 @@ export function AuthenticationDashboardPage() {
     await navigator.clipboard.writeText(createdIdentityLink.link);
     setIdentityLinkFeedback({ severity: "success", message: "Identity link copied to the clipboard." });
   }
+
+  const identityAccessGenerated = Boolean(createdIdentityAccess);
+  const identityLinkGenerated = Boolean(createdIdentityLink);
+  const identityModeGenerated = identityGenerationMode === "tokens" ? identityAccessGenerated : identityLinkGenerated;
+  const identityModePending = identityGenerationMode === "tokens" ? createIdentityAccess.isPending : createIdentityLink.isPending;
+  const identitySubmitLabel = identityModeGenerated
+    ? "Close"
+    : identityGenerationMode === "tokens"
+      ? identityModePending ? "Generating..." : "Generate tokens"
+      : identityModePending ? "Generating..." : "Generate link";
+  const handleIdentitySubmit = identityModeGenerated
+    ? () => setIdentityDrawerOpen(false)
+    : identityGenerationMode === "tokens"
+      ? handleCreateIdentityAccess
+      : handleCreateIdentityLink;
+
   return (
     <Box>
       <PageHeader
         title="Authentication"
         subtitle="Approve signup requests before users can access their dashboards."
         actions={(
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
-            <Button variant="outlined" startIcon={<LinkOutlinedIcon />} onClick={openIdentityLinkDrawer} sx={{ whiteSpace: "nowrap" }}>
-              Identity Link
-            </Button>
-            <Button variant="contained" startIcon={<VpnKeyOutlinedIcon />} onClick={openIdentityDrawer} sx={{ whiteSpace: "nowrap" }}>
-              Identity Access
-            </Button>
-          </Stack>
+          <Button variant="contained" startIcon={<VpnKeyOutlinedIcon />} onClick={openIdentityDrawer} sx={{ whiteSpace: "nowrap" }}>
+            Identity Access
+          </Button>
         )}
       />
 
@@ -604,193 +612,208 @@ export function AuthenticationDashboardPage() {
           </Box>
         )}
       </Card>
-
       <FormDrawer
         open={identityDrawerOpen}
         onClose={() => setIdentityDrawerOpen(false)}
-        onSubmit={handleCreateIdentityAccess}
+        onSubmit={handleIdentitySubmit}
+        submitLabel={identitySubmitLabel}
+        submitting={!identityModeGenerated && identityModePending}
         title="Identity Access"
-        submitLabel={createIdentityAccess.isPending ? "Creating..." : "Create guest access"}
-        submitting={createIdentityAccess.isPending}
-        width={520}
-      >
-        <Stack spacing={2.25}>
-          {identityFeedback ? <Alert severity={identityFeedback.severity}>{identityFeedback.message}</Alert> : null}
-          <Alert severity="info">
-            Guests receive approved access immediately. Share the one-time access code securely after creating the record.
-          </Alert>
-
-          <TextField
-            label="Guest email"
-            type="email"
-            value={identityEmail}
-            onChange={(event) => setIdentityEmail(event.target.value)}
-            fullWidth
-            required
-            disabled={createIdentityAccess.isPending}
-          />
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <TextField
-              label="Amount of time"
-              type="number"
-              value={identityDurationValue}
-              onChange={(event) => updateIdentityExpiry(event.target.value, identityDurationUnit)}
-              inputProps={{ min: 1 }}
-              fullWidth
-              disabled={createIdentityAccess.isPending}
-            />
-            <FormControl fullWidth>
-              <Select
-                value={identityDurationUnit}
-                onChange={(event) => updateIdentityExpiry(identityDurationValue, event.target.value as IdentityDurationUnit)}
-                disabled={createIdentityAccess.isPending}
-              >
-                <MenuItem value="hours">Hours</MenuItem>
-                <MenuItem value="days">Days</MenuItem>
-              </Select>
-            </FormControl>
-          </Stack>
-
-          <TextField
-            label="Expiry date and time"
-            type="datetime-local"
-            value={identityExpiresAtLocal}
-            onChange={(event) => setIdentityExpiresAtLocal(event.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-            required
-            disabled={createIdentityAccess.isPending}
-          />
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <TextField label="Approval" value="Approved" fullWidth disabled />
-            <TextField label="Category" value="Guest" fullWidth disabled />
-          </Stack>
-
-          {createdIdentityAccess ? (
-            <Card variant="outlined" sx={{ p: 2 }}>
-              <Stack spacing={1.25}>
-                <Typography variant="h4">Guest access created</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Email: {createdIdentityAccess.user.email}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Expires: {formatDateTime(createdIdentityAccess.identityAccessExpiresAtUtc)}
-                </Typography>
-                <TextField label="One-time access code" value={createdIdentityAccess.accessCode} fullWidth InputProps={{ readOnly: true }} />
-                <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyAccessCode} sx={{ alignSelf: "flex-start" }}>
-                  Copy access code
-                </Button>
-              </Stack>
-            </Card>
-          ) : null}
-        </Stack>
-      </FormDrawer>
-      <FormDrawer
-        open={identityLinkDrawerOpen}
-        onClose={() => setIdentityLinkDrawerOpen(false)}
-        onSubmit={handleCreateIdentityLink}
-        title="Identity Link"
-        submitLabel={createIdentityLink.isPending ? "Generating..." : "Generate link"}
-        submitting={createIdentityLink.isPending}
         width={560}
       >
         <Stack spacing={2.25}>
-          {identityLinkFeedback ? <Alert severity={identityLinkFeedback.severity}>{identityLinkFeedback.message}</Alert> : null}
-          <Alert severity="info">
-            This creates an approved client account and a secure one-time link that opens My Assessments directly.
-          </Alert>
-
-          <TextField
-            label="Client name"
-            value={identityLinkFullName}
-            onChange={(event) => setIdentityLinkFullName(event.target.value)}
-            fullWidth
-            required
-            disabled={createIdentityLink.isPending}
-          />
-
-          <TextField
-            label="Client email"
-            type="email"
-            value={identityLinkEmail}
-            onChange={(event) => setIdentityLinkEmail(event.target.value)}
-            fullWidth
-            required
-            disabled={createIdentityLink.isPending}
-          />
-
-          <TextField
-            select
-            label="Category"
-            value={identityLinkCategory}
-            onChange={(event) => setIdentityLinkCategory(event.target.value as ApprovalCategoryCode)}
-            fullWidth
-            disabled={createIdentityLink.isPending}
-          >
-            {approvalCategories.filter((category) => category !== guestApprovalCategory).map((category) => (
-              <MenuItem key={category} value={category}>
-                {category}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <TextField
-              label="Amount of time"
-              type="number"
-              value={identityLinkDurationValue}
-              onChange={(event) => updateIdentityLinkExpiry(event.target.value, identityLinkDurationUnit)}
-              inputProps={{ min: 1 }}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <Button
+              variant={identityGenerationMode === "tokens" ? "contained" : "outlined"}
+              startIcon={<VpnKeyOutlinedIcon />}
+              onClick={() => setIdentityGenerationMode("tokens")}
+              disabled={identityModePending}
               fullWidth
-              disabled={createIdentityLink.isPending}
-            />
-            <FormControl fullWidth>
-              <Select
-                value={identityLinkDurationUnit}
-                onChange={(event) => updateIdentityLinkExpiry(identityLinkDurationValue, event.target.value as IdentityDurationUnit)}
-                disabled={createIdentityLink.isPending}
-              >
-                <MenuItem value="hours">Hours</MenuItem>
-                <MenuItem value="days">Days</MenuItem>
-              </Select>
-            </FormControl>
+            >
+              Generate tokens
+            </Button>
+            <Button
+              variant={identityGenerationMode === "link" ? "contained" : "outlined"}
+              startIcon={<LinkOutlinedIcon />}
+              onClick={() => setIdentityGenerationMode("link")}
+              disabled={identityModePending}
+              fullWidth
+            >
+              Generate link
+            </Button>
           </Stack>
 
-          <TextField
-            label="Expiry date and time"
-            type="datetime-local"
-            value={identityLinkExpiresAtLocal}
-            onChange={(event) => setIdentityLinkExpiresAtLocal(event.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-            required
-            disabled={createIdentityLink.isPending}
-          />
+          {identityGenerationMode === "tokens" ? (
+            <>
+              {identityFeedback ? <Alert severity={identityFeedback.severity}>{identityFeedback.message}</Alert> : null}
+              <Alert severity="info">
+                Guests receive approved access immediately. Share the one-time access code securely after creating the record.
+              </Alert>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <TextField label="Approval" value="Approved" fullWidth disabled />
-            <TextField label="Role" value="Client" fullWidth disabled />
-          </Stack>
+              <TextField
+                label="Guest email"
+                type="email"
+                value={identityEmail}
+                onChange={(event) => setIdentityEmail(event.target.value)}
+                fullWidth
+                required
+                disabled={createIdentityAccess.isPending || identityAccessGenerated}
+              />
 
-          {createdIdentityLink ? (
-            <Card variant="outlined" sx={{ p: 2 }}>
-              <Stack spacing={1.25}>
-                <Typography variant="h4">Client link generated</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Client: {createdIdentityLink.user.fullName} / {createdIdentityLink.user.email}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Expires: {formatDateTime(createdIdentityLink.identityLinkExpiresAtUtc)}
-                </Typography>
-                <TextField label="Direct assessment link" value={createdIdentityLink.link} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
-                <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyIdentityLink} sx={{ alignSelf: "flex-start" }}>
-                  Copy link
-                </Button>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <TextField
+                  label="Amount of time"
+                  type="number"
+                  value={identityDurationValue}
+                  onChange={(event) => updateIdentityExpiry(event.target.value, identityDurationUnit)}
+                  inputProps={{ min: 1 }}
+                  fullWidth
+                  disabled={createIdentityAccess.isPending || identityAccessGenerated}
+                />
+                <FormControl fullWidth>
+                  <Select
+                    value={identityDurationUnit}
+                    onChange={(event) => updateIdentityExpiry(identityDurationValue, event.target.value as IdentityDurationUnit)}
+                    disabled={createIdentityAccess.isPending || identityAccessGenerated}
+                  >
+                    <MenuItem value="hours">Hours</MenuItem>
+                    <MenuItem value="days">Days</MenuItem>
+                  </Select>
+                </FormControl>
               </Stack>
-            </Card>
-          ) : null}
+
+              <TextField
+                label="Expiry date and time"
+                type="datetime-local"
+                value={identityExpiresAtLocal}
+                onChange={(event) => setIdentityExpiresAtLocal(event.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                required
+                disabled={createIdentityAccess.isPending || identityAccessGenerated}
+              />
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <TextField label="Approval" value="Approved" fullWidth disabled />
+                <TextField label="Category" value="Guest" fullWidth disabled />
+              </Stack>
+
+              {createdIdentityAccess ? (
+                <Card variant="outlined" sx={{ p: 2 }}>
+                  <Stack spacing={1.25}>
+                    <Typography variant="h4">Guest access created</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Email: {createdIdentityAccess.user.email}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Expires: {formatDateTime(createdIdentityAccess.identityAccessExpiresAtUtc)}
+                    </Typography>
+                    <TextField label="One-time access code" value={createdIdentityAccess.accessCode} fullWidth InputProps={{ readOnly: true }} />
+                    <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyAccessCode} sx={{ alignSelf: "flex-start" }}>
+                      Copy access code
+                    </Button>
+                  </Stack>
+                </Card>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {identityLinkFeedback ? <Alert severity={identityLinkFeedback.severity}>{identityLinkFeedback.message}</Alert> : null}
+              <Alert severity="info">
+                This creates an approved client account and a secure one-time link that opens My Assessments directly.
+              </Alert>
+
+              <TextField
+                label="Client name"
+                value={identityLinkFullName}
+                onChange={(event) => setIdentityLinkFullName(event.target.value)}
+                fullWidth
+                required
+                disabled={createIdentityLink.isPending || identityLinkGenerated}
+              />
+
+              <TextField
+                label="Client email"
+                type="email"
+                value={identityLinkEmail}
+                onChange={(event) => setIdentityLinkEmail(event.target.value)}
+                fullWidth
+                required
+                disabled={createIdentityLink.isPending || identityLinkGenerated}
+              />
+
+              <TextField
+                select
+                label="Category"
+                value={identityLinkCategory}
+                onChange={(event) => setIdentityLinkCategory(event.target.value as ApprovalCategoryCode)}
+                fullWidth
+                disabled={createIdentityLink.isPending || identityLinkGenerated}
+              >
+                {approvalCategories.filter((category) => category !== guestApprovalCategory).map((category) => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <TextField
+                  label="Amount of time"
+                  type="number"
+                  value={identityLinkDurationValue}
+                  onChange={(event) => updateIdentityLinkExpiry(event.target.value, identityLinkDurationUnit)}
+                  inputProps={{ min: 1 }}
+                  fullWidth
+                  disabled={createIdentityLink.isPending || identityLinkGenerated}
+                />
+                <FormControl fullWidth>
+                  <Select
+                    value={identityLinkDurationUnit}
+                    onChange={(event) => updateIdentityLinkExpiry(identityLinkDurationValue, event.target.value as IdentityDurationUnit)}
+                    disabled={createIdentityLink.isPending || identityLinkGenerated}
+                  >
+                    <MenuItem value="hours">Hours</MenuItem>
+                    <MenuItem value="days">Days</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+
+              <TextField
+                label="Expiry date and time"
+                type="datetime-local"
+                value={identityLinkExpiresAtLocal}
+                onChange={(event) => setIdentityLinkExpiresAtLocal(event.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                required
+                disabled={createIdentityLink.isPending || identityLinkGenerated}
+              />
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <TextField label="Approval" value="Approved" fullWidth disabled />
+                <TextField label="Role" value="Client" fullWidth disabled />
+              </Stack>
+
+              {createdIdentityLink ? (
+                <Card variant="outlined" sx={{ p: 2 }}>
+                  <Stack spacing={1.25}>
+                    <Typography variant="h4">Client link generated</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Client: {createdIdentityLink.user.fullName} / {createdIdentityLink.user.email}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Expires: {formatDateTime(createdIdentityLink.identityLinkExpiresAtUtc)}
+                    </Typography>
+                    <TextField label="Direct assessment link" value={createdIdentityLink.link} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
+                    <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyIdentityLink} sx={{ alignSelf: "flex-start" }}>
+                      Copy link
+                    </Button>
+                  </Stack>
+                </Card>
+              ) : null}
+            </>
+          )}
         </Stack>
       </FormDrawer>
     </Box>

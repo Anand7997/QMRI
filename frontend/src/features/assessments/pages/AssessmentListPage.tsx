@@ -67,7 +67,7 @@ import {
   type IntensityTemplate,
 } from "features/dashboard/governance/dashboardGovernanceState";
 
-const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery"] as const;
+const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest", "Client"] as const;
 const unknownAssignedByValue = "__unknown_assigned_by__";
 
 const recommendedQuestionCountByTemplate: Record<IntensityTemplate["code"], number> = {
