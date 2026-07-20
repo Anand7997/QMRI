@@ -62,6 +62,7 @@ export function MyAssessmentsPage() {
   const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
+  const [optimisticAnswers, setOptimisticAnswers] = useState<Record<string, number>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
@@ -132,6 +133,7 @@ export function MyAssessmentsPage() {
     setOpenModules({});
     setNotes({});
     setOpenNotes({});
+    setOptimisticAnswers({});
     setReviewOpen(false);
   }, [assessmentId, assessments, location.key, navigationAssessmentId]);
 
@@ -147,11 +149,33 @@ export function MyAssessmentsPage() {
   const submit = useSubmitAssessment(assessmentId ?? "");
 
   const tree = treeQuery.data ?? [];
-  const answersByQuestion = useMemo(() => {
+  const savedAnswersByQuestion = useMemo(() => {
     const map = new Map<string, number>();
     detail.data?.responses.forEach((r) => map.set(r.questionId, r.answer));
     return map;
   }, [detail.data]);
+
+  const answersByQuestion = useMemo(() => {
+    const map = new Map(savedAnswersByQuestion);
+    Object.entries(optimisticAnswers).forEach(([questionId, value]) => map.set(questionId, value));
+    return map;
+  }, [optimisticAnswers, savedAnswersByQuestion]);
+
+  useEffect(() => {
+    setOptimisticAnswers((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      Object.entries(current).forEach(([questionId, value]) => {
+        if (savedAnswersByQuestion.get(questionId) === value) {
+          delete next[questionId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+  }, [savedAnswersByQuestion]);
 
   const summary = detail.data?.summary ?? selectedSummary;
   const percent = Math.round(summary?.completionPercentage ?? 0);
@@ -238,6 +262,7 @@ export function MyAssessmentsPage() {
     setOpenModules({});
     setNotes({});
     setOpenNotes({});
+    setOptimisticAnswers({});
     setReviewOpen(false);
   };
 
@@ -256,6 +281,7 @@ export function MyAssessmentsPage() {
     setSelectedSub(null);
     setOpenModules({});
     setOpenNotes({});
+    setOptimisticAnswers({});
     setReviewOpen(false);
   };
 
@@ -267,12 +293,32 @@ export function MyAssessmentsPage() {
     if (selectedSub) {
       saveResumePointer(user?.userId, { assessmentId, subModuleId: selectedSub, questionId, touchedAtUtc: new Date().toISOString() });
     }
-    saveResponse.mutate({ questionId, answer: value, findings: notes[questionId] || null });
+    setOptimisticAnswers((state) => ({ ...state, [questionId]: value }));
+    saveResponse.mutate(
+      { questionId, answer: value, findings: notes[questionId] || null },
+      {
+        onError: (_error, variables) => {
+          setOptimisticAnswers((state) => {
+            if (state[variables.questionId] !== variables.answer) return state;
+
+            const next = { ...state };
+            const savedAnswer = savedAnswersByQuestion.get(variables.questionId);
+            if (savedAnswer === undefined) {
+              delete next[variables.questionId];
+            } else {
+              next[variables.questionId] = savedAnswer;
+            }
+            return next;
+          });
+        },
+      },
+    );
   };
 
   const saveNote = (questionId: string) => {
-    if (!assessmentId || !answersByQuestion.has(questionId)) return;
-    saveResponse.mutate({ questionId, answer: answersByQuestion.get(questionId)!, findings: notes[questionId] || null });
+    const currentAnswer = answersByQuestion.get(questionId);
+    if (!assessmentId || currentAnswer === undefined) return;
+    saveResponse.mutate({ questionId, answer: currentAnswer, findings: notes[questionId] || null });
   };
 
   const goToStep = (step: (typeof submoduleSteps)[number] | null) => {
@@ -361,7 +407,7 @@ export function MyAssessmentsPage() {
   }
 
   const isSubmitted = (summary?.status ?? 0) >= AssessmentStatus.Submitted;
-  const answeredCount = summary?.answeredCount ?? answersByQuestion.size;
+  const answeredCount = Math.max(summary?.answeredCount ?? 0, answersByQuestion.size);
   const questionCount = summary?.questionCount ?? submoduleSteps.reduce((total, step) => total + step.sub.questions.length, 0);
   const unansweredCount = Math.max(questionCount - answeredCount, 0);
 
@@ -889,7 +935,4 @@ function formatDate(value?: string | null) {
   if (!value) return "Not started";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
-
-
-
 

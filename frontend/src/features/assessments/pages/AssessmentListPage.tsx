@@ -22,6 +22,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -36,11 +37,8 @@ import {
   ConfirmDialog,
   EmptyState,
   FormDrawer,
-  MaturityChip,
   PageHeader,
-  StatusChip,
   TableSkeleton,
-  type EntityStatus,
 } from "shared/components";
 import {
   useAssessments,
@@ -59,7 +57,8 @@ import {
   type SubModuleDto,
 } from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
-import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
+import { neutralTokens, semanticTokens } from "app/theme/tokens/palette";
+import { buildAssessmentAssignmentKey } from "shared/domain/assessmentGrouping";
 import {
   appendGovernanceAuditEntry,
   findIntensityTemplate,
@@ -300,18 +299,6 @@ function buildRecommendedQuestionIds(categories: CategoryDto[], templateCode: In
   return questionIds;
 }
 
-const statusByValue: Record<number, EntityStatus> = {
-  [AssessmentStatus.Draft]: "Draft",
-  [AssessmentStatus.InProgress]: "InProgress",
-  [AssessmentStatus.Submitted]: "Submitted",
-  [AssessmentStatus.Scored]: "Scored",
-  [AssessmentStatus.Archived]: "Archived",
-};
-
-function statusFor(value: number): EntityStatus {
-  return statusByValue[value] ?? "Draft";
-}
-
 function formatDate(value?: string | null) {
   if (!value) return "-";
 
@@ -329,8 +316,65 @@ function defaultTitle() {
   return `TOPP QA Maturity Assessment - ${formatDate(new Date().toISOString())}`;
 }
 
-function progressLabel(row: AssessmentSummaryDto) {
-  return `${row.answeredCount}/${row.questionCount} answered`;
+interface AssessmentListRow extends AssessmentSummaryDto {
+  assignedPeopleCount: number;
+  takenPeopleCount: number;
+}
+
+function groupAssessmentsForList(assessments: AssessmentSummaryDto[]): AssessmentListRow[] {
+  const groups = new Map<string, AssessmentSummaryDto[]>();
+
+  assessments.forEach((assessment) => {
+    const key = buildAssessmentAssignmentKey(assessment);
+    const group = groups.get(key) ?? [];
+    group.push(assessment);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const representative = group
+        .slice()
+        .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime())[0];
+
+      return {
+        ...representative,
+        assignedPeopleCount: group.length,
+        takenPeopleCount: group.filter((assessment) => assessment.status >= AssessmentStatus.Submitted).length,
+      };
+    })
+    .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime());
+}
+
+function progressPercent(row: AssessmentListRow) {
+  if (row.assignedPeopleCount <= 0) return 0;
+  return (row.takenPeopleCount / row.assignedPeopleCount) * 100;
+}
+
+function progressLabel(row: AssessmentListRow) {
+  return `${row.takenPeopleCount}/${row.assignedPeopleCount} people taken exam`;
+}
+
+function isAssessmentCompleted(row: AssessmentListRow) {
+  return row.assignedPeopleCount > 0 && row.takenPeopleCount >= row.assignedPeopleCount;
+}
+
+function CompletionStatusChip({ row }: { row: AssessmentListRow }) {
+  const completed = isAssessmentCompleted(row);
+  const color = completed ? semanticTokens.successMain : neutralTokens.ink500;
+
+  return (
+    <Chip
+      size="small"
+      label={completed ? "Completed" : "Incomplete"}
+      sx={{
+        bgcolor: alpha(color, 0.12),
+        color,
+        fontWeight: 700,
+        border: `1px solid ${alpha(color, 0.28)}`,
+      }}
+    />
+  );
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -369,7 +413,7 @@ export function AssessmentListPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  const [activeRow, setActiveRow] = useState<AssessmentSummaryDto | null>(null);
+  const [activeRow, setActiveRow] = useState<AssessmentListRow | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [assignedByFilter, setAssignedByFilter] = useState<string>("all");
 
@@ -380,7 +424,7 @@ export function AssessmentListPage() {
     }
   }, [location.state, navigate]);
 
-  const rows = useMemo(() => collapseAssessmentsByAssignment(assessmentsQuery.data ?? []), [assessmentsQuery.data]);
+  const rows = useMemo(() => groupAssessmentsForList(assessmentsQuery.data ?? []), [assessmentsQuery.data]);
   const assignedByOptions = useMemo(() => {
     const options = new Map<string, { label: string; count: number }>();
 
@@ -471,7 +515,7 @@ export function AssessmentListPage() {
     setDrawerOpen(true);
   }
 
-  function openEdit(row: AssessmentSummaryDto) {
+  function openEdit(row: AssessmentListRow) {
     setEditingId(row.assessmentId);
     setTitle(row.title);
     setDescription(row.description ?? "");
@@ -698,7 +742,6 @@ export function AssessmentListPage() {
                   <TableCell>Assessment</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Progress</TableCell>
-                  <TableCell>Score</TableCell>
                   <TableCell>Assigned by</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Submitted</TableCell>
@@ -726,28 +769,19 @@ export function AssessmentListPage() {
                       ) : null}
                     </TableCell>
                     <TableCell>
-                      <StatusChip status={statusFor(row.status)} />
+                      <CompletionStatusChip row={row} />
                     </TableCell>
                     <TableCell sx={{ minWidth: 220 }}>
                       <Stack spacing={0.75}>
                         <LinearProgress
                           variant="determinate"
-                          value={Math.min(100, Math.max(0, row.completionPercentage))}
+                          value={Math.min(100, Math.max(0, progressPercent(row)))}
                           sx={{ height: 8, borderRadius: 999 }}
                         />
                         <Typography variant="caption" color="text.secondary">
                           {progressLabel(row)}
                         </Typography>
                       </Stack>
-                    </TableCell>
-                    <TableCell>
-                      {row.overallScore == null ? (
-                        <Typography variant="body2" color="text.secondary">
-                          Not scored
-                        </Typography>
-                      ) : (
-                        <MaturityChip score={row.overallScore} />
-                      )}
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
