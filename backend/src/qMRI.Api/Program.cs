@@ -22,6 +22,8 @@ builder.Services
 
 var app = builder.Build();
 
+await app.MigrateDatabaseAsync();
+
 using (var scope = app.Services.CreateScope())
 {
 	await IdentityDataSeeder.SeedAsync(scope.ServiceProvider);
