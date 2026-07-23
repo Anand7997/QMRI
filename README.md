@@ -1,4 +1,4 @@
-# qMRI
+﻿# qMRI
 
 qMRI is a full-stack assessment platform for managing quality maturity reviews. It provides an administrator experience for configuring assessments, users, question banks, reporting, and settings, plus a user portal for completing assigned assessments and reviewing results.
 
@@ -26,10 +26,10 @@ QMRI
 
 | Service | URL |
 | --- | --- |
-| Frontend UI | `http://localhost:8085` |
-| Backend API | `http://localhost:6000` |
-| API health check | `http://localhost:6000/api/v1/health` |
-| Swagger UI | `http://localhost:6000/swagger` |
+| Frontend UI | `http://44.216.167.20:8085` |
+| Backend API | `http://44.216.167.20:6000` |
+| API health check | `http://44.216.167.20:6000/api/v1/health` |
+| Swagger UI | `http://44.216.167.20:6000/swagger` |
 
 The frontend development server proxies `/api` requests to the backend, so application code can call `/api/v1/...` without hardcoding the backend origin.
 
@@ -63,7 +63,7 @@ npm run dev
 Open the UI at:
 
 ```text
-http://localhost:8085
+http://44.216.167.20:8085
 ```
 
 Stop local dev processes:
@@ -143,7 +143,7 @@ npm run stop:all
 
 If the frontend cannot reach the API, confirm that:
 
-- the backend is listening on `http://localhost:6000`
-- the UI is running on `http://localhost:8085`
-- CORS includes `http://localhost:8085`
-- the frontend proxy target points to `http://localhost:6000`
+- the backend is listening on `http://44.216.167.20:6000`
+- the UI is running on `http://44.216.167.20:8085`
+- CORS includes `http://44.216.167.20:8085`
+- the frontend proxy target points to `http://44.216.167.20:6000`

@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using qMRI.Application.Authentication.Abstractions;
@@ -408,13 +408,13 @@ public sealed class UserAdministrationService(
     private static string BuildIdentityLink(string? frontendBaseUrl, string token)
     {
         var baseUrl = string.IsNullOrWhiteSpace(frontendBaseUrl)
-            ? "http://localhost:8085"
+            ? "http://44.216.167.20:8085"
             : frontendBaseUrl.Trim();
 
         if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var parsedBaseUrl)
             || (parsedBaseUrl.Scheme != Uri.UriSchemeHttp && parsedBaseUrl.Scheme != Uri.UriSchemeHttps))
         {
-            baseUrl = "http://localhost:8085";
+            baseUrl = "http://44.216.167.20:8085";
         }
 
         return $"{baseUrl.TrimEnd('/')}/identity-link?token={Uri.EscapeDataString(token)}";
