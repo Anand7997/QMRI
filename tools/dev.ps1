@@ -76,9 +76,11 @@ try {
             -Environment @{ ASPNETCORE_ENVIRONMENT = 'Development' }
     }
 
+    $npmExecutable = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
+
     $processes += Start-DevProcess `
         -Name 'frontend' `
-        -FilePath 'npm.cmd' `
+        -FilePath $npmExecutable `
         -ArgumentList @('--prefix', 'frontend', 'run', 'dev')
 
     Write-Host ''
