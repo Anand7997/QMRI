@@ -44,6 +44,7 @@ import { clearResumePointer, loadResumePointer, saveResumePointer } from "featur
 import { RoutePaths } from "shared/constants/routePaths";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
+const MIN_SUBMIT_COMPLETION_PERCENT = 50;
 type AssessmentDetailQuery = ReturnType<typeof useAssessment>;
 type SubmittedAssessmentPrompt = {
   assessmentId: string;
@@ -179,6 +180,7 @@ export function MyAssessmentsPage() {
 
   const summary = detail.data?.summary ?? selectedSummary;
   const percent = Math.round(summary?.completionPercentage ?? 0);
+  const canSubmitAssessment = percent >= MIN_SUBMIT_COMPLETION_PERCENT;
   const selectedQuestionSet = useMemo(() => {
     const ids = summary?.questionIds ?? [];
     return ids.length ? new Set(ids) : null;
@@ -602,6 +604,11 @@ export function MyAssessmentsPage() {
               <Typography variant="caption" fontWeight={600}>{percent}%</Typography>
             </Stack>
             <LinearProgress variant="determinate" value={percent} sx={{ height: 6, borderRadius: 999 }} />
+            {!canSubmitAssessment && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: "block" }}>
+                Complete at least {MIN_SUBMIT_COMPLETION_PERCENT}% to enable submit.
+              </Typography>
+            )}
           </Box>
           <Box sx={{ flexGrow: 1 }} />
           {saveResponse.isPending && <Chip size="small" label="Saving..." />}
@@ -627,7 +634,7 @@ export function MyAssessmentsPage() {
               </Button>
               <Button
                 variant="contained"
-                disabled={submit.isPending || answeredCount === 0}
+                disabled={submit.isPending || !canSubmitAssessment}
                 onClick={() => setReviewOpen(true)}
               >
                 Submit
@@ -661,13 +668,16 @@ export function MyAssessmentsPage() {
               </Card>
             </Stack>
             <LinearProgress variant="determinate" value={percent} sx={{ height: 8, borderRadius: 999 }} />
+            {!canSubmitAssessment && (
+              <Alert severity="info">Complete at least {MIN_SUBMIT_COMPLETION_PERCENT}% of the assessment to submit.</Alert>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setReviewOpen(false)}>Go back</Button>
           <Button
             variant="contained"
-            disabled={submit.isPending || answeredCount === 0}
+            disabled={submit.isPending || !canSubmitAssessment}
             onClick={() => {
               submit.mutate(undefined, {
                 onSuccess: (submittedDetail) => {

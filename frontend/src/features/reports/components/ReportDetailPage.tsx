@@ -119,6 +119,7 @@ const insightTone: Record<Insight["tone"], { color: string; surface: string }> =
 };
 
 type TabKey = "overview" | "strengths" | "actions" | "trends" | "details";
+type FactTone = "default" | "success" | "error";
 
 const REPORT_TABS: Array<{ key: TabKey; label: string; icon: React.ReactElement }> = [
   { key: "overview", label: "Overview", icon: <DashboardOutlinedIcon fontSize="small" /> },
@@ -764,8 +765,12 @@ export function ReportDetailPage({
                                                       </Stack>
                                                     </Stack>
                                                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
-                                                      <FactBox label="Your answer" value={question.answer == null ? "Not answered" : answerLabel[question.answer]} />
-                                                      <FactBox label="Correct answer" value={answerLabel[question.expectedAnswer]} emphasize />
+                                                      <FactBox
+                                                        label="Your answer"
+                                                        value={question.answer == null ? "Not answered" : answerLabel[question.answer]}
+                                                        tone={question.answer == null ? "default" : question.answer === question.expectedAnswer ? "success" : "error"}
+                                                      />
+                                                      <FactBox label="Correct answer" value={answerLabel[question.expectedAnswer]} tone="success" emphasize />
                                                       <FactBox label="Points" value={question.points == null ? "--" : `${Math.round(question.points)}`} />
                                                     </Box>
                                                     {question.guidance ? <Typography variant="caption" color="text.secondary">Guidance: {question.guidance}</Typography> : null}
@@ -1238,11 +1243,18 @@ function StageChip({ stage }: { stage: StageInfo }) {
   );
 }
 
-function FactBox({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
+function FactBox({ label, value, emphasize = false, tone = "default" }: { label: string; value: string; emphasize?: boolean; tone?: FactTone }) {
+  const toneStyles: Record<FactTone, { borderColor: string; color: string; background: string }> = {
+    default: { borderColor: neutralTokens.line200, color: neutralTokens.ink900, background: "background.paper" },
+    success: { borderColor: alpha(semanticTokens.successMain, 0.3), color: semanticTokens.successMain, background: semanticTokens.successSurface },
+    error: { borderColor: alpha(semanticTokens.errorMain, 0.32), color: semanticTokens.errorMain, background: semanticTokens.errorSurface },
+  };
+  const style = toneStyles[tone];
+
   return (
-    <Box sx={{ p: 1.25, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: emphasize ? alpha(semanticTokens.successMain, 0.05) : "background.paper" }}>
+    <Box sx={{ p: 1.25, border: 1, borderColor: style.borderColor, borderRadius: 2, bgcolor: style.background }}>
       <Typography variant="caption" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" fontWeight={emphasize ? 800 : 700} sx={{ mt: 0.25 }}>{value}</Typography>
+      <Typography variant="body2" fontWeight={emphasize ? 800 : 700} sx={{ mt: 0.25, color: style.color }}>{value}</Typography>
     </Box>
   );
 }
