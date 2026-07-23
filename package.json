@@ -1,9 +1,9 @@
 {
   "scripts": {
-    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/dev.ps1",
+    "dev": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/dev.ps1",
     "dev:backend": "dotnet run --project backend/src/qMRI.Api/qMRI.Api.csproj --launch-profile http",
     "dev:frontend": "npm --prefix frontend run dev",
-    "stop:all": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/stop-all.ps1"
+    "stop:all": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/stop-all.ps1"
   },
   "dependencies": {
     "motion": "^12.42.2"
