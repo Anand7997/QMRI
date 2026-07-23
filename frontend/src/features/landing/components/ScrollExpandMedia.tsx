@@ -21,7 +21,7 @@ const TEXT_BLUE = "#BFDBFE";
 /**
  * Hero banner: a full-viewport media focal point with logo + title over a blurred
  * background, followed by the page content in normal document flow. The page scrolls
- * naturally — no wheel/touch hijacking or scroll-locking.
+ * naturally - no wheel/touch hijacking or scroll-locking.
  */
 export function ScrollExpandMedia({
   mediaType = "image",
@@ -38,7 +38,7 @@ export function ScrollExpandMedia({
 }: ScrollExpandMediaProps) {
   const isYouTube = mediaSrc.includes("youtube.com");
 
-  // scroll-linked split of the two title words — driven by native scroll, never blocks it
+  // scroll-linked split of the two title words - driven by native scroll, never blocks it
   const [progress, setProgress] = useState(0);
   useEffect(() => {
     const onScroll = () => {
@@ -64,8 +64,8 @@ export function ScrollExpandMedia({
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          minHeight: "100dvh",
-          py: { xs: 6, md: 8 },
+          minHeight: "calc(100dvh - 68px)",
+          py: { xs: 4, md: 5 },
         }}
       >
         {/* Background */}
@@ -95,8 +95,8 @@ export function ScrollExpandMedia({
           <Box
             sx={{
               position: "relative",
-              width: { xs: "92vw", md: "min(1100px, 90vw)" },
-              height: { xs: 300, md: 500 },
+              width: { xs: "88vw", md: "min(1040px, 82vw)" },
+              height: { xs: 260, md: 420, lg: 500 },
               borderRadius: 4,
               overflow: "hidden",
               boxShadow: "0px 0px 50px rgba(0, 0, 0, 0.3)",
@@ -151,8 +151,8 @@ export function ScrollExpandMedia({
                   left: "50%",
                   transform: "translate(-50%, -50%)",
                   zIndex: 20,
-                  width: { xs: "62%", md: "48%" },
-                  maxWidth: 460,
+                  width: { xs: "54%", md: "42%" },
+                  maxWidth: 400,
                   height: "auto",
                   objectFit: "contain",
                   pointerEvents: "none",
@@ -165,7 +165,7 @@ export function ScrollExpandMedia({
           {/* Title + captions */}
           <Box
             sx={{
-              mt: { xs: 4, md: 5 },
+              mt: { xs: 2.5, md: 3.5 },
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -174,7 +174,7 @@ export function ScrollExpandMedia({
             }}
           >
             {date && (
-              <Typography sx={{ fontSize: { xs: "1.05rem", md: "1.35rem" }, color: TEXT_BLUE, letterSpacing: "0.04em" }}>
+              <Typography sx={{ fontSize: { xs: "0.95rem", md: "1.15rem" }, color: TEXT_BLUE, letterSpacing: "0.04em" }}>
                 {date}
               </Typography>
             )}
@@ -192,7 +192,7 @@ export function ScrollExpandMedia({
                 <Typography
                   component="h2"
                   sx={{
-                    fontSize: { xs: "2.25rem", md: "3rem", lg: "3.75rem" },
+                    fontSize: { xs: "1.95rem", md: "2.55rem", lg: "3.25rem" },
                     fontWeight: 700,
                     color: TEXT_BLUE,
                     lineHeight: 1.1,
@@ -207,7 +207,7 @@ export function ScrollExpandMedia({
                   <Typography
                     component="h2"
                     sx={{
-                      fontSize: { xs: "2.25rem", md: "3rem", lg: "3.75rem" },
+                      fontSize: { xs: "1.95rem", md: "2.55rem", lg: "3.25rem" },
                       fontWeight: 700,
                       color: TEXT_BLUE,
                       lineHeight: 1.1,
@@ -222,7 +222,7 @@ export function ScrollExpandMedia({
               </Box>
             )}
             {scrollToExpand && (
-              <Typography sx={{ mt: 2, color: TEXT_BLUE, fontWeight: 500, opacity: 0.85 }}>
+              <Typography sx={{ mt: 1.25, color: TEXT_BLUE, fontWeight: 500, opacity: 0.85 }}>
                 {scrollToExpand}
               </Typography>
             )}
@@ -230,7 +230,7 @@ export function ScrollExpandMedia({
         </Box>
       </Box>
 
-      {/* Page content — normal document flow */}
+      {/* Page content - normal document flow */}
       <Box component="section" sx={{ width: "100%" }}>
         {children}
       </Box>
