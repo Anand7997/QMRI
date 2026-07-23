@@ -76,7 +76,7 @@ try {
             -Environment @{ ASPNETCORE_ENVIRONMENT = 'Development' }
     }
 
-    $npmExecutable = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
+    $npmExecutable = if ($IsWindows -or $env:OS -eq 'Windows_NT') { 'npm.cmd' } else { 'npm' }
 
     $processes += Start-DevProcess `
         -Name 'frontend' `

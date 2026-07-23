@@ -54,7 +54,13 @@ function Stop-ProcessTree {
         return
     }
 
-    & taskkill.exe /PID $ProcessId /T /F 2>$null | Out-Null
+    try {
+        & taskkill.exe /PID $ProcessId /T /F 2>$null | Out-Null
+    }
+    catch {
+        $global:LASTEXITCODE = 1
+    }
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Stopped $target."
         return
