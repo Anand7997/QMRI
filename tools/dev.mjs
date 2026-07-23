@@ -55,8 +55,8 @@ const children = commands.map((entry) => {
 });
 
 console.log('qMRI dev servers starting...');
-console.log('Backend:  http://localhost:5000');
-console.log('Frontend: http://localhost:8081');
+console.log('Backend:  http://localhost:6000');
+console.log('Frontend: http://localhost:8085');
 console.log('Press Ctrl+C to stop both.');
 
 process.on('SIGINT', () => {

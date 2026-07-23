@@ -1,7 +1,7 @@
 ﻿import json, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
-BASE = "http://localhost:5000/api/v1"
+BASE = "http://localhost:6000/api/v1"
 SCORING_MODEL = "30000000-0000-0000-0000-000000000001"
 
 
