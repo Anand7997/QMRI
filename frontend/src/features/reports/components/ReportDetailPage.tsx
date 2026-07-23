@@ -13,12 +13,14 @@ import {
   LinearProgress,
   Snackbar,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   TextField,
   Typography,
 } from "@mui/material";
@@ -27,6 +29,8 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
 import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
@@ -114,6 +118,16 @@ const insightTone: Record<Insight["tone"], { color: string; surface: string }> =
   info: { color: brandTokens.blue600, surface: brandTokens.blue50 },
 };
 
+type TabKey = "overview" | "strengths" | "actions" | "trends" | "details";
+
+const REPORT_TABS: Array<{ key: TabKey; label: string; icon: React.ReactElement }> = [
+  { key: "overview", label: "Overview", icon: <DashboardOutlinedIcon fontSize="small" /> },
+  { key: "strengths", label: "Strengths & Gaps", icon: <InsightsOutlinedIcon fontSize="small" /> },
+  { key: "actions", label: "Action Plan", icon: <FlagOutlinedIcon fontSize="small" /> },
+  { key: "trends", label: "Trends & Risk", icon: <TrendingUpOutlinedIcon fontSize="small" /> },
+  { key: "details", label: "Full Details", icon: <FormatListBulletedIcon fontSize="small" /> },
+];
+
 export function ReportDetailPage({
   assessment,
   detailQuery,
@@ -166,6 +180,7 @@ export function ReportDetailPage({
   const benchmark = useMemo(() => buildBenchmark(overallScore, yourAverage, previousScore), [overallScore, yourAverage, previousScore]);
   const trend = useMemo(() => trendData(history, summary), [history, summary]);
 
+  const [tab, setTab] = useState<TabKey>("overview");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [shared, setShared] = useState(false);
@@ -195,6 +210,7 @@ export function ReportDetailPage({
 
   useEffect(() => {
     if (!focusSteps || categoryGroups.length === 0) return;
+    setTab("details");
     setExpandedCategoryIds(allCategoryIds);
     setExpandedModuleKeys(allModuleKeys);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -207,9 +223,10 @@ export function ReportDetailPage({
   }, [categoryGroups.length, detailQuery.isFetching, detailQuery.isLoading, focusSteps]);
 
   function drillToCategory(categoryId: string) {
+    setTab("details");
     setSelectedCategoryId(categoryId);
     setExpandedCategoryIds((current) => Array.from(new Set([...current, categoryId])));
-    window.setTimeout(() => detailedStepsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => detailedStepsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
   }
 
   async function shareReport() {
@@ -325,17 +342,33 @@ export function ReportDetailPage({
             </Card>
           </MotionReveal>
 
-          {/* ---------------------------------------------------------- Executive KPIs */}
-          <MotionReveal delay={0.05}>
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", xl: "repeat(4, 1fr)" } }}>
-              {kpis.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} />)}
-              <SummaryReadCard highest={highestName} lowest={lowestName} readiness={readinessValue} />
-            </Box>
-          </MotionReveal>
-
-          {/* ---------------------------------------------------------- Performance overview */}
+          {/* ---------------------------------------------------------- Tabbed sections */}
           {categoryGroups.length > 0 ? (
             <>
+              <ReportTabs value={tab} onChange={setTab} />
+
+              {/* ============================== OVERVIEW ============================== */}
+              {tab === "overview" ? (
+                <MotionReveal delay={0.04} key="overview">
+                  <Stack spacing={2.5}>
+                    <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", xl: "repeat(4, 1fr)" } }}>
+                      {kpis.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} />)}
+                      <SummaryReadCard highest={highestName} lowest={lowestName} readiness={readinessValue} />
+                    </Box>
+                    <OverviewSpotlight
+                      groups={categoryGroups}
+                      recommendations={recommendations}
+                      onSeeActions={() => setTab("actions")}
+                      onSeeStrengths={() => setTab("strengths")}
+                      onDrill={drillToCategory}
+                    />
+                  </Stack>
+                </MotionReveal>
+              ) : null}
+
+              {/* ============================== STRENGTHS & GAPS ============================== */}
+              {tab === "strengths" ? (
+              <Stack spacing={2.5} key="strengths">
               <SectionTitle icon={<InsightsOutlinedIcon />} title="Performance overview" subtitle="How each competency scores, ranked and mapped. Click any competency to jump to its detailed breakdown." />
               <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
                 <MotionReveal delay={0.05}>
@@ -460,6 +493,17 @@ export function ReportDetailPage({
                 </Card>
               </MotionReveal>
 
+              </Stack>
+              ) : null}
+
+              {/* ============================== ACTION PLAN ============================== */}
+              {tab === "actions" ? (
+              <Stack spacing={2.5} key="actions">
+              {insights.length === 0 && recommendations.length === 0 && opportunities.length === 0 ? (
+                <Card sx={{ p: 4 }}>
+                  <EmptyState title="No actions generated" description="No insights, recommendations, or improvement opportunities were produced for this assessment." />
+                </Card>
+              ) : null}
               {/* -------------------------------------------------------- Insights */}
               {insights.length > 0 ? (
                 <>
@@ -528,6 +572,12 @@ export function ReportDetailPage({
                 </>
               ) : null}
 
+              </Stack>
+              ) : null}
+
+              {/* ============================== TRENDS & RISK ============================== */}
+              {tab === "trends" ? (
+              <Stack spacing={2.5} key="trends">
               {/* -------------------------------------------------------- Trend + Benchmark */}
               <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1.3fr 1fr" } }}>
                 <MotionReveal delay={0.05}>
@@ -615,6 +665,131 @@ export function ReportDetailPage({
                   </Card>
                 </Box>
               </MotionReveal>
+              </Stack>
+              ) : null}
+
+              {/* ============================== FULL DETAILS ============================== */}
+              {tab === "details" ? (
+              <Stack spacing={2.5} key="details">
+                <MotionReveal delay={0.04}>
+                  <Card ref={detailedStepsRef} sx={{ p: { xs: 2, md: 2.5 } }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ sm: "center" }}>
+                      <Box>
+                        <Typography variant="h3">Detailed step-by-step result</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Open each competency and module to review responses, correct answers, and notes.</Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1}>
+                        <Button variant="outlined" size="small" startIcon={<UnfoldMoreIcon />} onClick={() => { setExpandedCategoryIds(allCategoryIds); setExpandedModuleKeys(allModuleKeys); }}>Expand all</Button>
+                        <Button variant="text" size="small" startIcon={<UnfoldLessIcon />} onClick={() => { setExpandedCategoryIds([]); setExpandedModuleKeys([]); }}>Collapse all</Button>
+                      </Stack>
+                    </Stack>
+                    <Stack spacing={1.25} sx={{ mt: 2 }}>
+                      {categoryGroups.map((group) => (
+                        <Accordion
+                          key={group.categoryId}
+                          expanded={expandedCategoryIds.includes(group.categoryId)}
+                          onChange={(_event, expanded) => setExpandedCategoryIds((current) => expanded ? Array.from(new Set([...current, group.categoryId])) : current.filter((id) => id !== group.categoryId))}
+                          disableGutters
+                          sx={{
+                            border: 1,
+                            borderColor: selectedCategoryId === group.categoryId ? brandTokens.blue500 : "divider",
+                            borderRadius: 2,
+                            overflow: "hidden",
+                            boxShadow: "none",
+                          }}
+                        >
+                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ width: "100%", pr: 1 }}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" fontWeight={800}>{group.categoryName}</Typography>
+                                <Typography variant="caption" color="text.secondary">{group.answeredCount}/{group.questionCount} answered - {group.alignedCount}/{group.questionCount} aligned</Typography>
+                              </Box>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
+                                <StageChip stage={group.stage} />
+                                <Chip size="small" variant="outlined" label={`Score ${group.score}/100`} />
+                              </Stack>
+                            </Stack>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ pt: 0, pb: 2 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{group.stage.description}</Typography>
+                            <Stack spacing={1.25}>
+                              {group.modules.map((module) => (
+                                <Accordion
+                                  key={module.key}
+                                  expanded={expandedModuleKeys.includes(module.key)}
+                                  onChange={(_event, expanded) => setExpandedModuleKeys((current) => expanded ? Array.from(new Set([...current, module.key])) : current.filter((key) => key !== module.key))}
+                                  disableGutters
+                                  sx={{ border: 1, borderColor: "divider", borderRadius: 2, overflow: "hidden", boxShadow: "none", bgcolor: "background.default" }}
+                                >
+                                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                    <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ width: "100%", pr: 1 }}>
+                                      <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="body2" fontWeight={800}>{module.moduleName}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{module.alignedCount}/{module.questionCount} aligned - {module.answeredCount}/{module.questionCount} answered</Typography>
+                                      </Box>
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
+                                        <StageChip stage={module.stage} />
+                                        <Chip size="small" variant="outlined" label={`Score ${module.score}/100`} />
+                                      </Stack>
+                                    </Stack>
+                                  </AccordionSummary>
+                                  <AccordionDetails sx={{ pt: 0 }}>
+                                    <Stack spacing={1}>
+                                      {module.subModules.map((subModule) => (
+                                        <Box key={subModule.key} sx={{ border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper", overflow: "hidden" }}>
+                                          <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ px: 1.75, py: 1.25, borderBottom: 1, borderColor: "divider" }}>
+                                            <Box sx={{ minWidth: 0 }}>
+                                              <Typography variant="body2" fontWeight={800}>{subModule.subModuleName}</Typography>
+                                              <Typography variant="caption" color="text.secondary">{subModule.alignedCount}/{subModule.questionCount} aligned - {subModule.answeredCount}/{subModule.questionCount} answered</Typography>
+                                            </Box>
+                                            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
+                                              <StageChip stage={subModule.stage} />
+                                              <Chip size="small" variant="outlined" label={`Score ${subModule.score}/100`} />
+                                            </Stack>
+                                          </Stack>
+                                          <Stack spacing={1.25} sx={{ p: 1.25 }}>
+                                            {subModule.questions.map((question, index) => {
+                                              const status = questionStatusFor(question);
+                                              return (
+                                                <Box key={question.questionId} sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+                                                  <Stack spacing={1.25}>
+                                                    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.25}>
+                                                      <Box sx={{ minWidth: 0 }}>
+                                                        <Typography variant="caption" color="text.secondary">Question {index + 1}</Typography>
+                                                        <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35 }}>{question.questionText}</Typography>
+                                                      </Box>
+                                                      <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }} sx={{ height: "fit-content" }}>
+                                                        <Chip size="small" label={status.label} color={status.color} variant="outlined" />
+                                                        <Chip size="small" variant="outlined" label={questionIntensityLabel[question.intensity]} />
+                                                      </Stack>
+                                                    </Stack>
+                                                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
+                                                      <FactBox label="Your answer" value={question.answer == null ? "Not answered" : answerLabel[question.answer]} />
+                                                      <FactBox label="Correct answer" value={answerLabel[question.expectedAnswer]} emphasize />
+                                                      <FactBox label="Points" value={question.points == null ? "--" : `${Math.round(question.points)}`} />
+                                                    </Box>
+                                                    {question.guidance ? <Typography variant="caption" color="text.secondary">Guidance: {question.guidance}</Typography> : null}
+                                                    {question.findings ? <Typography variant="caption" color="text.secondary">Findings: {question.findings}</Typography> : null}
+                                                  </Stack>
+                                                </Box>
+                                              );
+                                            })}
+                                          </Stack>
+                                        </Box>
+                                      ))}
+                                    </Stack>
+                                  </AccordionDetails>
+                                </Accordion>
+                              ))}
+                            </Stack>
+                          </AccordionDetails>
+                        </Accordion>
+                      ))}
+                    </Stack>
+                  </Card>
+                </MotionReveal>
+              </Stack>
+              ) : null}
             </>
           ) : detailQuery.isLoading || detailQuery.isFetching ? (
             <LinearProgress sx={{ borderRadius: 999 }} />
@@ -634,127 +809,6 @@ export function ReportDetailPage({
               actor={actor ?? "User"}
             />
           </MotionReveal>
-
-          {/* ---------------------------------------------------------- Detailed steps */}
-          {categoryGroups.length > 0 ? (
-            <MotionReveal delay={0.05}>
-              <Card ref={detailedStepsRef} sx={{ p: { xs: 2, md: 2.5 } }}>
-                <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ sm: "center" }}>
-                  <Box>
-                    <Typography variant="h3">Detailed step-by-step result</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Open each competency and module to review responses, correct answers, and notes.</Typography>
-                  </Box>
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="outlined" size="small" startIcon={<UnfoldMoreIcon />} onClick={() => { setExpandedCategoryIds(allCategoryIds); setExpandedModuleKeys(allModuleKeys); }}>Expand all</Button>
-                    <Button variant="text" size="small" startIcon={<UnfoldLessIcon />} onClick={() => { setExpandedCategoryIds([]); setExpandedModuleKeys([]); }}>Collapse all</Button>
-                  </Stack>
-                </Stack>
-                <Stack spacing={1.25} sx={{ mt: 2 }}>
-                  {categoryGroups.map((group) => (
-                    <Accordion
-                      key={group.categoryId}
-                      expanded={expandedCategoryIds.includes(group.categoryId)}
-                      onChange={(_event, expanded) => setExpandedCategoryIds((current) => expanded ? Array.from(new Set([...current, group.categoryId])) : current.filter((id) => id !== group.categoryId))}
-                      disableGutters
-                      sx={{
-                        border: 1,
-                        borderColor: selectedCategoryId === group.categoryId ? brandTokens.blue500 : "divider",
-                        borderRadius: 2,
-                        overflow: "hidden",
-                        boxShadow: "none",
-                      }}
-                    >
-                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ width: "100%", pr: 1 }}>
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="subtitle1" fontWeight={800}>{group.categoryName}</Typography>
-                            <Typography variant="caption" color="text.secondary">{group.answeredCount}/{group.questionCount} answered - {group.alignedCount}/{group.questionCount} aligned</Typography>
-                          </Box>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
-                            <StageChip stage={group.stage} />
-                            <Chip size="small" variant="outlined" label={`Score ${group.score}/100`} />
-                          </Stack>
-                        </Stack>
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ pt: 0, pb: 2 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{group.stage.description}</Typography>
-                        <Stack spacing={1.25}>
-                          {group.modules.map((module) => (
-                            <Accordion
-                              key={module.key}
-                              expanded={expandedModuleKeys.includes(module.key)}
-                              onChange={(_event, expanded) => setExpandedModuleKeys((current) => expanded ? Array.from(new Set([...current, module.key])) : current.filter((key) => key !== module.key))}
-                              disableGutters
-                              sx={{ border: 1, borderColor: "divider", borderRadius: 2, overflow: "hidden", boxShadow: "none", bgcolor: "background.default" }}
-                            >
-                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ width: "100%", pr: 1 }}>
-                                  <Box sx={{ minWidth: 0 }}>
-                                    <Typography variant="body2" fontWeight={800}>{module.moduleName}</Typography>
-                                    <Typography variant="caption" color="text.secondary">{module.alignedCount}/{module.questionCount} aligned - {module.answeredCount}/{module.questionCount} answered</Typography>
-                                  </Box>
-                                  <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
-                                    <StageChip stage={module.stage} />
-                                    <Chip size="small" variant="outlined" label={`Score ${module.score}/100`} />
-                                  </Stack>
-                                </Stack>
-                              </AccordionSummary>
-                              <AccordionDetails sx={{ pt: 0 }}>
-                                <Stack spacing={1}>
-                                  {module.subModules.map((subModule) => (
-                                    <Box key={subModule.key} sx={{ border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper", overflow: "hidden" }}>
-                                      <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ px: 1.75, py: 1.25, borderBottom: 1, borderColor: "divider" }}>
-                                        <Box sx={{ minWidth: 0 }}>
-                                          <Typography variant="body2" fontWeight={800}>{subModule.subModuleName}</Typography>
-                                          <Typography variant="caption" color="text.secondary">{subModule.alignedCount}/{subModule.questionCount} aligned - {subModule.answeredCount}/{subModule.questionCount} answered</Typography>
-                                        </Box>
-                                        <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
-                                          <StageChip stage={subModule.stage} />
-                                          <Chip size="small" variant="outlined" label={`Score ${subModule.score}/100`} />
-                                        </Stack>
-                                      </Stack>
-                                      <Stack spacing={1.25} sx={{ p: 1.25 }}>
-                                        {subModule.questions.map((question, index) => {
-                                          const status = questionStatusFor(question);
-                                          return (
-                                            <Box key={question.questionId} sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
-                                              <Stack spacing={1.25}>
-                                                <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.25}>
-                                                  <Box sx={{ minWidth: 0 }}>
-                                                    <Typography variant="caption" color="text.secondary">Question {index + 1}</Typography>
-                                                    <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35 }}>{question.questionText}</Typography>
-                                                  </Box>
-                                                  <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }} sx={{ height: "fit-content" }}>
-                                                    <Chip size="small" label={status.label} color={status.color} variant="outlined" />
-                                                    <Chip size="small" variant="outlined" label={questionIntensityLabel[question.intensity]} />
-                                                  </Stack>
-                                                </Stack>
-                                                <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
-                                                  <FactBox label="Your answer" value={question.answer == null ? "Not answered" : answerLabel[question.answer]} />
-                                                  <FactBox label="Correct answer" value={answerLabel[question.expectedAnswer]} emphasize />
-                                                  <FactBox label="Points" value={question.points == null ? "--" : `${Math.round(question.points)}`} />
-                                                </Box>
-                                                {question.guidance ? <Typography variant="caption" color="text.secondary">Guidance: {question.guidance}</Typography> : null}
-                                                {question.findings ? <Typography variant="caption" color="text.secondary">Findings: {question.findings}</Typography> : null}
-                                              </Stack>
-                                            </Box>
-                                          );
-                                        })}
-                                      </Stack>
-                                    </Box>
-                                  ))}
-                                </Stack>
-                              </AccordionDetails>
-                            </Accordion>
-                          ))}
-                        </Stack>
-                      </AccordionDetails>
-                    </Accordion>
-                  ))}
-                </Stack>
-              </Card>
-            </MotionReveal>
-          ) : null}
 
           {/* ---------------------------------------------------------- Help */}
           <MotionReveal delay={0.05}>
@@ -793,6 +847,188 @@ function SectionTitle({ icon, title, subtitle }: { icon: React.ReactNode; title:
         {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{subtitle}</Typography> : null}
       </Box>
     </Stack>
+  );
+}
+
+function ReportTabs({ value, onChange }: { value: TabKey; onChange: (key: TabKey) => void }) {
+  return (
+    <Box
+      sx={{
+        position: "sticky",
+        top: 0,
+        zIndex: 5,
+        mx: { xs: -0.5, md: 0 },
+        px: { xs: 0.5, md: 1 },
+        bgcolor: alpha("#ffffff", 0.85),
+        backdropFilter: "blur(8px)",
+        borderRadius: 2,
+        border: `1px solid ${neutralTokens.line200}`,
+        boxShadow: `0 6px 20px ${alpha(brandTokens.blue600, 0.06)}`,
+      }}
+    >
+      <Tabs
+        value={value}
+        onChange={(_event, next: TabKey) => onChange(next)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        sx={{
+          minHeight: 52,
+          "& .MuiTab-root": { minHeight: 52, textTransform: "none", fontWeight: 700, fontSize: 14, gap: 0.75 },
+          "& .MuiTab-iconWrapper": { mb: "0 !important", mr: 0.75 },
+          "& .MuiTabs-indicator": { height: 3, borderRadius: 999, bgcolor: brandTokens.blue600 },
+        }}
+      >
+        {REPORT_TABS.map((item) => (
+          <Tab key={item.key} value={item.key} icon={item.icon} iconPosition="start" label={item.label} />
+        ))}
+      </Tabs>
+    </Box>
+  );
+}
+
+function OverviewSpotlight({
+  groups,
+  recommendations,
+  onSeeActions,
+  onSeeStrengths,
+  onDrill,
+}: {
+  groups: CategoryGroup[];
+  recommendations: ReturnType<typeof buildRecommendations>;
+  onSeeActions: () => void;
+  onSeeStrengths: () => void;
+  onDrill: (categoryId: string) => void;
+}) {
+  const sorted = groups.slice().sort((a, b) => b.score - a.score);
+  const strongest = sorted[0];
+  const focus = sorted.slice(-3).reverse().filter((g) => g.categoryId !== strongest?.categoryId);
+  const topRecs = recommendations.slice(0, 3);
+
+  return (
+    <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
+      {/* Where you stand */}
+      <Card sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontSize: 18 }}>Where you stand</Typography>
+          <Button variant="text" size="small" onClick={onSeeStrengths}>See all competencies</Button>
+        </Stack>
+        {strongest ? (
+          <SpotlightRow
+            tone={semanticTokens.successMain}
+            heading="Strongest competency"
+            name={strongest.categoryName}
+            score={strongest.score}
+            stageLabel={strongest.stage.label}
+            onClick={() => onDrill(strongest.categoryId)}
+          />
+        ) : null}
+        <Stack spacing={1} sx={{ mt: 1.25 }}>
+          <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: "0.06em" }}>Needs the most focus</Typography>
+          {focus.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No weak competencies — every area is holding up well.</Typography>
+          ) : (
+            focus.map((group) => (
+              <SpotlightRow
+                key={group.categoryId}
+                tone={group.stage.color}
+                name={group.categoryName}
+                score={group.score}
+                stageLabel={group.stage.label}
+                onClick={() => onDrill(group.categoryId)}
+                compact
+              />
+            ))
+          )}
+        </Stack>
+      </Card>
+
+      {/* Do this next */}
+      <Card sx={{ p: { xs: 2, md: 2.5 }, bgcolor: brandTokens.blue50, border: `1px solid ${alpha(brandTokens.blue600, 0.16)}` }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontSize: 18 }}>Do this next</Typography>
+          {recommendations.length > topRecs.length ? (
+            <Button variant="text" size="small" onClick={onSeeActions}>{`View all ${recommendations.length}`}</Button>
+          ) : null}
+        </Stack>
+        {topRecs.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">No priority actions right now. Keep reinforcing your current practices.</Typography>
+        ) : (
+          <Stack spacing={1.25}>
+            {topRecs.map((rec, index) => (
+              <Stack
+                key={rec.id}
+                direction="row"
+                spacing={1.5}
+                alignItems="flex-start"
+                sx={{ p: 1.5, borderRadius: 2, bgcolor: "background.paper", border: `1px solid ${alpha(priorityColor[rec.priority], 0.28)}` }}
+              >
+                <Box sx={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: alpha(priorityColor[rec.priority], 0.14), color: priorityColor[rec.priority], fontWeight: 900, fontSize: 13 }}>{index + 1}</Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="body2" fontWeight={800}>{rec.title}</Typography>
+                    <Chip size="small" label={rec.priority} sx={{ height: 20, bgcolor: alpha(priorityColor[rec.priority], 0.14), color: priorityColor[rec.priority], fontWeight: 800 }} />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>
+                    {rec.category} · Expected improvement {rec.expectedImprovement}
+                  </Typography>
+                </Box>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Card>
+    </Box>
+  );
+}
+
+function SpotlightRow({
+  tone,
+  heading,
+  name,
+  score,
+  stageLabel,
+  onClick,
+  compact = false,
+}: {
+  tone: string;
+  heading?: string;
+  name: string;
+  score: number;
+  stageLabel: string;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <Box>
+      {heading ? <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: "0.06em" }}>{heading}</Typography> : null}
+      <Stack
+        direction="row"
+        spacing={1.5}
+        alignItems="center"
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onClick(); } }}
+        sx={{
+          cursor: "pointer",
+          p: compact ? 1 : 1.25,
+          mt: heading ? 0.5 : 0,
+          borderRadius: 2,
+          border: `1px solid ${alpha(tone, 0.25)}`,
+          bgcolor: alpha(tone, 0.05),
+          transition: "background-color 160ms ease",
+          "&:hover": { bgcolor: alpha(tone, 0.1) },
+        }}
+      >
+        <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: tone, flexShrink: 0 }} />
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="body2" fontWeight={800} noWrap title={name}>{name}</Typography>
+          <Typography variant="caption" color="text.secondary">{stageLabel}</Typography>
+        </Box>
+        <Typography variant="body2" fontWeight={900} sx={{ color: tone, fontVariantNumeric: "tabular-nums" }}>{score}</Typography>
+      </Stack>
+    </Box>
   );
 }
 
