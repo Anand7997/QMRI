@@ -1,13 +1,11 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
   Card,
   Chip,
+  Collapse,
   Divider,
   InputAdornment,
   LinearProgress,
@@ -31,7 +29,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
 import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
@@ -40,8 +38,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
-import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
-import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import {
   Bar,
   BarChart,
@@ -68,8 +64,6 @@ import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/co
 import {
   AssessmentStatus,
   answerLabel,
-  questionIntensityLabel,
-  type AssessmentQuestionResultDto,
   type AssessmentSummaryDto,
 } from "shared/api/types";
 import type { useAssessment } from "shared/api/assessments";
@@ -94,7 +88,6 @@ import {
   previousScoreFor,
   priorityColor,
   priorityWindow,
-  questionStatusFor,
   radarData,
   rankingData,
   resolveDate,
@@ -185,36 +178,18 @@ export function ReportDetailPage({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [shared, setShared] = useState(false);
-  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
-  const [expandedModuleKeys, setExpandedModuleKeys] = useState<string[]>([]);
+  const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([]);
   const detailedStepsRef = useRef<HTMLDivElement | null>(null);
 
-  const allCategoryIds = categoryGroups.map((g) => g.categoryId);
-  const allModuleKeys = categoryGroups.flatMap((g) => g.modules.map((m) => m.key));
-
   useEffect(() => {
+    setExpandedDetailIds([]);
     void detailQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessment.assessmentId]);
 
   useEffect(() => {
-    if (categoryGroups.length === 0) {
-      setExpandedCategoryIds([]);
-      setExpandedModuleKeys([]);
-      return;
-    }
-    const first = categoryGroups[0];
-    setExpandedCategoryIds([first.categoryId]);
-    setExpandedModuleKeys(first.modules[0] ? [first.modules[0].key] : []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assessment.assessmentId, categoryGroups.length]);
-
-  useEffect(() => {
     if (!focusSteps || categoryGroups.length === 0) return;
     setTab("details");
-    setExpandedCategoryIds(allCategoryIds);
-    setExpandedModuleKeys(allModuleKeys);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessment.assessmentId, categoryGroups.length, focusSteps]);
 
   useEffect(() => {
@@ -226,8 +201,17 @@ export function ReportDetailPage({
   function drillToCategory(categoryId: string) {
     setTab("details");
     setSelectedCategoryId(categoryId);
-    setExpandedCategoryIds((current) => Array.from(new Set([...current, categoryId])));
     window.setTimeout(() => detailedStepsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  }
+
+  function detailNodeOpen(nodeId: string) {
+    return expandedDetailIds.includes(nodeId);
+  }
+
+  function toggleDetailNode(nodeId: string) {
+    setExpandedDetailIds((current) => (
+      current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]
+    ));
   }
 
   async function shareReport() {
@@ -673,124 +657,100 @@ export function ReportDetailPage({
               {tab === "details" ? (
               <Stack spacing={2.5} key="details">
                 <MotionReveal delay={0.04}>
-                  <Card ref={detailedStepsRef} sx={{ p: { xs: 2, md: 2.5 } }}>
-                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ sm: "center" }}>
+                  <Card ref={detailedStepsRef} sx={{ p: { xs: 1.5, md: 2 } }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.25} alignItems={{ sm: "center" }}>
                       <Box>
-                        <Typography variant="h3">Detailed step-by-step result</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Open each competency and module to review responses, correct answers, and notes.</Typography>
+                        <Typography variant="h3" sx={{ fontSize: { xs: 18, md: 20 } }}>Detailed step-by-step result</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>All competencies are merged by default. Click the Expand label or arrow on any row to see the question and answer grid.</Typography>
                       </Box>
-                      <Stack direction="row" spacing={1}>
-                        <Button variant="outlined" size="small" startIcon={<UnfoldMoreIcon />} onClick={() => { setExpandedCategoryIds(allCategoryIds); setExpandedModuleKeys(allModuleKeys); }}>Expand all</Button>
-                        <Button variant="text" size="small" startIcon={<UnfoldLessIcon />} onClick={() => { setExpandedCategoryIds([]); setExpandedModuleKeys([]); }}>Collapse all</Button>
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                        <Chip size="small" label={`${categoryGroups.length} competencies`} sx={{ height: 22, bgcolor: brandTokens.blue50, color: brandTokens.blue700, fontSize: 11, fontWeight: 800 }} />
+                        <Chip size="small" variant="outlined" label={`${questionResults.length} questions`} sx={{ height: 22, fontSize: 11, fontWeight: 800 }} />
+                        <Chip size="small" label="Click rows to expand" sx={{ height: 22, bgcolor: alpha(brandTokens.blue600, 0.08), color: brandTokens.blue700, fontSize: 11, fontWeight: 800 }} />
                       </Stack>
                     </Stack>
-                    <Stack spacing={1.25} sx={{ mt: 2 }}>
-                      {categoryGroups.map((group) => (
-                        <Accordion
-                          key={group.categoryId}
-                          expanded={expandedCategoryIds.includes(group.categoryId)}
-                          onChange={(_event, expanded) => setExpandedCategoryIds((current) => expanded ? Array.from(new Set([...current, group.categoryId])) : current.filter((id) => id !== group.categoryId))}
-                          disableGutters
-                          sx={{
-                            border: 1,
-                            borderColor: selectedCategoryId === group.categoryId ? brandTokens.blue500 : "divider",
-                            borderRadius: 2,
-                            overflow: "hidden",
-                            boxShadow: "none",
-                          }}
-                        >
-                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                            <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ width: "100%", pr: 1 }}>
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="subtitle1" fontWeight={800}>{group.categoryName}</Typography>
-                                <Typography variant="caption" color="text.secondary">{group.answeredCount}/{group.questionCount} answered - {group.alignedCount}/{group.questionCount} aligned</Typography>
-                              </Box>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
-                                <StageChip stage={group.stage} />
-                                <Chip size="small" variant="outlined" label={`Score ${group.score}/100`} />
-                              </Stack>
-                            </Stack>
-                          </AccordionSummary>
-                          <AccordionDetails sx={{ pt: 0, pb: 2 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{group.stage.description}</Typography>
-                            <Stack spacing={1.25}>
-                              {group.modules.map((module) => (
-                                <Accordion
-                                  key={module.key}
-                                  expanded={expandedModuleKeys.includes(module.key)}
-                                  onChange={(_event, expanded) => setExpandedModuleKeys((current) => expanded ? Array.from(new Set([...current, module.key])) : current.filter((key) => key !== module.key))}
-                                  disableGutters
-                                  sx={{ border: 1, borderColor: "divider", borderRadius: 2, overflow: "hidden", boxShadow: "none", bgcolor: "background.default" }}
-                                >
-                                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                    <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ width: "100%", pr: 1 }}>
-                                      <Box sx={{ minWidth: 0 }}>
-                                        <Typography variant="body2" fontWeight={800}>{module.moduleName}</Typography>
-                                        <Typography variant="caption" color="text.secondary">{module.alignedCount}/{module.questionCount} aligned - {module.answeredCount}/{module.questionCount} answered</Typography>
-                                      </Box>
-                                      <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
-                                        <StageChip stage={module.stage} />
-                                        <Chip size="small" variant="outlined" label={`Score ${module.score}/100`} />
-                                      </Stack>
-                                    </Stack>
-                                  </AccordionSummary>
-                                  <AccordionDetails sx={{ pt: 0 }}>
-                                    <Stack spacing={1}>
-                                      {module.subModules.map((subModule) => (
-                                        <Box key={subModule.key} sx={{ border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper", overflow: "hidden" }}>
-                                          <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between" alignItems={{ md: "center" }} sx={{ px: 1.75, py: 1.25, borderBottom: 1, borderColor: "divider" }}>
-                                            <Box sx={{ minWidth: 0 }}>
-                                              <Typography variant="body2" fontWeight={800}>{subModule.subModuleName}</Typography>
-                                              <Typography variant="caption" color="text.secondary">{subModule.alignedCount}/{subModule.questionCount} aligned - {subModule.answeredCount}/{subModule.questionCount} answered</Typography>
-                                            </Box>
-                                            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }}>
-                                              <StageChip stage={subModule.stage} />
-                                              <Chip size="small" variant="outlined" label={`Score ${subModule.score}/100`} />
-                                            </Stack>
-                                          </Stack>
-                                          <Stack spacing={1.25} sx={{ p: 1.25 }}>
-                                            {subModule.questions.map((question, index) => {
-                                              const status = questionStatusFor(question);
-                                              return (
-                                                <Box key={question.questionId} sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
-                                                  <Stack spacing={1.25}>
-                                                    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.25}>
-                                                      <Box sx={{ minWidth: 0 }}>
-                                                        <Typography variant="caption" color="text.secondary">Question {index + 1}</Typography>
-                                                        <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35 }}>{question.questionText}</Typography>
+                    <Box sx={{ mt: 1.5, border: `1px solid ${neutralTokens.line200}`, borderRadius: 1.5, overflow: "hidden", bgcolor: "background.paper" }}>
+                      {categoryGroups.map((group, groupIndex) => {
+                        const categoryNodeId = `category:${group.categoryId}`;
+                        const categoryOpen = detailNodeOpen(categoryNodeId);
+                        return (
+                          <Box key={group.categoryId} sx={{ borderTop: groupIndex === 0 ? 0 : `1px solid ${neutralTokens.line200}` }}>
+                            <DetailTreeRow
+                              open={categoryOpen}
+                              depth={0}
+                              title={group.categoryName}
+                              meta={`${group.questionCount} questions`}
+                              tone={selectedCategoryId === group.categoryId ? brandTokens.blue600 : group.stage.color}
+                              onToggle={() => toggleDetailNode(categoryNodeId)}
+                            />
+                            <Collapse in={categoryOpen} timeout={220} unmountOnExit>
+                              <Box sx={{ display: "grid", gap: 0.6, px: { xs: 0.75, md: 1 }, pb: 0.9 }}>
+                                {group.modules.map((module) => {
+                                  const moduleNodeId = `module:${module.key}`;
+                                  const moduleOpen = detailNodeOpen(moduleNodeId);
+                                  return (
+                                    <Box key={module.key} sx={{ border: `1px solid ${neutralTokens.line200}`, borderRadius: 1.25, overflow: "hidden", bgcolor: neutralTokens.surface1 }}>
+                                      <DetailTreeRow
+                                        open={moduleOpen}
+                                        depth={1}
+                                        title={module.moduleName}
+                                        meta={`${module.questionCount} questions`}
+                                        tone={module.stage.color}
+                                        onToggle={() => toggleDetailNode(moduleNodeId)}
+                                      />
+                                      <Collapse in={moduleOpen} timeout={220} unmountOnExit>
+                                        <Box sx={{ display: "grid", gap: 0.6, px: { xs: 0.65, md: 0.9 }, pb: 0.8 }}>
+                                          {module.subModules.map((subModule) => {
+                                            const subModuleNodeId = `sub-module:${subModule.key}`;
+                                            const subModuleOpen = detailNodeOpen(subModuleNodeId);
+                                            return (
+                                              <Box key={subModule.key} sx={{ border: `1px solid ${neutralTokens.line200}`, borderRadius: 1.15, overflow: "hidden", bgcolor: "background.paper" }}>
+                                                <DetailTreeRow
+                                                  open={subModuleOpen}
+                                                  depth={2}
+                                                  title={subModule.subModuleName}
+                                                  meta={`${subModule.questionCount} questions`}
+                                                  tone={brandTokens.blue600}
+                                                  onToggle={() => toggleDetailNode(subModuleNodeId)}
+                                                />
+                                                <Collapse in={subModuleOpen} timeout={220} unmountOnExit>
+                                                  <Box sx={{ display: { xs: "none", md: "grid" }, gridTemplateColumns: "minmax(0, 1fr) 132px 132px", gap: 0.75, px: 0.85, py: 0.55, bgcolor: neutralTokens.surface2, borderTop: `1px solid ${neutralTokens.line200}`, borderBottom: `1px solid ${neutralTokens.line200}` }}>
+                                                    <Typography variant="caption" fontWeight={900} sx={{ fontSize: 10.5, color: neutralTokens.ink500 }}>Question</Typography>
+                                                    <Typography variant="caption" fontWeight={900} sx={{ fontSize: 10.5, color: neutralTokens.ink500 }}>Your answer</Typography>
+                                                    <Typography variant="caption" fontWeight={900} sx={{ fontSize: 10.5, color: neutralTokens.ink500 }}>Expected answer</Typography>
+                                                  </Box>
+                                                  {subModule.questions.map((question, index) => {
+                                                    const answerTone: FactTone = question.answer == null ? "default" : question.answer === question.expectedAnswer ? "success" : "error";
+                                                    return (
+                                                      <Box key={question.questionId} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 132px 132px" }, gap: 0.75, alignItems: "stretch", px: 0.85, py: 0.75, borderTop: index === 0 ? 0 : `1px solid ${neutralTokens.line200}` }}>
+                                                        <Box sx={{ minWidth: 0 }}>
+                                                          <Typography variant="caption" fontWeight={900} sx={{ display: "block", color: brandTokens.blue700, fontSize: 10.5, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>Q{index + 1}</Typography>
+                                                          <Typography variant="body2" fontWeight={650} sx={{ mt: 0.35, fontSize: 12, lineHeight: 1.35, color: neutralTokens.ink900, wordBreak: "break-word" }}>{question.questionText}</Typography>
+                                                        </Box>
+                                                        <FactBox
+                                                          label="Your answer"
+                                                          value={question.answer == null ? "Not answered" : answerLabel[question.answer]}
+                                                          tone={answerTone}
+                                                        />
+                                                        <FactBox label="Expected answer" value={answerLabel[question.expectedAnswer]} tone="success" emphasize />
                                                       </Box>
-                                                      <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ md: "flex-end" }} sx={{ height: "fit-content" }}>
-                                                        <Chip size="small" label={status.label} color={status.color} variant="outlined" />
-                                                        <Chip size="small" variant="outlined" label={questionIntensityLabel[question.intensity]} />
-                                                      </Stack>
-                                                    </Stack>
-                                                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
-                                                      <FactBox
-                                                        label="Your answer"
-                                                        value={question.answer == null ? "Not answered" : answerLabel[question.answer]}
-                                                        tone={question.answer == null ? "default" : question.answer === question.expectedAnswer ? "success" : "error"}
-                                                      />
-                                                      <FactBox label="Correct answer" value={answerLabel[question.expectedAnswer]} tone="success" emphasize />
-                                                      <FactBox label="Points" value={question.points == null ? "--" : `${Math.round(question.points)}`} />
-                                                    </Box>
-                                                    {question.guidance ? <Typography variant="caption" color="text.secondary">Guidance: {question.guidance}</Typography> : null}
-                                                    {question.findings ? <Typography variant="caption" color="text.secondary">Findings: {question.findings}</Typography> : null}
-                                                  </Stack>
-                                                </Box>
-                                              );
-                                            })}
-                                          </Stack>
+                                                    );
+                                                  })}
+                                                </Collapse>
+                                              </Box>
+                                            );
+                                          })}
                                         </Box>
-                                      ))}
-                                    </Stack>
-                                  </AccordionDetails>
-                                </Accordion>
-                              ))}
-                            </Stack>
-                          </AccordionDetails>
-                        </Accordion>
-                      ))}
-                    </Stack>
+                                      </Collapse>
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            </Collapse>
+                          </Box>
+                        );
+                      })}
+                    </Box>
                   </Card>
                 </MotionReveal>
               </Stack>
@@ -1232,6 +1192,92 @@ function BreakdownTable({ groups, search, onSelect }: { groups: CategoryGroup[];
   );
 }
 
+function DetailTreeRow({
+  open,
+  depth,
+  title,
+  meta,
+  tone,
+  onToggle,
+}: {
+  open: boolean;
+  depth: number;
+  title: string;
+  meta?: string;
+  tone: string;
+  onToggle: () => void;
+}) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      aria-expanded={open}
+      aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
+      onClick={onToggle}
+      sx={{
+        width: "100%",
+        boxSizing: "border-box",
+        border: 0,
+        bgcolor: "transparent",
+        color: "inherit",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 0.75,
+        textAlign: "left",
+        px: 0.85,
+        py: 0.7,
+        pl: { xs: `${0.85 + depth * 1.15}rem`, md: `${0.95 + depth * 1.35}rem` },
+        fontFamily: "inherit",
+        transition: "background-color 180ms ease, color 180ms ease",
+        "&:hover": { bgcolor: alpha(tone, 0.07) },
+        "&:focus-visible": { outline: `2px solid ${alpha(tone, 0.55)}`, outlineOffset: -2 },
+      }}
+    >
+      <KeyboardArrowRightIcon
+        sx={{
+          fontSize: 17,
+          color: tone,
+          transform: open ? "rotate(90deg)" : "rotate(0deg)",
+          transition: "transform 180ms ease, color 180ms ease",
+          flexShrink: 0,
+        }}
+      />
+      <Box sx={{ width: 17, height: 17, borderRadius: 1, bgcolor: alpha(tone, 0.1), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: tone }} />
+      </Box>
+      <Typography variant="body2" fontWeight={800} sx={{ fontSize: 12, lineHeight: 1.2, minWidth: 0, flexGrow: 1, overflowWrap: "anywhere" }}>
+        {title}
+      </Typography>
+      <Stack component="span" direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+        {meta ? (
+          <Typography component="span" variant="caption" color="text.secondary" sx={{ fontSize: 10.5, fontWeight: 800, whiteSpace: "nowrap" }}>
+            {meta}
+          </Typography>
+        ) : null}
+        <Box
+          component="span"
+          sx={{
+            height: 20,
+            px: 0.75,
+            borderRadius: 999,
+            border: `1px solid ${alpha(tone, 0.35)}`,
+            bgcolor: open ? alpha(tone, 0.14) : alpha(tone, 0.06),
+            color: tone,
+            display: "inline-flex",
+            alignItems: "center",
+            fontSize: 10.5,
+            fontWeight: 900,
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {open ? "Collapse" : "Expand"}
+        </Box>
+      </Stack>
+    </Box>
+  );
+}
 function StageChip({ stage }: { stage: StageInfo }) {
   return (
     <Chip
@@ -1252,9 +1298,9 @@ function FactBox({ label, value, emphasize = false, tone = "default" }: { label:
   const style = toneStyles[tone];
 
   return (
-    <Box sx={{ p: 1.25, border: 1, borderColor: style.borderColor, borderRadius: 2, bgcolor: style.background }}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" fontWeight={emphasize ? 800 : 700} sx={{ mt: 0.25, color: style.color }}>{value}</Typography>
+    <Box sx={{ px: 0.75, py: 0.55, border: 1, borderColor: style.borderColor, borderRadius: 1, bgcolor: style.background, minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontSize: 10, lineHeight: 1.1 }}>{label}</Typography>
+      <Typography variant="body2" fontWeight={emphasize ? 800 : 700} sx={{ mt: 0.25, color: style.color, fontSize: 12, lineHeight: 1.2, overflowWrap: "anywhere" }}>{value}</Typography>
     </Box>
   );
 }

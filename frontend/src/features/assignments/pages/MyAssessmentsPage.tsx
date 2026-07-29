@@ -41,7 +41,7 @@ import {
 import { answerColor } from "shared/domain/maturity";
 import { useAuthContext } from "contexts/AuthContext";
 import { clearResumePointer, loadResumePointer, saveResumePointer } from "features/dashboard/governance/dashboardGovernanceState";
-import { RoutePaths } from "shared/constants/routePaths";
+import { portalAgentAnalysisPath } from "shared/constants/routePaths";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 const MIN_SUBMIT_COMPLETION_PERCENT = 50;
@@ -336,13 +336,11 @@ export function MyAssessmentsPage() {
     <AssessmentResultDialog
       prompt={submittedPrompt}
       onClose={() => setSubmittedPrompt(null)}
-      onViewReport={() => {
+      onAnalyze={() => {
         if (!submittedPrompt) return;
         const targetAssessmentId = submittedPrompt.assessmentId;
         setSubmittedPrompt(null);
-        navigate(RoutePaths.portalReports, {
-          state: { assessmentId: targetAssessmentId, focus: "steps" },
-        });
+        navigate(portalAgentAnalysisPath(targetAssessmentId));
       }}
     />
   );
@@ -718,11 +716,11 @@ export function MyAssessmentsPage() {
 function AssessmentResultDialog({
   prompt,
   onClose,
-  onViewReport,
+  onAnalyze,
 }: {
   prompt: SubmittedAssessmentPrompt | null;
   onClose: () => void;
-  onViewReport: () => void;
+  onAnalyze: () => void;
 }) {
   const scoreLabel = typeof prompt?.score === "number" ? `${Math.round(prompt.score)}/100` : "Ready";
 
@@ -731,7 +729,7 @@ function AssessmentResultDialog({
       <DialogTitle sx={{ pr: 7 }}>
         <Stack direction="row" spacing={1.25} alignItems="center">
           <CheckCircleIcon color="success" fontSize="small" />
-          <span>Results are ready</span>
+          <span>Your responses are ready</span>
         </Stack>
         <IconButton
           aria-label="Close results popup"
@@ -745,7 +743,8 @@ function AssessmentResultDialog({
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Your assessment has been submitted and scored. Open the report to review the detailed step-by-step results.
+            Your assessment has been submitted and scored. QMRI Agent can now read your responses, identify patterns,
+            and prepare practical feedback for you.
           </Typography>
           <Box sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
             <Typography variant="caption" color="text.secondary">
@@ -758,8 +757,8 @@ function AssessmentResultDialog({
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button variant="contained" onClick={onViewReport} fullWidth>
-          View detailed steps
+        <Button variant="contained" onClick={onAnalyze} fullWidth>
+          Analyse your responses by QMRI Agent
         </Button>
       </DialogActions>
     </Dialog>

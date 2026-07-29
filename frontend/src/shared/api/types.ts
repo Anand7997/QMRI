@@ -237,6 +237,23 @@ export interface RecommendationDto {
   createdAtUtc: string;
 }
 
+export interface QmriAgentInsightDto {
+  title: string;
+  summary: string;
+  evidence: string;
+}
+
+export interface QmriAgentAnalysisDto {
+  agentMessage: string;
+  strongestSignal: string;
+  nextStep: string;
+  strengths: QmriAgentInsightDto[];
+  priorityGaps: QmriAgentInsightDto[];
+  recommendedActions: QmriAgentInsightDto[];
+  analysedResponseCount: number;
+  generatedAtUtc: string;
+}
+
 export interface AssessmentDetailDto {
   summary: AssessmentSummaryDto;
   responses: AssessmentResponseDto[];

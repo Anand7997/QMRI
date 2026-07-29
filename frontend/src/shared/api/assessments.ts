@@ -6,6 +6,7 @@ import type {
   AssessmentResponseDto,
   AssessmentSummaryDto,
   CreateAssessmentRequest,
+  QmriAgentAnalysisDto,
   UpdateAssessmentRequest,
   UpsertAssessmentResponseRequest,
 } from "./types";
@@ -14,6 +15,7 @@ const keys = {
   list: (userId?: string) => ["assessments", "list", userId ?? "me"] as const,
   detail: (id: string) => ["assessments", "detail", id] as const,
   results: (id: string) => ["assessments", "results", id] as const,
+  agentAnalysis: (id: string) => ["assessments", "agent-analysis", id] as const,
   examTakers: (id: string) => ["assessments", "exam-takers", id] as const,
 };
 
@@ -37,6 +39,21 @@ export function useAssessment(assessmentId: string | undefined) {
       return data;
     },
     enabled: Boolean(assessmentId),
+  });
+}
+
+export function useQmriAgentAnalysis(assessmentId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: keys.agentAnalysis(assessmentId ?? ""),
+    queryFn: async () => {
+      const { data } = await axiosClient.post<QmriAgentAnalysisDto>(
+        `/assessments/${assessmentId}/agent-analysis`,
+      );
+      return data;
+    },
+    enabled: Boolean(assessmentId) && enabled,
+    retry: false,
+    staleTime: 30 * 60 * 1000,
   });
 }
 

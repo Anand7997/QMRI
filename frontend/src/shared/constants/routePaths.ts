@@ -18,6 +18,7 @@ export const RoutePaths = {
   // User portal
   portalDashboard: "/portal/dashboard",
   portalAssessments: "/portal/my-assessments",
+  portalAgentAnalysis: "/portal/assessments/:assessmentId/agent-analysis",
   portalHistory: "/portal/history",
   portalReports: "/portal/reports",
   portalProfile: "/portal/profile",
@@ -25,3 +26,6 @@ export const RoutePaths = {
 
   unauthorized: "/unauthorized",
 } as const;
+
+export const portalAgentAnalysisPath = (assessmentId: string) =>
+RoutePaths.portalAgentAnalysis.replace(":assessmentId", assessmentId);

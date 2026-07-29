@@ -181,11 +181,22 @@ export function loadIntensityTemplateSettings(): IntensityTemplateSettings {
       return defaultTemplate;
     }
 
+    const storedMinQuestions = Math.floor(existing.minQuestions);
+    const minQuestions = defaultTemplate.code === "Operational"
+      ? defaultTemplate.minQuestions
+      : Number.isFinite(storedMinQuestions)
+        ? Math.max(1, storedMinQuestions)
+        : defaultTemplate.minQuestions;
+    const storedMaxQuestions = Math.floor(existing.maxQuestions);
+    const maxQuestions = Number.isFinite(storedMaxQuestions)
+      ? Math.max(minQuestions, storedMaxQuestions)
+      : Math.max(minQuestions, defaultTemplate.maxQuestions);
+
     return {
       ...existing,
       ...defaultTemplate,
-      minQuestions: Math.max(1, Math.floor(existing.minQuestions)),
-      maxQuestions: Math.max(1, Math.floor(existing.maxQuestions)),
+      minQuestions,
+      maxQuestions,
       lockedRange: existing.lockedRange ?? defaultTemplate.lockedRange,
     };
   });

@@ -30,7 +30,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { EmptyState, MetricTile, PageHeader } from "shared/components";
 import { useAssessments } from "shared/api/assessments";
 import { AssessmentStatus, type AssessmentSummaryDto } from "shared/api/types";
-import { RoutePaths } from "shared/constants/routePaths";
+import { RoutePaths, portalAgentAnalysisPath } from "shared/constants/routePaths";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { MotionConfig } from "motion/react";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
@@ -81,6 +81,10 @@ export function HistoryPage() {
         return rows;
     }
   }, [rows, filter]);
+
+  function openAgentAnalysis(assessmentId: string) {
+    navigate(portalAgentAnalysisPath(assessmentId));
+  }
 
   return (
     <MotionConfig reducedMotion="user">
@@ -206,7 +210,26 @@ export function HistoryPage() {
                   </TableHead>
                   <TableBody>
                     {filtered.map((assessment) => (
-                      <TableRow key={assessment.assessmentId} hover>
+                      <TableRow
+                        key={assessment.assessmentId}
+                        hover
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openAgentAnalysis(assessment.assessmentId)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openAgentAnalysis(assessment.assessmentId);
+                          }
+                        }}
+                        sx={{
+                          cursor: "pointer",
+                          "&:focus-visible": {
+                            outline: `2px solid ${brandTokens.blue600}`,
+                            outlineOffset: -2,
+                          },
+                        }}
+                      >
                         <TableCell>
                           <Typography variant="body2" fontWeight={700} noWrap>
                             {assessment.title}

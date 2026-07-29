@@ -10,7 +10,8 @@ interface PortalBreadcrumbsProps {
 
 export function PortalBreadcrumbs({ items, homePath }: PortalBreadcrumbsProps) {
   const { pathname } = useLocation();
-  const current = items.find((item) => item.path === pathname)?.label;
+  const current = items.find((item) => item.path === pathname)?.label
+    ?? (pathname.endsWith("/agent-analysis") ? "QMRI Agent analysis" : undefined);
 
   return (
     <Breadcrumbs

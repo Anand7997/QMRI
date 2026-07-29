@@ -1,15 +1,20 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
+using qMRI.Domain.Assessments.Enums;
 
 namespace qMRI.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/assessments")]
 [Authorize]
-public sealed class AssessmentsController(IAssessmentExecutionService assessmentService) : ControllerBase
+public sealed class AssessmentsController(
+    IAssessmentExecutionService assessmentService,
+    IQmriAgentAnalysisService agentAnalysisService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAssessments([FromQuery] Guid? userId, CancellationToken cancellationToken)
@@ -159,6 +164,47 @@ public sealed class AssessmentsController(IAssessmentExecutionService assessment
             assessment.Scores,
             assessment.Recommendations
         });
+    }
+
+    [HttpPost("{assessmentId:guid}/agent-analysis")]
+    public async Task<IActionResult> AnalyzeWithQmriAgent(Guid assessmentId, CancellationToken cancellationToken)
+    {
+        var accessResult = await EnsureAssessmentAccessAsync(assessmentId, cancellationToken);
+        if (accessResult is not null)
+        {
+            return accessResult;
+        }
+
+        var assessment = await assessmentService.GetAssessmentAsync(assessmentId, cancellationToken);
+        if (assessment is null)
+        {
+            return NotFound();
+        }
+
+        if (assessment.Summary.Status < AssessmentStatus.Scored || assessment.Scores.Count == 0)
+        {
+            return Problem(detail: "Submit and score the assessment before asking QMRI Agent to analyse it.", statusCode: StatusCodes.Status409Conflict);
+        }
+
+        var currentUserId = TryGetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized();
+        }
+
+        var safetyIdentifier = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(currentUserId.Value.ToString("N"))))
+            .ToLowerInvariant();
+
+        try
+        {
+            var analysis = await agentAnalysisService.AnalyzeAsync(assessment, safetyIdentifier, cancellationToken);
+            return Ok(analysis);
+        }
+        catch (QmriAgentAnalysisUnavailableException exception)
+        {
+            return Problem(detail: exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
     }
 
     private IActionResult? EnsureOwnerAccess(Guid ownerUserId)

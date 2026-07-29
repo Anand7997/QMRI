@@ -70,7 +70,7 @@ const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest"
 const unknownAssignedByValue = "__unknown_assigned_by__";
 
 const recommendedQuestionCountByTemplate: Record<IntensityTemplate["code"], number> = {
-  Operational: 40,
+  Operational: 30,
   Tactical: 80,
   Strategic: 100,
 };

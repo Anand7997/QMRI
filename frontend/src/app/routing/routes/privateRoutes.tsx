@@ -16,6 +16,7 @@ import { UserReportsPage } from "features/reports/pages/UserReportsPage";
 import { SettingsPage } from "features/settings/pages/SettingsPage";
 import { UserSettingsPage } from "features/settings/pages/UserSettingsPage";
 import { MyAssessmentsPage } from "features/assignments/pages/MyAssessmentsPage";
+import { QmriAgentAnalysisPage } from "features/agent-analysis/pages/QmriAgentAnalysisPage";
 import { HistoryPage } from "features/assignments/pages/HistoryPage";
 import { ProfilePage } from "features/profile/pages/ProfilePage";
 import { RoutePaths } from "shared/constants/routePaths";
@@ -52,6 +53,7 @@ export const privateRoutes: RouteObject[] = [
               { index: true, element: <Navigate to={RoutePaths.portalDashboard} replace /> },
               { path: RoutePaths.portalDashboard, element: <UserDashboardPage /> },
               { path: RoutePaths.portalAssessments, element: <MyAssessmentsPage /> },
+              { path: RoutePaths.portalAgentAnalysis, element: <QmriAgentAnalysisPage /> },
               { path: RoutePaths.portalHistory, element: <HistoryPage /> },
               { path: RoutePaths.portalReports, element: <UserReportsPage /> },
               { path: RoutePaths.portalProfile, element: <ProfilePage /> },
