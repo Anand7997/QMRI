@@ -26,12 +26,18 @@ builder.Services
 
 var app = builder.Build();
 
-await app.MigrateDatabaseAsync();
-
-using (var scope = app.Services.CreateScope())
+try
 {
+	await app.MigrateDatabaseAsync();
+
+	using var scope = app.Services.CreateScope();
 	await IdentityDataSeeder.SeedAsync(scope.ServiceProvider);
 }
+catch (Exception ex) when (app.Environment.IsDevelopment())
+{
+	app.Logger.LogError(ex, "Database startup initialization failed. Continuing because the app is running in Development.");
+}
+
 app.UseGlobalMiddleware();
 
 if (app.Environment.IsDevelopment())

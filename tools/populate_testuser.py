@@ -1,4 +1,4 @@
-﻿import json, urllib.request, urllib.error
+import json, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
 BASE = "http://44.216.167.20:6000/api/v1"
@@ -84,3 +84,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using qMRI.Api.Configuration.Options;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
+using qMRI.Domain.Assessments.Enums;
 
 namespace qMRI.Api.Services;
 
@@ -14,9 +15,12 @@ public sealed class OpenAiAssessmentAnalysisService(
     HttpClient httpClient,
     IOptions<OpenAiOptions> options,
     IMemoryCache cache,
+    IHostEnvironment environment,
     ILogger<OpenAiAssessmentAnalysisService> logger) : IQmriAgentAnalysisService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private const string DefaultModel = "gpt-5-mini";
 
     private const string Instructions = """
         You are QMRI Agent, a careful quality-maturity assessment analyst. Interpret only the supplied assessment data.
@@ -87,6 +91,33 @@ public sealed class OpenAiAssessmentAnalysisService(
         string safetyIdentifier,
         CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"qmri-agent-analysis:v3:{assessment.Summary.AssessmentId}:{assessment.Summary.ScoredAtUtc?.Ticks ?? 0}";
+        if (cache.TryGetValue(cacheKey, out QmriAgentAnalysisDto? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        QmriAgentAnalysisDto result;
+
+        try
+        {
+            result = await TryAnalyzeWithOpenAiAsync(assessment, safetyIdentifier, cancellationToken);
+        }
+        catch (QmriAgentAnalysisUnavailableException exception)
+        {
+            logger.LogWarning(exception, "QMRI Agent live analysis unavailable for assessment {AssessmentId}. Returning deterministic fallback.", assessment.Summary.AssessmentId);
+            result = BuildFallbackAnalysis(assessment, exception.Message);
+        }
+
+        cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
+        return result;
+    }
+
+    private async Task<QmriAgentAnalysisDto> TryAnalyzeWithOpenAiAsync(
+        AssessmentDetailDto assessment,
+        string safetyIdentifier,
+        CancellationToken cancellationToken)
+    {
         var settings = options.Value;
         if (string.IsNullOrWhiteSpace(settings.ApiKey))
         {
@@ -94,15 +125,9 @@ public sealed class OpenAiAssessmentAnalysisService(
                 "QMRI Agent is not configured yet. Your detailed report is still available.");
         }
 
-        var cacheKey = $"qmri-agent-analysis:v2:{assessment.Summary.AssessmentId}:{assessment.Summary.ScoredAtUtc?.Ticks ?? 0}";
-        if (cache.TryGetValue(cacheKey, out QmriAgentAnalysisDto? cached) && cached is not null)
-        {
-            return cached;
-        }
-
         var requestPayload = new
         {
-            model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.4-mini" : settings.Model.Trim(),
+            model = NormalizeModel(settings.Model),
             store = false,
             max_output_tokens = 2600,
             safety_identifier = safetyIdentifier,
@@ -143,15 +168,17 @@ public sealed class OpenAiAssessmentAnalysisService(
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning(
-                    "OpenAI returned status {StatusCode} for assessment {AssessmentId}",
+                    "OpenAI returned status {StatusCode} for assessment {AssessmentId}. Body: {ResponseBody}",
                     (int)response.StatusCode,
-                    assessment.Summary.AssessmentId);
+                    assessment.Summary.AssessmentId,
+                    responseJson);
+
                 throw new QmriAgentAnalysisUnavailableException(
-                    "QMRI Agent could not complete the analysis. Try again or open the detailed report.");
+                    BuildServiceUnavailableMessage(responseJson, response.StatusCode));
             }
 
             var modelResult = ParseModelResult(responseJson);
-            var result = new QmriAgentAnalysisDto
+            return new QmriAgentAnalysisDto
             {
                 AgentMessage = modelResult.AgentMessage.Trim(),
                 StrongestSignal = modelResult.StrongestSignal.Trim(),
@@ -162,10 +189,133 @@ public sealed class OpenAiAssessmentAnalysisService(
                 AnalysedResponseCount = assessment.QuestionResults.Count(item => item.Answer.HasValue),
                 GeneratedAtUtc = DateTime.UtcNow
             };
-
-            cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
-            return result;
         }
+    }
+
+    private QmriAgentAnalysisDto BuildFallbackAnalysis(AssessmentDetailDto assessment, string failureReason)
+    {
+        var categoryScores = assessment.Scores
+            .Where(score => score.Scope == ScoreScope.Category && !string.IsNullOrWhiteSpace(score.CategoryName))
+            .OrderByDescending(score => score.Score)
+            .ToArray();
+
+        var answeredResponses = assessment.QuestionResults
+            .Where(result => result.Answer.HasValue)
+            .ToArray();
+
+        var mismatches = answeredResponses
+            .Where(result => result.Answer != result.ExpectedAnswer)
+            .OrderByDescending(result => result.Intensity)
+            .ThenBy(result => result.Points ?? decimal.MaxValue)
+            .ToArray();
+
+        var topCategory = categoryScores.FirstOrDefault();
+        var bottomCategory = categoryScores.LastOrDefault();
+        var topRecommendation = assessment.Recommendations
+            .OrderByDescending(recommendation => recommendation.Priority)
+            .ThenBy(recommendation => recommendation.Title)
+            .FirstOrDefault();
+
+        var strengths = categoryScores
+            .Take(3)
+            .Select(score => new QmriAgentInsightDto
+            {
+                Title = $"{score.CategoryName} is a comparatively strong area",
+                Summary = $"This category scored {FormatScore(score.Score)} and currently leads the assessed capability areas. It is a sensible benchmark for how practices can be repeated in weaker sections.",
+                Evidence = BuildScoreEvidence(score)
+            })
+            .ToList();
+
+        if (strengths.Count == 0)
+        {
+            strengths.Add(new QmriAgentInsightDto
+            {
+                Title = "Assessment coverage is available",
+                Summary = $"The assessment includes {answeredResponses.Length} answered responses that can still support a structured review even when the live agent service is unavailable.",
+                Evidence = $"Answered responses: {answeredResponses.Length}. Overall score: {FormatScore(assessment.Summary.OverallScore ?? 0m)}"
+            });
+        }
+
+        var priorityGaps = new List<QmriAgentInsightDto>();
+        foreach (var score in categoryScores.OrderBy(score => score.Score).Take(3))
+        {
+            priorityGaps.Add(new QmriAgentInsightDto
+            {
+                Title = $"{score.CategoryName} needs attention first",
+                Summary = $"This category scored {FormatScore(score.Score)}, which places it behind the stronger areas in this assessment. Closing the gap here is likely to move the overall maturity position fastest.",
+                Evidence = BuildScoreEvidence(score)
+            });
+        }
+
+        foreach (var mismatch in mismatches.Take(Math.Max(0, 3 - priorityGaps.Count)))
+        {
+            priorityGaps.Add(new QmriAgentInsightDto
+            {
+                Title = $"Review {mismatch.ModuleName} in {mismatch.CategoryName}",
+                Summary = "The submitted answer does not match the expected answer for a scored question, which points to a concrete practice gap worth validating with the detailed report.",
+                Evidence = BuildMismatchEvidence(mismatch)
+            });
+        }
+
+        if (priorityGaps.Count == 0)
+        {
+            priorityGaps.Add(new QmriAgentInsightDto
+            {
+                Title = "Use the lowest scoring category as the first review area",
+                Summary = "No specific mismatch pattern could be isolated from the scored responses, so the safest priority is the lowest scoring category in the summary data.",
+                Evidence = bottomCategory is null
+                    ? "No category score evidence was available."
+                    : BuildScoreEvidence(bottomCategory)
+            });
+        }
+
+        var recommendedActions = assessment.Recommendations
+            .OrderByDescending(recommendation => recommendation.Priority)
+            .ThenBy(recommendation => recommendation.Title)
+            .Take(3)
+            .Select(recommendation => new QmriAgentInsightDto
+            {
+                Title = recommendation.Title,
+                Summary = recommendation.Description,
+                Evidence = $"Priority: {recommendation.Priority}. Area: {recommendation.CategoryName ?? recommendation.ModuleName ?? "Assessment-wide"}"
+            })
+            .ToList();
+
+        if (recommendedActions.Count == 0)
+        {
+            foreach (var score in categoryScores.OrderBy(score => score.Score).Take(3))
+            {
+                recommendedActions.Add(new QmriAgentInsightDto
+                {
+                    Title = $"Create a recovery plan for {score.CategoryName}",
+                    Summary = $"Review the lowest scoring controls in {score.CategoryName}, assign an owner, and set a short follow-up cycle to confirm progress against the scored questions.",
+                    Evidence = BuildScoreEvidence(score)
+                });
+            }
+        }
+
+        var strongestSignal = topCategory is null
+            ? $"{answeredResponses.Length} answered responses were available for review."
+            : $"{topCategory.CategoryName} is currently the strongest category at {FormatScore(topCategory.Score)}.";
+
+        var nextStep = topRecommendation?.Title
+            ?? (bottomCategory is not null
+                ? $"Prioritise a focused remediation plan for {bottomCategory.CategoryName}."
+                : "Review the detailed report and confirm the first remediation target.");
+
+        var message = BuildFallbackAgentMessage(assessment, topCategory, bottomCategory, answeredResponses.Length, failureReason);
+
+        return new QmriAgentAnalysisDto
+        {
+            AgentMessage = message,
+            StrongestSignal = strongestSignal,
+            NextStep = nextStep,
+            Strengths = strengths,
+            PriorityGaps = priorityGaps,
+            RecommendedActions = recommendedActions,
+            AnalysedResponseCount = answeredResponses.Length,
+            GeneratedAtUtc = DateTime.UtcNow
+        };
     }
 
     private static string BuildAssessmentInput(AssessmentDetailDto assessment)
@@ -278,6 +428,66 @@ public sealed class OpenAiAssessmentAnalysisService(
             Summary = insight.Summary.Trim(),
             Evidence = insight.Evidence.Trim()
         }).ToArray();
+
+    private static string NormalizeModel(string? configuredModel)
+    {
+        var model = string.IsNullOrWhiteSpace(configuredModel) ? DefaultModel : configuredModel.Trim();
+
+        return model.Equals("gpt-5.4-mini", StringComparison.OrdinalIgnoreCase)
+            ? DefaultModel
+            : model;
+    }
+
+    private string BuildServiceUnavailableMessage(string responseJson, System.Net.HttpStatusCode statusCode)
+    {
+        var fallback = "QMRI Agent could not complete the analysis. Try again or open the detailed report.";
+
+        try
+        {
+            using var document = JsonDocument.Parse(responseJson);
+            if (document.RootElement.TryGetProperty("error", out var error) &&
+                error.TryGetProperty("message", out var messageElement))
+            {
+                var message = messageElement.GetString();
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    return environment.IsDevelopment()
+                        ? $"OpenAI request failed ({(int)statusCode}): {message}"
+                        : fallback;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return fallback;
+    }
+
+    private static string BuildFallbackAgentMessage(
+        AssessmentDetailDto assessment,
+        AssessmentScoreDto? topCategory,
+        AssessmentScoreDto? bottomCategory,
+        int analysedResponseCount,
+        string failureReason)
+    {
+        var overallScore = FormatScore(assessment.Summary.OverallScore ?? 0m);
+        var bestArea = topCategory?.CategoryName ?? "the strongest scored category";
+        var focusArea = bottomCategory?.CategoryName ?? "the weakest scored category";
+
+        return $"This assessment is currently scoring {overallScore} overall across {analysedResponseCount} answered responses. {bestArea} is the clearest strength in the scored data, while {focusArea} is the main area to prioritise next. The guidance below is generated directly from the assessment scores, answers and recommendations because the live QMRI Agent service was unavailable. Detailed report data remains the source of truth. Reason: {failureReason}";
+    }
+
+    private static string BuildScoreEvidence(AssessmentScoreDto score) =>
+        $"Category score: {FormatScore(score.Score)}. Answered questions: {score.AnsweredCount}/{score.QuestionCount}. Maturity: {score.MaturityLevel ?? "Not set"}";
+
+    private static string BuildMismatchEvidence(AssessmentQuestionResultDto mismatch)
+    {
+        var question = Truncate(mismatch.QuestionText, 140) ?? "Question text unavailable";
+        return $"Category: {mismatch.CategoryName}. Module: {mismatch.ModuleName}. Expected: {mismatch.ExpectedAnswer}. Actual: {mismatch.Answer}. Question: {question}";
+    }
+
+    private static string FormatScore(decimal score) => $"{decimal.Round(score, 1):0.#}/100";
 
     private static string? Truncate(string? value, int maxLength)
     {

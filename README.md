@@ -1,4 +1,4 @@
-﻿# qMRI
+# qMRI
 
 qMRI is a full-stack assessment platform for managing quality maturity reviews. It provides an administrator experience for configuring assessments, users, question banks, reporting, and settings, plus a user portal for completing assigned assessments and reviewing results.
 
@@ -147,3 +147,6 @@ If the frontend cannot reach the API, confirm that:
 - the UI is running on `http://44.216.167.20:8085`
 - CORS includes `http://44.216.167.20:8085`
 - the frontend proxy target points to `http://44.216.167.20:6000`
+
+
+

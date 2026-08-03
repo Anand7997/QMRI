@@ -1,4 +1,4 @@
-﻿import { spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import process from 'node:process';
 
 const commands = [
@@ -95,3 +95,5 @@ function writePrefixed(name, chunk, isError = false) {
     }
   }
 }
+
+

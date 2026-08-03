@@ -1,4 +1,4 @@
-﻿param(
+param(
     [int]$SmokeTestSeconds = 0
 )
 
@@ -113,3 +113,4 @@ try {
 finally {
     Stop-DevProcesses
 }
+
