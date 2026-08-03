@@ -125,19 +125,12 @@ public sealed class OpenAiAssessmentAnalysisService(
                 "QMRI Agent is not configured yet. Your detailed report is still available.");
         }
 
-        var requestPayload = new
-        {
-            model = NormalizeModel(settings.Model),
-            store = false,
-            max_output_tokens = 2600,
-            safety_identifier = safetyIdentifier,
-            instructions = Instructions,
-            input = BuildAssessmentInput(assessment),
-            text = new
-            {
-                format = JsonNode.Parse(OutputFormatJson)
-            }
-        };
+        var model = NormalizeModel(settings.Model);
+        var requestPayload = BuildOpenAiRequestPayload(
+            model,
+            settings,
+            safetyIdentifier,
+            BuildAssessmentInput(assessment));
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/responses")
         {
@@ -177,7 +170,7 @@ public sealed class OpenAiAssessmentAnalysisService(
                     BuildServiceUnavailableMessage(responseJson, response.StatusCode));
             }
 
-            var modelResult = ParseModelResult(responseJson);
+            var modelResult = ParseModelResult(responseJson, logger, assessment.Summary.AssessmentId);
             return new QmriAgentAnalysisDto
             {
                 AgentMessage = modelResult.AgentMessage.Trim(),
@@ -367,7 +360,48 @@ public sealed class OpenAiAssessmentAnalysisService(
         return $"Analyze this completed QMRI assessment. Assessment data:\n{JsonSerializer.Serialize(payload, JsonOptions)}";
     }
 
-    private static AgentAnalysisModelResponse ParseModelResult(string responseJson)
+    private static JsonObject BuildOpenAiRequestPayload(
+        string model,
+        OpenAiOptions settings,
+        string safetyIdentifier,
+        string assessmentInput)
+    {
+        var textOptions = new JsonObject
+        {
+            ["format"] = JsonNode.Parse(OutputFormatJson)
+        };
+
+        if (IsGpt5Model(model))
+        {
+            textOptions["verbosity"] = NormalizeVerbosity(settings.Verbosity);
+        }
+
+        var requestPayload = new JsonObject
+        {
+            ["model"] = model,
+            ["store"] = false,
+            ["max_output_tokens"] = NormalizeMaxOutputTokens(settings.MaxOutputTokens),
+            ["safety_identifier"] = safetyIdentifier,
+            ["instructions"] = Instructions,
+            ["input"] = assessmentInput,
+            ["text"] = textOptions
+        };
+
+        if (IsGpt5Model(model))
+        {
+            requestPayload["reasoning"] = new JsonObject
+            {
+                ["effort"] = NormalizeReasoningEffort(settings.ReasoningEffort)
+            };
+        }
+
+        return requestPayload;
+    }
+
+    private static AgentAnalysisModelResponse ParseModelResult(
+        string responseJson,
+        ILogger logger,
+        Guid assessmentId)
     {
         try
         {
@@ -375,20 +409,43 @@ public sealed class OpenAiAssessmentAnalysisService(
             var root = document.RootElement;
             if (root.TryGetProperty("status", out var status) && status.GetString() == "incomplete")
             {
+                var incompleteReason = TryGetIncompleteReason(root);
+                logger.LogWarning(
+                    "OpenAI returned incomplete analysis for assessment {AssessmentId}. Reason: {IncompleteReason}. Body: {ResponseBody}",
+                    assessmentId,
+                    incompleteReason ?? "unknown",
+                    responseJson);
+
                 throw new QmriAgentAnalysisUnavailableException(
-                    "QMRI Agent returned an incomplete analysis. Please try again.");
+                    BuildIncompleteAnalysisMessage(incompleteReason));
             }
 
-            foreach (var output in root.GetProperty("output").EnumerateArray())
+            if (!root.TryGetProperty("output", out var outputs) || outputs.ValueKind != JsonValueKind.Array)
+            {
+                throw new QmriAgentAnalysisUnavailableException(
+                    "QMRI Agent returned no usable feedback. Please try again.");
+            }
+
+            foreach (var output in outputs.EnumerateArray())
             {
                 if (!output.TryGetProperty("type", out var outputType) || outputType.GetString() != "message")
                 {
                     continue;
                 }
 
-                foreach (var content in output.GetProperty("content").EnumerateArray())
+                if (!output.TryGetProperty("content", out var contents) || contents.ValueKind != JsonValueKind.Array)
                 {
-                    if (content.TryGetProperty("type", out var contentType) && contentType.GetString() == "refusal")
+                    continue;
+                }
+
+                foreach (var content in contents.EnumerateArray())
+                {
+                    if (!content.TryGetProperty("type", out var contentType))
+                    {
+                        continue;
+                    }
+
+                    if (contentType.GetString() == "refusal")
                     {
                         throw new QmriAgentAnalysisUnavailableException(
                             "QMRI Agent could not provide feedback for this assessment. The detailed report is still available.");
@@ -421,6 +478,25 @@ public sealed class OpenAiAssessmentAnalysisService(
             "QMRI Agent returned no usable feedback. Please try again.");
     }
 
+    private static string? TryGetIncompleteReason(JsonElement root)
+    {
+        if (!root.TryGetProperty("incomplete_details", out var incompleteDetails) ||
+            incompleteDetails.ValueKind != JsonValueKind.Object ||
+            !incompleteDetails.TryGetProperty("reason", out var reason))
+        {
+            return null;
+        }
+
+        return reason.GetString();
+    }
+
+    private static string BuildIncompleteAnalysisMessage(string? incompleteReason) =>
+        incompleteReason switch
+        {
+            "max_output_tokens" => "QMRI Agent ran out of response budget before completing the analysis. Please try again.",
+            "content_filter" => "QMRI Agent could not complete the analysis for this assessment content. The detailed report is still available.",
+            _ => "QMRI Agent returned an incomplete analysis. Please try again."
+        };
     private static IReadOnlyList<QmriAgentInsightDto> MapInsights(IEnumerable<AgentInsightModelResponse> insights) =>
         insights.Select(insight => new QmriAgentInsightDto
         {
@@ -437,6 +513,34 @@ public sealed class OpenAiAssessmentAnalysisService(
             ? DefaultModel
             : model;
     }
+
+    private static int NormalizeMaxOutputTokens(int configuredMaxOutputTokens) =>
+        configuredMaxOutputTokens < 3000 ? 6000 : configuredMaxOutputTokens;
+
+    private static string NormalizeReasoningEffort(string? configuredReasoningEffort)
+    {
+        var reasoningEffort = string.IsNullOrWhiteSpace(configuredReasoningEffort)
+            ? "minimal"
+            : configuredReasoningEffort.Trim().ToLowerInvariant();
+
+        return reasoningEffort is "none" or "minimal" or "low" or "medium" or "high"
+            ? reasoningEffort
+            : "minimal";
+    }
+
+    private static string NormalizeVerbosity(string? configuredVerbosity)
+    {
+        var verbosity = string.IsNullOrWhiteSpace(configuredVerbosity)
+            ? "low"
+            : configuredVerbosity.Trim().ToLowerInvariant();
+
+        return verbosity is "low" or "medium" or "high"
+            ? verbosity
+            : "low";
+    }
+
+    private static bool IsGpt5Model(string model) =>
+        model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase);
 
     private string BuildServiceUnavailableMessage(string responseJson, System.Net.HttpStatusCode statusCode)
     {
