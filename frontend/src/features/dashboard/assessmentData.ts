@@ -13,7 +13,7 @@ import {
 } from "shared/api/types";
 import type { EntityStatus } from "shared/components";
 import { maturityFor, type MaturityBand } from "shared/domain/maturity";
-import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
+import { groupAssessmentsByAssignment, type AssessmentAssignmentGroup } from "shared/domain/assessmentGrouping";
 
 export interface CategoryScore {
   category: string;
@@ -29,7 +29,9 @@ export interface RecentAssessment {
   id: string;
   title: string;
   status: EntityStatus;
-  completionPercentage: number;
+  progressPercentage: number;
+  assignedPeopleCount: number;
+  takenPeopleCount: number;
   createdAtUtc: string;
   submittedAtUtc?: string | null;
   assignedByUserId?: string | null;
@@ -55,9 +57,13 @@ const bandOrder: MaturityBand[] = ["Testing", "QA", "QE", "IQ"];
 
 export function useAssessmentDashboardData(userId?: string) {
   const assessmentsQuery = useAssessments(userId);
-  const assessments = useMemo(
-    () => collapseAssessmentsByAssignment(assessmentsQuery.data ?? []),
+  const assessmentGroups = useMemo(
+    () => groupAssessmentsByAssignment(assessmentsQuery.data ?? []),
     [assessmentsQuery.data],
+  );
+  const assessments = useMemo(
+    () => assessmentGroups.map((group) => group.representative),
+    [assessmentGroups],
   );
 
   const scoredIds = useMemo(
@@ -78,7 +84,10 @@ export function useAssessmentDashboardData(userId?: string) {
 
   const details = detailQueries.map((query) => query.data).filter((detail): detail is AssessmentDetailDto => Boolean(detail));
 
-  const model = useMemo(() => buildAssessmentDashboardModel(assessments, details), [assessments, details]);
+  const model = useMemo(
+    () => buildAssessmentDashboardModel(assessments, assessmentGroups, details),
+    [assessmentGroups, assessments, details],
+  );
 
   return {
     ...model,
@@ -87,7 +96,11 @@ export function useAssessmentDashboardData(userId?: string) {
   };
 }
 
-function buildAssessmentDashboardModel(assessments: AssessmentSummaryDto[], details: AssessmentDetailDto[]) {
+function buildAssessmentDashboardModel(
+  assessments: AssessmentSummaryDto[],
+  assessmentGroups: AssessmentAssignmentGroup[],
+  details: AssessmentDetailDto[],
+) {
   const scored = assessments.filter((assessment) => assessment.status === AssessmentStatus.Scored && assessment.overallScore != null);
   const inProgress = assessments.filter((assessment) => assessment.status === AssessmentStatus.InProgress).length;
   const completed = assessments.filter(
@@ -106,7 +119,7 @@ function buildAssessmentDashboardModel(assessments: AssessmentSummaryDto[], deta
     averageCompletion,
     categoryScores: buildCategoryScores(details),
     bandDistribution: buildBandDistribution(scored),
-    recentAssessments: buildRecentAssessments(assessments),
+    recentAssessments: buildRecentAssessments(assessmentGroups),
     topRecommendations: buildRecommendations(details),
     trendData: buildTrendData(scored),
   };
@@ -142,20 +155,26 @@ function buildBandDistribution(scored: AssessmentSummaryDto[]): BandDistribution
   return bandOrder.map((band) => ({ name: band, value: counts.get(band) ?? 0 }));
 }
 
-function buildRecentAssessments(assessments: AssessmentSummaryDto[]): RecentAssessment[] {
-  return [...assessments]
-    .sort((a, b) => new Date(resolveAssessmentDate(b)).getTime() - new Date(resolveAssessmentDate(a)).getTime())
+function buildRecentAssessments(assessmentGroups: AssessmentAssignmentGroup[]): RecentAssessment[] {
+  return [...assessmentGroups]
+    .sort(
+      (left, right) =>
+        new Date(resolveAssessmentDate(right.representative)).getTime() -
+        new Date(resolveAssessmentDate(left.representative)).getTime(),
+    )
     .slice(0, 8)
-    .map((assessment) => ({
-      id: assessment.assessmentId,
-      title: assessment.title,
-      status: toEntityStatus(assessment.status),
-      completionPercentage: assessment.completionPercentage,
-      createdAtUtc: assessment.createdAtUtc,
-      submittedAtUtc: assessment.submittedAtUtc ?? null,
-      assignedByUserId: assessment.assignedByUserId ?? null,
-      assignedByUserName: assessment.assignedByUserName ?? null,
-      assignedByFullName: assessment.assignedByFullName ?? null,
+    .map(({ representative, assignedPeopleCount, takenPeopleCount }) => ({
+      id: representative.assessmentId,
+      title: representative.title,
+      status: toEntityStatus(representative.status),
+      progressPercentage: assignedPeopleCount === 0 ? 0 : (takenPeopleCount * 100) / assignedPeopleCount,
+      assignedPeopleCount,
+      takenPeopleCount,
+      createdAtUtc: representative.createdAtUtc,
+      submittedAtUtc: representative.submittedAtUtc ?? null,
+      assignedByUserId: representative.assignedByUserId ?? null,
+      assignedByUserName: representative.assignedByUserName ?? null,
+      assignedByFullName: representative.assignedByFullName ?? null,
     }));
 }
 

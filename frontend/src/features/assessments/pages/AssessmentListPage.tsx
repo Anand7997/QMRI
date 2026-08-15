@@ -58,7 +58,7 @@ import {
 } from "shared/api/types";
 import { RoutePaths } from "shared/constants/routePaths";
 import { neutralTokens, semanticTokens } from "app/theme/tokens/palette";
-import { buildAssessmentAssignmentKey } from "shared/domain/assessmentGrouping";
+import { groupAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 import { findIntensityTemplate } from "features/dashboard/governance/dashboardGovernanceState";
 import {
   defaultIntensityTemplateSettings,
@@ -352,31 +352,6 @@ interface AssessmentListRow extends AssessmentSummaryDto {
   takenPeopleCount: number;
 }
 
-function groupAssessmentsForList(assessments: AssessmentSummaryDto[]): AssessmentListRow[] {
-  const groups = new Map<string, AssessmentSummaryDto[]>();
-
-  assessments.forEach((assessment) => {
-    const key = buildAssessmentAssignmentKey(assessment);
-    const group = groups.get(key) ?? [];
-    group.push(assessment);
-    groups.set(key, group);
-  });
-
-  return Array.from(groups.values())
-    .map((group) => {
-      const representative = group
-        .slice()
-        .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime())[0];
-
-      return {
-        ...representative,
-        assignedPeopleCount: group.length,
-        takenPeopleCount: group.filter((assessment) => assessment.status >= AssessmentStatus.Submitted).length,
-      };
-    })
-    .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime());
-}
-
 function progressPercent(row: AssessmentListRow) {
   if (row.assignedPeopleCount <= 0) return 0;
   return (row.takenPeopleCount / row.assignedPeopleCount) * 100;
@@ -457,7 +432,15 @@ export function AssessmentListPage() {
     }
   }, [location.state, navigate]);
 
-  const rows = useMemo(() => groupAssessmentsForList(assessmentsQuery.data ?? []), [assessmentsQuery.data]);
+  const rows = useMemo(
+    () =>
+      groupAssessmentsByAssignment(assessmentsQuery.data ?? []).map(({ representative, assignedPeopleCount, takenPeopleCount }) => ({
+        ...representative,
+        assignedPeopleCount,
+        takenPeopleCount,
+      })),
+    [assessmentsQuery.data],
+  );
   const assignedByOptions = useMemo(() => {
     const options = new Map<string, { label: string; count: number }>();
 

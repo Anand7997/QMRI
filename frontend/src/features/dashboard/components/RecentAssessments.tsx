@@ -134,7 +134,14 @@ export function RecentAssessments({ rows }: { rows: RecentAssessment[] }) {
                   <TableCell>
                     <StatusChip status={r.status} />
                   </TableCell>
-                  <TableCell>{Math.round(r.completionPercentage)}%</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {r.takenPeopleCount}/{r.assignedPeopleCount}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {r.takenPeopleCount}/{r.assignedPeopleCount} people taken exam
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {assignedByLabel(r)}

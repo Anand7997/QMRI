@@ -1,4 +1,4 @@
-import type { AssessmentSummaryDto } from "shared/api/types";
+import { AssessmentStatus, type AssessmentSummaryDto } from "shared/api/types";
 
 function normalizedParts(values: readonly string[]) {
   return [...values]
@@ -18,7 +18,13 @@ export function buildAssessmentAssignmentKey(assessment: AssessmentSummaryDto) {
   ].join("::");
 }
 
-export function collapseAssessmentsByAssignment(assessments: AssessmentSummaryDto[]) {
+export interface AssessmentAssignmentGroup {
+  representative: AssessmentSummaryDto;
+  assignedPeopleCount: number;
+  takenPeopleCount: number;
+}
+
+export function groupAssessmentsByAssignment(assessments: AssessmentSummaryDto[]): AssessmentAssignmentGroup[] {
   const groups = new Map<string, AssessmentSummaryDto[]>();
 
   assessments.forEach((assessment) => {
@@ -29,10 +35,23 @@ export function collapseAssessmentsByAssignment(assessments: AssessmentSummaryDt
   });
 
   return Array.from(groups.values())
-    .map((group) =>
-      group
+    .map((group) => {
+      const representative = group
         .slice()
-        .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime())[0],
-    )
-    .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime());
+        .sort((left, right) => new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime())[0];
+
+      return {
+        representative,
+        assignedPeopleCount: group.length,
+        takenPeopleCount: group.filter((assessment) => assessment.status >= AssessmentStatus.Submitted).length,
+      };
+    })
+    .sort(
+      (left, right) =>
+        new Date(right.representative.createdAtUtc).getTime() - new Date(left.representative.createdAtUtc).getTime(),
+    );
+}
+
+export function collapseAssessmentsByAssignment(assessments: AssessmentSummaryDto[]) {
+  return groupAssessmentsByAssignment(assessments).map((group) => group.representative);
 }

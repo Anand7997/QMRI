@@ -140,7 +140,14 @@ export function ReportsPage() {
                         <Typography variant="body1" fontWeight={700}>{assessment.title}</Typography>
                       </TableCell>
                       <TableCell><StatusChip status={assessment.status} /></TableCell>
-                      <TableCell>{Math.round(assessment.completionPercentage)}%</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={700}>
+                          {assessment.takenPeopleCount}/{assessment.assignedPeopleCount}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {assessment.takenPeopleCount}/{assessment.assignedPeopleCount} people taken exam
+                        </Typography>
+                      </TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={700}>
                           {assessment.assignedByFullName?.trim() || assessment.assignedByUserName?.trim() || "Unknown"}
