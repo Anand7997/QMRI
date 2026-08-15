@@ -201,6 +201,7 @@ public sealed class AssessmentSeedService(
         var moduleIds = seedFile.Categories.SelectMany(category => category.Modules).Select(module => module.ModuleId).ToArray();
         var subModuleIds = seedFile.Categories.SelectMany(category => category.Modules).SelectMany(module => module.SubModules).Select(subModule => subModule.SubModuleId).ToArray();
         var questionIds = seedFile.Categories.SelectMany(category => category.Modules).SelectMany(module => module.SubModules).SelectMany(subModule => subModule.Questions).Select(question => question.QuestionId).ToArray();
+        var seedQuestionIdSet = questionIds.ToHashSet();
 
         var existingCategories = await dbContext.Categories
             .Where(category => categoryIds.Contains(category.CategoryId))
@@ -332,6 +333,24 @@ public sealed class AssessmentSeedService(
                         }
                     }
                 }
+            }
+        }
+
+        if (overwriteExisting)
+        {
+            var obsoleteQuestions = await dbContext.Questions
+                .Where(question => subModuleIds.Contains(question.SubModuleId) && !seedQuestionIdSet.Contains(question.QuestionId))
+                .ToListAsync(cancellationToken);
+
+            foreach (var question in obsoleteQuestions)
+            {
+                if (!question.IsActive)
+                {
+                    continue;
+                }
+
+                question.IsActive = false;
+                result.RecordsUpdated++;
             }
         }
 
