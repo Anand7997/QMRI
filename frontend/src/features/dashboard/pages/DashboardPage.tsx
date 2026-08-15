@@ -5,9 +5,9 @@ import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
 import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
 import HistoryEduOutlinedIcon from "@mui/icons-material/HistoryEduOutlined";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { MotionConfig } from "motion/react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthContext } from "contexts/AuthContext";
 import { useUsers } from "shared/api/users";
 import { RecentAssessments } from "../components/RecentAssessments";
@@ -17,12 +17,14 @@ import { AuditGovernanceFeed } from "../components/AuditGovernanceFeed";
 import { ExportCenter } from "../components/ExportCenter";
 import { IntensityTemplateManager } from "../components/IntensityTemplateManager";
 import { ScoringPolicyManager } from "../components/ScoringPolicyManager";
+import { RoutePaths } from "shared/constants/routePaths";
 
 type AdminDashboardPanel = "recent" | "export" | "scoring" | "templates" | "audit" | null;
 
 const adminFeatureBlocks = [
   {
     id: "recent" as const,
+    route: RoutePaths.dashboardRecent,
     title: "Recent Assessments",
     description: "Review the latest assessment activity and status movement.",
     icon: <AssessmentOutlinedIcon fontSize="inherit" />,
@@ -30,6 +32,7 @@ const adminFeatureBlocks = [
   },
   {
     id: "export" as const,
+    route: RoutePaths.dashboardExport,
     title: "Admin Export Center",
     description: "Generate filtered PDF, Excel, and CSV exports with branding.",
     icon: <DownloadOutlinedIcon fontSize="inherit" />,
@@ -37,6 +40,7 @@ const adminFeatureBlocks = [
   },
   {
     id: "scoring" as const,
+    route: RoutePaths.dashboardScoring,
     title: "Scoring Policy Manager",
     description: "Configure pass marks, recommendation bands, and pillar weights.",
     icon: <RuleOutlinedIcon fontSize="inherit" />,
@@ -44,6 +48,7 @@ const adminFeatureBlocks = [
   },
   {
     id: "templates" as const,
+    route: RoutePaths.dashboardTemplates,
     title: "Intensity Templates",
     description: "Manage Operational, Strategic, and Tactical question ranges.",
     icon: <GridViewOutlinedIcon fontSize="inherit" />,
@@ -51,6 +56,7 @@ const adminFeatureBlocks = [
   },
   {
     id: "audit" as const,
+    route: RoutePaths.dashboardAudit,
     title: "Audit & Governance",
     description: "Track changes to questions, scoring, templates, and exports.",
     icon: <HistoryEduOutlinedIcon fontSize="inherit" />,
@@ -59,12 +65,13 @@ const adminFeatureBlocks = [
 ];
 
 export function DashboardPage() {
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const dashboard = useAssessmentDashboardData();
   const pendingUsersQuery = useUsers("Pending");
   const pendingSignupCount = pendingUsersQuery.data?.length ?? 0;
-  const [activePanel, setActivePanel] = useState<AdminDashboardPanel>(null);
+  const activePanel = panelFromPathname(pathname);
 
   return (
     <MotionConfig reducedMotion="user">
@@ -90,7 +97,7 @@ export function DashboardPage() {
               description={block.description}
               icon={block.icon}
               gradient={block.gradient}
-              onClick={() => setActivePanel(block.id)}
+              onClick={() => navigate(block.route)}
             />
           ))}
 
@@ -107,7 +114,11 @@ export function DashboardPage() {
           ))}
         </Box>
 
-        <DashboardPanelDialog title={dialogTitle(activePanel)} open={Boolean(activePanel)} onClose={() => setActivePanel(null)}>
+        <DashboardPanelDialog
+          title={dialogTitle(activePanel)}
+          open={Boolean(activePanel)}
+          onClose={() => navigate(RoutePaths.dashboard, { replace: true })}
+        >
           {activePanel === "recent" ? <RecentAssessments rows={dashboard.recentAssessments} /> : null}
           {activePanel === "export" ? (
             <ExportCenter
@@ -158,5 +169,14 @@ function dialogTitle(panel: AdminDashboardPanel) {
   if (panel === "templates") return "Intensity Template Manager";
   if (panel === "audit") return "Audit & Governance Feed";
   return "Dashboard";
+}
+
+function panelFromPathname(pathname: string): AdminDashboardPanel {
+  if (pathname === RoutePaths.dashboardRecent) return "recent";
+  if (pathname === RoutePaths.dashboardExport) return "export";
+  if (pathname === RoutePaths.dashboardScoring) return "scoring";
+  if (pathname === RoutePaths.dashboardTemplates) return "templates";
+  if (pathname === RoutePaths.dashboardAudit) return "audit";
+  return null;
 }
 

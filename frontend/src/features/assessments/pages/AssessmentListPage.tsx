@@ -59,29 +59,30 @@ import {
 import { RoutePaths } from "shared/constants/routePaths";
 import { neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { buildAssessmentAssignmentKey } from "shared/domain/assessmentGrouping";
+import { findIntensityTemplate } from "features/dashboard/governance/dashboardGovernanceState";
 import {
-  appendGovernanceAuditEntry,
-  findIntensityTemplate,
-  loadIntensityTemplateSettings,
-  type IntensityTemplate,
-} from "features/dashboard/governance/dashboardGovernanceState";
+  defaultIntensityTemplateSettings,
+  type DashboardIntensityTemplateCode,
+  useAppendGovernanceAuditEntry,
+  useIntensityTemplateSettings,
+} from "shared/api/dashboardGovernance";
 
 const departmentOptions = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest", "Client"] as const;
 const unknownAssignedByValue = "__unknown_assigned_by__";
 
-const recommendedQuestionCountByTemplate: Record<IntensityTemplate["code"], number> = {
-  Operational: 30,
+const recommendedQuestionCountByTemplate: Record<DashboardIntensityTemplateCode, number> = {
+  Operational: 16,
   Tactical: 80,
   Strategic: 100,
 };
 
-const templateIntensityByCode: Record<IntensityTemplate["code"], number> = {
+const templateIntensityByCode: Record<DashboardIntensityTemplateCode, number> = {
   Operational: QuestionIntensity.Operational,
   Tactical: QuestionIntensity.Tactical,
   Strategic: QuestionIntensity.Strategic,
 };
 
-const importanceKeywordsByTemplate: Record<IntensityTemplate["code"], readonly string[]> = {
+const importanceKeywordsByTemplate: Record<DashboardIntensityTemplateCode, readonly string[]> = {
   Operational: [
     "ci/cd",
     "automation",
@@ -172,7 +173,19 @@ function flattenTemplateQuestions(categories: CategoryDto[]): TemplateQuestionCa
   );
 }
 
-function scoreQuestionImportance(question: TemplateQuestionCandidate, templateCode: IntensityTemplate["code"]) {
+function buildOperationalRecommendedQuestionIds(categories: CategoryDto[]) {
+  return categories
+    .flatMap((category) =>
+      category.modules.flatMap((module) =>
+        module.subModules
+          .filter((subModule) => subModule.code === "MANDATORY_OPERATIONAL_QUESTIONS")
+          .flatMap((subModule) => subModule.questions.map((question) => question.questionId)),
+      ),
+    )
+    .slice(0, recommendedQuestionCountByTemplate.Operational);
+}
+
+function scoreQuestionImportance(question: TemplateQuestionCandidate, templateCode: DashboardIntensityTemplateCode) {
   const haystack = [
     question.categoryName,
     question.moduleName,
@@ -209,7 +222,7 @@ function scoreQuestionImportance(question: TemplateQuestionCandidate, templateCo
 
 function pickBalancedQuestionIds(
   candidates: TemplateQuestionCandidate[],
-  templateCode: IntensityTemplate["code"],
+  templateCode: DashboardIntensityTemplateCode,
   targetCount: number,
   excluded = new Set<string>(),
 ) {
@@ -269,8 +282,26 @@ function pickBalancedQuestionIds(
   return selected;
 }
 
-function buildRecommendedQuestionIds(categories: CategoryDto[], templateCode: IntensityTemplate["code"]) {
+function buildRecommendedQuestionIds(categories: CategoryDto[], templateCode: DashboardIntensityTemplateCode) {
   const targetCount = recommendedQuestionCountByTemplate[templateCode];
+  if (templateCode === "Operational") {
+    const operationalQuestions = buildOperationalRecommendedQuestionIds(categories);
+    if (operationalQuestions.length >= targetCount) {
+      return operationalQuestions;
+    }
+
+    const selected = new Set(operationalQuestions);
+    operationalQuestions.push(
+      ...pickBalancedQuestionIds(
+        flattenTemplateQuestions(categories).filter((question) => question.intensity === QuestionIntensity.Operational),
+        templateCode,
+        targetCount - operationalQuestions.length,
+        selected,
+      ),
+    );
+    return operationalQuestions;
+  }
+
   const allQuestions = flattenTemplateQuestions(categories);
   const selected = new Set<string>();
   const questionIds: string[] = [];
@@ -395,6 +426,8 @@ export function AssessmentListPage() {
   const assessmentsQuery = useAssessments();
   const catalogQuery = useHierarchy(false, true);
   const approvedUsersQuery = useUsers("Approved");
+  const intensityTemplatesQuery = useIntensityTemplateSettings();
+  const appendAuditEntry = useAppendGovernanceAuditEntry();
   const createAssessment = useCreateAssessment();
   const updateAssessment = useUpdateAssessment();
   const deleteAssessment = useDeleteAssessment();
@@ -405,7 +438,7 @@ export function AssessmentListPage() {
   const [description, setDescription] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
-  const [selectedTemplateCode, setSelectedTemplateCode] = useState<IntensityTemplate["code"]>(() => loadIntensityTemplateSettings().defaultTemplateCode);
+  const [selectedTemplateCode, setSelectedTemplateCode] = useState<DashboardIntensityTemplateCode>("Operational");
   const [shouldSeedRecommendedQuestions, setShouldSeedRecommendedQuestions] = useState(false);
   const [departmentAnchor, setDepartmentAnchor] = useState<HTMLElement | null>(null);
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
@@ -463,6 +496,7 @@ export function AssessmentListPage() {
   }, [assignedByFilter, rows]);
 
   const catalog = catalogQuery.data ?? [];
+  const intensityTemplates = intensityTemplatesQuery.data ?? defaultIntensityTemplateSettings();
   const scopedCatalog = catalog;
   const selectedQuestionSet = useMemo(() => new Set(selectedQuestionIds), [selectedQuestionIds]);
   const expandedCategorySet = useMemo(() => new Set(expandedCategoryIds), [expandedCategoryIds]);
@@ -498,7 +532,7 @@ export function AssessmentListPage() {
   }, [catalog, drawerOpen, editingId, selectedTemplateCode, shouldSeedRecommendedQuestions]);
 
   function openCreate() {
-    const defaultTemplateCode = loadIntensityTemplateSettings().defaultTemplateCode;
+    const defaultTemplateCode = intensityTemplates.defaultTemplateCode;
 
     setEditingId(null);
     setTitle(defaultTitle());
@@ -551,7 +585,7 @@ export function AssessmentListPage() {
         return;
       }
 
-      const template = findIntensityTemplate(selectedTemplateCode);
+      const template = findIntensityTemplate(intensityTemplates, selectedTemplateCode);
       if (selectedQuestionIds.length < recommendedQuestionCount) {
         setFormError(
           `${template?.label ?? selectedTemplateCode} assessments start with ${recommendedQuestionCount} recommended questions. You selected ${selectedQuestionIds.length}. Add more questions or use the recommended selection.`,
@@ -569,13 +603,13 @@ export function AssessmentListPage() {
           departments: selectedDepartments,
           questionIds: selectedQuestionIds,
         });
-        appendGovernanceAuditEntry({
+        void appendAuditEntry.mutateAsync({
           actor: "Admin",
           action: "Created assessment from intensity template",
           entityType: "Intensity Template",
           entityName: selectedTemplateCode,
           details: `${selectedQuestionIds.length} selected questions`,
-        });
+        }).catch(() => undefined);
       }
 
       setDrawerOpen(false);
@@ -860,14 +894,14 @@ export function AssessmentListPage() {
                 label="Intensity template"
                 value={selectedTemplateCode}
                 onChange={(event) => {
-                  const nextTemplateCode = event.target.value as IntensityTemplate["code"];
+                  const nextTemplateCode = event.target.value as DashboardIntensityTemplateCode;
                   setSelectedTemplateCode(nextTemplateCode);
                   setFormError(null);
                   applyRecommendedQuestions(nextTemplateCode);
                 }}
                 helperText={`${selectedTemplateCode} starts with ${recommendedQuestionCount} important questions across all categories. Admins can add more questions manually.`}
               >
-                {loadIntensityTemplateSettings().templates.map((template) => {
+                {intensityTemplates.templates.map((template) => {
                   const recommendedCount = recommendedQuestionCountByTemplate[template.code];
                   const maxLabel = template.maxQuestions > recommendedCount ? `, up to ${template.maxQuestions}` : "";
 

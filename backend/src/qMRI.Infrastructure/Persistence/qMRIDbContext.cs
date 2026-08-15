@@ -35,6 +35,10 @@ public sealed class qMRIDbContext : DbContext
 
     public DbSet<MaturityBand> MaturityBands => Set<MaturityBand>();
 
+    public DbSet<DashboardSetting> DashboardSettings => Set<DashboardSetting>();
+
+    public DbSet<GovernanceAuditEntry> GovernanceAuditEntries => Set<GovernanceAuditEntry>();
+
     public DbSet<Assessment> Assessments => Set<Assessment>();
 
     public DbSet<AdminRecord> AdminRecords => Set<AdminRecord>();

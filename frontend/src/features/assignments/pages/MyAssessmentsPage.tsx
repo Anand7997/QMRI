@@ -40,7 +40,11 @@ import {
 } from "shared/api/types";
 import { answerColor } from "shared/domain/maturity";
 import { useAuthContext } from "contexts/AuthContext";
-import { clearResumePointer, loadResumePointer, saveResumePointer } from "features/dashboard/governance/dashboardGovernanceState";
+import {
+  useClearResumePointer,
+  useResumePointer,
+  useSaveResumePointer,
+} from "shared/api/dashboardGovernance";
 import { portalAgentAnalysisPath } from "shared/constants/routePaths";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
@@ -57,6 +61,9 @@ export function MyAssessmentsPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const assessmentsQuery = useAssessments(user?.userId);
+  const resumePointerQuery = useResumePointer(user?.userId);
+  const saveResumePointerMutation = useSaveResumePointer(user?.userId);
+  const clearResumePointerMutation = useClearResumePointer(user?.userId);
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
   const [questionMode, setQuestionMode] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
@@ -69,6 +76,7 @@ export function MyAssessmentsPage() {
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const [submittedPrompt, setSubmittedPrompt] = useState<SubmittedAssessmentPrompt | null>(null);
   const handledLocationKey = useRef<string | null>(null);
+  const resumePointerReady = !user?.userId || resumePointerQuery.isFetched;
 
   const navigationAssessmentId = (location.state as { assessmentId?: string; resume?: boolean } | null)?.assessmentId;
   const assessments = useMemo(
@@ -236,7 +244,7 @@ export function MyAssessmentsPage() {
   useEffect(() => {
     if (!questionMode) return;
     if (!selectedSub && submoduleSteps.length) {
-      const pointer = loadResumePointer(user?.userId);
+      const pointer = resumePointerQuery.data;
       const pointerStep = pointer && pointer.assessmentId === assessmentId
         ? submoduleSteps.find((step) => step.sub.subModuleId === pointer.subModuleId)
         : undefined;
@@ -244,17 +252,17 @@ export function MyAssessmentsPage() {
       setSelectedSub(firstStep.sub.subModuleId);
       setOpenModules({ [firstStep.moduleId]: true });
     }
-  }, [assessmentId, questionMode, selectedSub, submoduleSteps, user?.userId]);
+  }, [assessmentId, questionMode, selectedSub, submoduleSteps, resumePointerReady, resumePointerQuery.data]);
 
   useEffect(() => {
     if (!questionMode || !selectedSub) return;
-    const pointer = loadResumePointer(user?.userId);
+    const pointer = resumePointerQuery.data;
     if (!pointer || pointer.assessmentId !== assessmentId || pointer.subModuleId !== selectedSub || !pointer.questionId) return;
 
     window.setTimeout(() => {
       document.getElementById(`question-${pointer.questionId}`)?.scrollIntoView({ block: "center" });
     }, 100);
-  }, [assessmentId, questionMode, selectedSub, user?.userId]);
+  }, [assessmentId, questionMode, selectedSub, resumePointerReady, resumePointerQuery.data]);
 
   const selectAssessment = (id: string) => {
     setAssessmentId(id);
@@ -293,7 +301,9 @@ export function MyAssessmentsPage() {
   const answer = (questionId: string, value: number) => {
     if (!assessmentId) return;
     if (selectedSub) {
-      saveResumePointer(user?.userId, { assessmentId, subModuleId: selectedSub, questionId, touchedAtUtc: new Date().toISOString() });
+      void saveResumePointerMutation
+        .mutateAsync({ assessmentId, subModuleId: selectedSub, questionId, touchedAtUtc: new Date().toISOString() })
+        .catch(() => undefined);
     }
     setOptimisticAnswers((state) => ({ ...state, [questionId]: value }));
     saveResponse.mutate(
@@ -326,7 +336,9 @@ export function MyAssessmentsPage() {
   const goToStep = (step: (typeof submoduleSteps)[number] | null) => {
     if (!step) return;
     if (assessmentId) {
-      saveResumePointer(user?.userId, { assessmentId, subModuleId: step.sub.subModuleId, touchedAtUtc: new Date().toISOString() });
+      void saveResumePointerMutation
+        .mutateAsync({ assessmentId, subModuleId: step.sub.subModuleId, touchedAtUtc: new Date().toISOString() })
+        .catch(() => undefined);
     }
     setSelectedSub(step.sub.subModuleId);
     setOpenModules((state) => ({ ...state, [step.moduleId]: true }));
@@ -699,7 +711,7 @@ export function MyAssessmentsPage() {
                   setOpenModules({});
                   setNotes({});
                   setOpenNotes({});
-                  clearResumePointer(user?.userId);
+                  void clearResumePointerMutation.mutateAsync().catch(() => undefined);
                 },
               });
             }}

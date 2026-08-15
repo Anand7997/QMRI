@@ -13,7 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
-import { EmptyState, MaturityChip, StatusChip } from "shared/components";
+import { EmptyState, StatusChip } from "shared/components";
 import type { RecentAssessment } from "../assessmentData";
 
 const unknownAssignedByValue = "__unknown_assigned_by__";
@@ -122,9 +122,9 @@ export function RecentAssessments({ rows }: { rows: RecentAssessment[] }) {
                 <TableCell>Assessment</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Progress</TableCell>
-                <TableCell>Score</TableCell>
                 <TableCell>Assigned by</TableCell>
-                <TableCell>Date</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell>Submitted</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -135,7 +135,6 @@ export function RecentAssessments({ rows }: { rows: RecentAssessment[] }) {
                     <StatusChip status={r.status} />
                   </TableCell>
                   <TableCell>{Math.round(r.completionPercentage)}%</TableCell>
-                  <TableCell>{r.score == null ? "--" : <MaturityChip score={r.score} />}</TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {assignedByLabel(r)}
@@ -146,7 +145,8 @@ export function RecentAssessments({ rows }: { rows: RecentAssessment[] }) {
                       </Typography>
                     ) : null}
                   </TableCell>
-                  <TableCell sx={{ color: "text.secondary" }}>{formatDate(r.date)}</TableCell>
+                  <TableCell sx={{ color: "text.secondary" }}>{formatDate(r.createdAtUtc)}</TableCell>
+                  <TableCell sx={{ color: "text.secondary" }}>{formatDate(r.submittedAtUtc)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -157,6 +157,10 @@ export function RecentAssessments({ rows }: { rows: RecentAssessment[] }) {
   );
 }
 
-function formatDate(value: string) {
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "--";
+  }
+
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }

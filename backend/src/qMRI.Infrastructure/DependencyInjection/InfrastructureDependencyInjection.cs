@@ -50,6 +50,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IUserAdministrationService, UserAdministrationService>();
         services.AddScoped<IAssessmentCatalogService, AssessmentCatalogService>();
         services.AddScoped<IScoringConfigurationService, ScoringConfigurationService>();
+        services.AddScoped<IDashboardGovernanceService, DashboardGovernanceService>();
         services.AddScoped<IAssessmentExecutionService, AssessmentExecutionService>();
         services.AddScoped<IAssessmentSeedService, AssessmentSeedService>();
 

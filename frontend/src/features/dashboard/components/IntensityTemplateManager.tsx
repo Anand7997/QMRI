@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -16,28 +16,39 @@ import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
 import { useAuthContext } from "contexts/AuthContext";
 import {
-  appendGovernanceAuditEntry,
-  loadIntensityTemplateSettings,
-  saveIntensityTemplateSettings,
-  type IntensityTemplate,
-  type IntensityTemplateSettings,
-} from "features/dashboard/governance/dashboardGovernanceState";
+  defaultIntensityTemplateSettings,
+  type DashboardIntensityTemplateCode,
+  type DashboardIntensityTemplateDto,
+  type DashboardIntensityTemplateSettingsDto,
+  useAppendGovernanceAuditEntry,
+  useIntensityTemplateSettings,
+  useSaveIntensityTemplateSettings,
+} from "shared/api/dashboardGovernance";
 
 interface IntensityTemplateManagerProps {
-  onTemplatesChanged?: (settings: IntensityTemplateSettings) => void;
+  onTemplatesChanged?: (settings: DashboardIntensityTemplateSettingsDto) => void;
 }
 
 export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTemplateManagerProps) {
   const { user } = useAuthContext();
-  const [settings, setSettings] = useState<IntensityTemplateSettings>(() => loadIntensityTemplateSettings());
+  const templateQuery = useIntensityTemplateSettings();
+  const saveTemplates = useSaveIntensityTemplateSettings();
+  const appendAuditEntry = useAppendGovernanceAuditEntry();
+  const [settings, setSettings] = useState<DashboardIntensityTemplateSettingsDto>(() => defaultIntensityTemplateSettings());
   const [feedback, setFeedback] = useState<{ severity: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    if (templateQuery.data) {
+      setSettings(templateQuery.data);
+    }
+  }, [templateQuery.data]);
 
   const invalidTemplate = useMemo(
     () => settings.templates.find((template) => template.minQuestions > template.maxQuestions),
     [settings.templates],
   );
 
-  function updateTemplate(code: IntensityTemplate["code"], patch: Partial<IntensityTemplate>) {
+  function updateTemplate(code: DashboardIntensityTemplateCode, patch: Partial<DashboardIntensityTemplateDto>) {
     setSettings((current) => ({
       ...current,
       templates: current.templates.map((template) =>
@@ -51,7 +62,7 @@ export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTempla
     }));
   }
 
-  function save() {
+  async function save() {
     if (invalidTemplate) {
       setFeedback({
         severity: "error",
@@ -60,20 +71,21 @@ export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTempla
       return;
     }
 
-    saveIntensityTemplateSettings(settings);
-    onTemplatesChanged?.(settings);
-
-    appendGovernanceAuditEntry({
-      actor: user?.fullName || user?.userName || "Admin",
-      action: "Updated intensity templates",
-      entityType: "Intensity Template",
-      entityName: "Operational (Low) / Tactical (Medium) / Strategic (High)",
-      details: settings.templates
-        .map((template) => `${template.code} ${template.minQuestions}-${template.maxQuestions}`)
-        .join("; "),
-    });
-
-    setFeedback({ severity: "success", message: "Intensity templates saved." });
+    try {
+      const savedSettings = await saveTemplates.mutateAsync(settings);
+      setSettings(savedSettings);
+      onTemplatesChanged?.(savedSettings);
+      void appendAuditEntry.mutateAsync({
+        actor: user?.fullName || user?.userName || "Admin",
+        action: "Updated intensity templates",
+        entityType: "Intensity Template",
+        entityName: "Operational (Low) / Tactical (Medium) / Strategic (High)",
+        details: savedSettings.templates.map((template) => `${template.code} ${template.minQuestions}-${template.maxQuestions}`).join("; "),
+      }).catch(() => undefined);
+      setFeedback({ severity: "success", message: "Intensity templates saved." });
+    } catch {
+      setFeedback({ severity: "error", message: "Could not save intensity templates right now." });
+    }
   }
 
   return (
@@ -156,7 +168,7 @@ export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTempla
           onChange={(event) =>
             setSettings((current) => ({
               ...current,
-              defaultTemplateCode: event.target.value as IntensityTemplate["code"],
+              defaultTemplateCode: event.target.value as DashboardIntensityTemplateCode,
             }))
           }
           sx={{ minWidth: 220 }}
@@ -167,7 +179,7 @@ export function IntensityTemplateManager({ onTemplatesChanged }: IntensityTempla
             </MenuItem>
           ))}
         </TextField>
-        <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={save}>
+        <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={save} disabled={saveTemplates.isPending}>
           Save intensity templates
         </Button>
       </Stack>

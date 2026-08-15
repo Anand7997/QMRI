@@ -8,7 +8,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { AssessmentStatus, assessmentStatusLabel, type AssessmentDetailDto, type AssessmentSummaryDto } from "shared/api/types";
-import { appendGovernanceAuditEntry } from "features/dashboard/governance/dashboardGovernanceState";
+import { useAppendGovernanceAuditEntry } from "shared/api/dashboardGovernance";
 
 interface ExportCenterProps {
   title: string;
@@ -33,6 +33,7 @@ export function ExportCenter({ title, scope, assessments, details = [], actor = 
   const [status, setStatus] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const appendAuditEntry = useAppendGovernanceAuditEntry();
 
   const rows = useMemo(() => {
     return assessments
@@ -79,13 +80,13 @@ export function ExportCenter({ title, scope, assessments, details = [], actor = 
       downloadText(`${slug(title)}.csv`, toCsv(rows), "text/csv;charset=utf-8");
     }
 
-    appendGovernanceAuditEntry({
+    void appendAuditEntry.mutateAsync({
       actor,
       action: `Exported ${format.toUpperCase()} report`,
       entityType: "Export",
       entityName: title,
       details: `${rows.length} assessments; status=${status}; from=${fromDate || "any"}; to=${toDate || "any"}`,
-    });
+    }).catch(() => undefined);
   }
 
   return (

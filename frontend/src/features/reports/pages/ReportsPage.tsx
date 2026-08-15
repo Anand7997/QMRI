@@ -128,8 +128,9 @@ export function ReportsPage() {
                     <TableCell>Assessment</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Progress</TableCell>
-                    <TableCell>Score</TableCell>
-                    <TableCell>Date</TableCell>
+                    <TableCell>Assigned by</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Submitted</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -140,8 +141,18 @@ export function ReportsPage() {
                       </TableCell>
                       <TableCell><StatusChip status={assessment.status} /></TableCell>
                       <TableCell>{Math.round(assessment.completionPercentage)}%</TableCell>
-                      <TableCell>{assessment.score == null ? "--" : <MaturityChip score={assessment.score} />}</TableCell>
-                      <TableCell>{formatDate(assessment.date)}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={700}>
+                          {assessment.assignedByFullName?.trim() || assessment.assignedByUserName?.trim() || "Unknown"}
+                        </Typography>
+                        {assessment.assignedByUserName ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {assessment.assignedByUserName}
+                          </Typography>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>{formatDate(assessment.createdAtUtc)}</TableCell>
+                      <TableCell>{formatDate(assessment.submittedAtUtc)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -185,7 +196,11 @@ export function ReportsPage() {
   );
 }
 
-function formatDate(value: string) {
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "--";
+  }
+
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
 

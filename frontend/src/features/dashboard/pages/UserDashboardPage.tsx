@@ -14,16 +14,17 @@ import { Card3DBlock, userDashboardBlocks } from "../components/Card3DBlock";
 import { MotionReveal } from "../components/dashboardMotion";
 import { useAssessmentDashboardData } from "../assessmentData";
 import { DueDateReminderWidget } from "../components/DueDateReminderWidget";
-import { loadResumePointer } from "../governance/dashboardGovernanceState";
+import { useResumePointer } from "shared/api/dashboardGovernance";
 
 export function UserDashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const dashboard = useAssessmentDashboardData(user?.userId);
+  const resumePointerQuery = useResumePointer(user?.userId);
 
   const firstName = (user?.userName ?? "there").split(/[.\s@]/)[0];
   const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-  const resumePointer = loadResumePointer(user?.userId);
+  const resumePointer = resumePointerQuery.data ?? null;
 
   const activeAssessments = useMemo(
     () =>
@@ -199,7 +200,6 @@ function resolveDate(assessment: {
 }) {
   return assessment.scoredAtUtc ?? assessment.submittedAtUtc ?? assessment.startedAtUtc ?? assessment.createdAtUtc;
 }
-
 
 
 

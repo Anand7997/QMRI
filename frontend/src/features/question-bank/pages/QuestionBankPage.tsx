@@ -43,7 +43,7 @@ import {
   type QuestionDto,
   type UpsertQuestionRequest,
 } from "shared/api/types";
-import { appendGovernanceAuditEntry } from "features/dashboard/governance/dashboardGovernanceState";
+import { useAppendGovernanceAuditEntry } from "shared/api/dashboardGovernance";
 
 const blankForm: UpsertQuestionRequest & { subCategoryId?: string; subModuleId: string } = {
   subModuleId: "",
@@ -99,6 +99,7 @@ export function QuestionBankPage() {
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [activeRow, setActiveRow] = useState<QuestionDto | null>(null);
+  const appendAuditEntry = useAppendGovernanceAuditEntry();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const openCreate = () => {
@@ -138,35 +139,35 @@ export function QuestionBankPage() {
     };
     if (editingId) {
       await update.mutateAsync({ id: editingId, body });
-      appendGovernanceAuditEntry({
+      void appendAuditEntry.mutateAsync({
         actor: "Admin",
         action: "Updated question",
         entityType: "Question",
         entityName: body.text.slice(0, 80),
         details: `SubModule ${body.subModuleId}; active=${body.isActive}`,
-      });
+      }).catch(() => undefined);
     } else {
       await create.mutateAsync(body);
-      appendGovernanceAuditEntry({
+      void appendAuditEntry.mutateAsync({
         actor: "Admin",
         action: "Created question",
         entityType: "Question",
         entityName: body.text.slice(0, 80),
         details: `SubModule ${body.subModuleId}; weight=${body.weight}`,
-      });
+      }).catch(() => undefined);
     }
     setDrawerOpen(false);
   };
   const doDelete = async () => {
     if (activeRow) {
       await remove.mutateAsync(activeRow.questionId);
-      appendGovernanceAuditEntry({
+      void appendAuditEntry.mutateAsync({
         actor: "Admin",
         action: "Deleted question",
         entityType: "Question",
         entityName: activeRow.text.slice(0, 80),
         details: `${activeRow.categoryName} / ${activeRow.moduleName} / ${activeRow.subModuleName}`,
-      });
+      }).catch(() => undefined);
     }
   };
 

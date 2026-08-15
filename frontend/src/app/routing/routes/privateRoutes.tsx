@@ -32,6 +32,11 @@ export const privateRoutes: RouteObject[] = [
             element: <AdminLayout />,
             children: [
               { path: RoutePaths.dashboard, element: <DashboardPage /> },
+              { path: RoutePaths.dashboardRecent, element: <DashboardPage /> },
+              { path: RoutePaths.dashboardExport, element: <DashboardPage /> },
+              { path: RoutePaths.dashboardScoring, element: <DashboardPage /> },
+              { path: RoutePaths.dashboardTemplates, element: <DashboardPage /> },
+              { path: RoutePaths.dashboardAudit, element: <DashboardPage /> },
               { path: RoutePaths.authentication, element: <AuthenticationDashboardPage /> },
               { path: RoutePaths.assessments, element: <AssessmentListPage /> },
               { path: RoutePaths.examTakers, element: <ExamTakersPage /> },

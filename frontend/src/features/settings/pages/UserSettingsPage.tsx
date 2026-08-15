@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -17,20 +17,38 @@ import {
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
+import { useAuthContext } from "contexts/AuthContext";
 import { PageHeader } from "shared/components";
-import { loadReminderPreferences, saveReminderPreferences } from "features/dashboard/governance/dashboardGovernanceState";
+import {
+  defaultReminderPreferences,
+  useReminderPreferences,
+  useSaveReminderPreferences,
+} from "shared/api/dashboardGovernance";
 
 export function UserSettingsPage() {
+  const { user } = useAuthContext();
+  const reminderQuery = useReminderPreferences(user?.userId);
+  const saveReminder = useSaveReminderPreferences(user?.userId);
   const [saved, setSaved] = useState(false);
   const [digest, setDigest] = useState("weekly");
-  const [reminderPreferences, setReminderPreferences] = useState(() => loadReminderPreferences());
+  const [reminderPreferences, setReminderPreferences] = useState(() => defaultReminderPreferences());
   const [submissionUpdates, setSubmissionUpdates] = useState(true);
   const [compactTables, setCompactTables] = useState(false);
 
-  function handleSave() {
-    saveReminderPreferences(reminderPreferences);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 3000);
+  useEffect(() => {
+    if (reminderQuery.data) {
+      setReminderPreferences(reminderQuery.data);
+    }
+  }, [reminderQuery.data]);
+
+  async function handleSave() {
+    try {
+      await saveReminder.mutateAsync(reminderPreferences);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setSaved(false);
+    }
   }
 
   return (
@@ -39,7 +57,7 @@ export function UserSettingsPage() {
         title="Settings"
         subtitle="Manage your reminders and workspace preferences."
         actions={
-          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>
+          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={() => void handleSave()}>
             Save changes
           </Button>
         }
@@ -119,6 +137,3 @@ export function UserSettingsPage() {
     </Box>
   );
 }
-
-
-

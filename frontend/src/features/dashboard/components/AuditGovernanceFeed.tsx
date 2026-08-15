@@ -20,14 +20,16 @@ import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined
 import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import { EmptyState } from "shared/components";
 import {
-  clearGovernanceAuditFeed,
-  loadGovernanceAuditFeed,
-  type GovernanceAuditEntry,
-} from "features/dashboard/governance/dashboardGovernanceState";
+  useClearGovernanceAuditFeed,
+  useGovernanceAuditFeed,
+} from "shared/api/dashboardGovernance";
 
 export function AuditGovernanceFeed() {
-  const [entries, setEntries] = useState<GovernanceAuditEntry[]>(() => loadGovernanceAuditFeed());
+  const auditQuery = useGovernanceAuditFeed();
+  const clearFeed = useClearGovernanceAuditFeed();
   const [entityFilter, setEntityFilter] = useState("all");
+
+  const entries = auditQuery.data ?? [];
 
   const entityTypes = useMemo(() => {
     const values = Array.from(new Set(entries.map((entry) => entry.entityType))).sort((left, right) =>
@@ -71,11 +73,7 @@ export function AuditGovernanceFeed() {
           ))}
         </TextField>
 
-        <Button
-          variant="outlined"
-          startIcon={<RefreshOutlinedIcon />}
-          onClick={() => setEntries(loadGovernanceAuditFeed())}
-        >
+        <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={() => void auditQuery.refetch()}>
           Refresh
         </Button>
         <Button
@@ -83,15 +81,20 @@ export function AuditGovernanceFeed() {
           color="error"
           startIcon={<DeleteOutlineOutlinedIcon />}
           onClick={() => {
-            clearGovernanceAuditFeed();
-            setEntries([]);
+            clearFeed.mutate();
           }}
         >
           Clear feed
         </Button>
       </Stack>
 
-      {filteredEntries.length === 0 ? (
+      {auditQuery.isLoading ? (
+        <Box sx={{ py: 4 }}>
+          <Typography variant="body2" color="text.secondary">
+            Loading audit feed...
+          </Typography>
+        </Box>
+      ) : filteredEntries.length === 0 ? (
         <Box sx={{ py: 1 }}>
           <EmptyState
             title="No governance events"

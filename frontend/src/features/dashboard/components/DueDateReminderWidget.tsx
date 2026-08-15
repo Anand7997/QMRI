@@ -2,9 +2,11 @@ import { useMemo } from "react";
 import { Box, Button, Card, Chip, LinearProgress, Stack, Typography } from "@mui/material";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
+import { useAuthContext } from "contexts/AuthContext";
 import { EmptyState } from "shared/components";
 import { AssessmentStatus, type AssessmentSummaryDto } from "shared/api/types";
-import { loadReminderPreferences, resolveDueDate } from "features/dashboard/governance/dashboardGovernanceState";
+import { resolveDueDate } from "features/dashboard/governance/dashboardGovernanceState";
+import { defaultReminderPreferences, useReminderPreferences } from "shared/api/dashboardGovernance";
 
 interface DueDateReminderWidgetProps {
   assessments: AssessmentSummaryDto[];
@@ -12,7 +14,10 @@ interface DueDateReminderWidgetProps {
 }
 
 export function DueDateReminderWidget({ assessments, onOpenAssessment }: DueDateReminderWidgetProps) {
-  const preferences = useMemo(() => loadReminderPreferences(), []);
+  const { user } = useAuthContext();
+  const preferencesQuery = useReminderPreferences(user?.userId);
+  const preferences = preferencesQuery.data ?? defaultReminderPreferences();
+
   const activeRows = useMemo(
     () =>
       assessments

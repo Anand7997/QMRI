@@ -29,9 +29,9 @@ export interface RecentAssessment {
   id: string;
   title: string;
   status: EntityStatus;
-  score: number | null;
   completionPercentage: number;
-  date: string;
+  createdAtUtc: string;
+  submittedAtUtc?: string | null;
   assignedByUserId?: string | null;
   assignedByUserName?: string | null;
   assignedByFullName?: string | null;
@@ -150,9 +150,9 @@ function buildRecentAssessments(assessments: AssessmentSummaryDto[]): RecentAsse
       id: assessment.assessmentId,
       title: assessment.title,
       status: toEntityStatus(assessment.status),
-      score: assessment.overallScore ?? null,
       completionPercentage: assessment.completionPercentage,
-      date: resolveAssessmentDate(assessment),
+      createdAtUtc: assessment.createdAtUtc,
+      submittedAtUtc: assessment.submittedAtUtc ?? null,
       assignedByUserId: assessment.assignedByUserId ?? null,
       assignedByUserName: assessment.assignedByUserName ?? null,
       assignedByFullName: assessment.assignedByFullName ?? null,

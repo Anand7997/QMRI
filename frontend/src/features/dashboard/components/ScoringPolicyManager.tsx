@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -15,14 +15,13 @@ import RestartAltOutlinedIcon from "@mui/icons-material/RestartAltOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
 import { useAuthContext } from "contexts/AuthContext";
 import {
-  appendGovernanceAuditEntry,
-  loadScoringPolicySettings,
-  saveScoringPolicySettings,
-  totalPillarWeight,
-  type ScoringPolicySettings,
-} from "features/dashboard/governance/dashboardGovernanceState";
-
-const DEFAULT_POLICY = loadScoringPolicySettings();
+  defaultScoringPolicy,
+  type DashboardScoringPolicyDto,
+  useAppendGovernanceAuditEntry,
+  useSaveScoringPolicySettings,
+  useScoringPolicySettings,
+} from "shared/api/dashboardGovernance";
+import { totalPillarWeight } from "../governance/dashboardGovernanceState";
 
 const bandHints = [
   { key: "low", label: "Needs immediate action", fallback: "< 50" },
@@ -31,13 +30,22 @@ const bandHints = [
 ] as const;
 
 interface ScoringPolicyManagerProps {
-  onPolicyChanged?: (policy: ScoringPolicySettings) => void;
+  onPolicyChanged?: (policy: DashboardScoringPolicyDto) => void;
 }
 
 export function ScoringPolicyManager({ onPolicyChanged }: ScoringPolicyManagerProps) {
   const { user } = useAuthContext();
-  const [policy, setPolicy] = useState<ScoringPolicySettings>(() => loadScoringPolicySettings());
+  const policyQuery = useScoringPolicySettings();
+  const savePolicy = useSaveScoringPolicySettings();
+  const appendAuditEntry = useAppendGovernanceAuditEntry();
+  const [policy, setPolicy] = useState<DashboardScoringPolicyDto>(() => defaultScoringPolicy());
   const [feedback, setFeedback] = useState<{ severity: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    if (policyQuery.data) {
+      setPolicy(policyQuery.data);
+    }
+  }, [policyQuery.data]);
 
   const weightTotal = useMemo(() => totalPillarWeight(policy), [policy]);
   const lowMax = policy.recommendationBands.lowMax;
@@ -45,7 +53,7 @@ export function ScoringPolicyManager({ onPolicyChanged }: ScoringPolicyManagerPr
   const rangesValid = lowMax < mediumMax;
   const canSave = weightTotal === 100 && rangesValid;
 
-  function updateWeight(key: keyof ScoringPolicySettings["pillarWeights"], value: number) {
+  function updateWeight(key: keyof DashboardScoringPolicyDto["pillarWeights"], value: number) {
     setPolicy((current) => ({
       ...current,
       pillarWeights: {
@@ -55,7 +63,7 @@ export function ScoringPolicyManager({ onPolicyChanged }: ScoringPolicyManagerPr
     }));
   }
 
-  function save() {
+  async function save() {
     if (!canSave) {
       setFeedback({
         severity: "error",
@@ -64,21 +72,25 @@ export function ScoringPolicyManager({ onPolicyChanged }: ScoringPolicyManagerPr
       return;
     }
 
-    saveScoringPolicySettings(policy);
-    onPolicyChanged?.(policy);
-    appendGovernanceAuditEntry({
-      actor: user?.fullName || user?.userName || "Admin",
-      action: "Updated scoring policy",
-      entityType: "Scoring Policy",
-      entityName: "Global policy",
-      details: `Pass mark ${policy.passMark}; low <= ${policy.recommendationBands.lowMax}; medium <= ${policy.recommendationBands.mediumMax}`,
-    });
-
-    setFeedback({ severity: "success", message: "Scoring policy saved." });
+    try {
+      const savedPolicy = await savePolicy.mutateAsync(policy);
+      setPolicy(savedPolicy);
+      onPolicyChanged?.(savedPolicy);
+      void appendAuditEntry.mutateAsync({
+        actor: user?.fullName || user?.userName || "Admin",
+        action: "Updated scoring policy",
+        entityType: "Scoring Policy",
+        entityName: "Global policy",
+        details: `Pass mark ${savedPolicy.passMark}; low <= ${savedPolicy.recommendationBands.lowMax}; medium <= ${savedPolicy.recommendationBands.mediumMax}`,
+      }).catch(() => undefined);
+      setFeedback({ severity: "success", message: "Scoring policy saved." });
+    } catch {
+      setFeedback({ severity: "error", message: "Could not save the scoring policy right now." });
+    }
   }
 
   function resetDefaults() {
-    setPolicy(DEFAULT_POLICY);
+    setPolicy(defaultScoringPolicy());
     setFeedback(null);
   }
 
@@ -188,19 +200,14 @@ export function ScoringPolicyManager({ onPolicyChanged }: ScoringPolicyManagerPr
               }
               inputProps={{ min: 1, max: 99 }}
             />
-            <TextField
-              label="Band preview"
-              select
-              value="preview"
-              InputProps={{ readOnly: true }}
-            >
+            <TextField label="Band preview" select value="preview" InputProps={{ readOnly: true }}>
               <MenuItem value="preview">
-                {bandHints[0].label}: 0 - {policy.recommendationBands.lowMax}; {bandHints[1].label}: {policy.recommendationBands.lowMax + 1} - {policy.recommendationBands.mediumMax}; {bandHints[2].label}: {policy.recommendationBands.mediumMax + 1} - 100
+                {bandHints[0].label}: 0 - {policy.recommendationBands.lowMax}; {bandHints[1].label}:{" "}
+                {policy.recommendationBands.lowMax + 1} - {policy.recommendationBands.mediumMax}; {bandHints[2].label}:{" "}
+                {policy.recommendationBands.mediumMax + 1} - 100
               </MenuItem>
             </TextField>
-            {!rangesValid ? (
-              <Alert severity="warning">Low band must end before medium band.</Alert>
-            ) : null}
+            {!rangesValid ? <Alert severity="warning">Low band must end before medium band.</Alert> : null}
           </Stack>
         </Card>
       </Box>
@@ -208,7 +215,7 @@ export function ScoringPolicyManager({ onPolicyChanged }: ScoringPolicyManagerPr
       <Divider sx={{ my: 2 }} />
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-        <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={save} disabled={!canSave}>
+        <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={save} disabled={!canSave || savePolicy.isPending}>
           Save scoring policy
         </Button>
         <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={resetDefaults}>
