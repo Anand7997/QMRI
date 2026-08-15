@@ -21,7 +21,6 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import PriorityHighOutlinedIcon from "@mui/icons-material/PriorityHighOutlined";
 import ReplayOutlinedIcon from "@mui/icons-material/ReplayOutlined";
 import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
-import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
 import {
   Bar,
@@ -34,7 +33,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { SplineScene } from "@/components/ui/splite";
 import { brandTokens, semanticTokens } from "app/theme/tokens/palette";
 import { useAssessment, useQmriAgentAnalysis } from "shared/api/assessments";
 import {
@@ -47,8 +45,6 @@ import {
 import { maturityFor } from "shared/domain/maturity";
 import { RoutePaths } from "shared/constants/routePaths";
 import "./qmriAgentAnalysis.css";
-
-const ROBOT_SCENE = "https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode";
 
 type AnalysisPhase = "active" | "complete" | "error";
 
@@ -469,8 +465,6 @@ function ExecutiveAnalysisOverview({
   );
 }
 function RobotScanField({ phase, responseCount }: { phase: AnalysisPhase; responseCount: number }) {
-  const [sceneLoaded, setSceneLoaded] = useState(false);
-
   return (
     <Box className={`qmri-agent-scan-field qmri-agent-scan-field--${phase}`}>
       <Box className="qmri-agent-dot-grid" aria-hidden="true" />
@@ -491,20 +485,6 @@ function RobotScanField({ phase, responseCount }: { phase: AnalysisPhase; respon
       <Box className="qmri-agent-response-badge" aria-hidden="true">
         <span>{String(responseCount).padStart(2, "0")}</span>
         <small>responses</small>
-      </Box>
-      {!sceneLoaded ? (
-        <Box className="qmri-agent-robot-placeholder" aria-hidden="true">
-          <span><SmartToyOutlinedIcon /></span>
-          <strong>QMRI Agent</strong>
-          <small>Loading analysis interface</small>
-        </Box>
-      ) : null}
-      <Box className="qmri-agent-robot">
-        <SplineScene
-          scene={ROBOT_SCENE}
-          className="qmri-agent-robot-scene"
-          onLoad={() => setSceneLoaded(true)}
-        />
       </Box>
     </Box>
   );

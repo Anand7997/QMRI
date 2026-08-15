@@ -1,0 +1,53 @@
+- generic [ref=f1e4]:
+  - generic [ref=f1e5]:
+    - generic [ref=f1e6]:
+      - link [ref=f1e7] [cursor=pointer]:
+        - /url: /
+        - img "QMRI logo" [ref=f1e8]
+        - heading "QMRI" [level=6] [ref=f1e9]
+      - generic [ref=f1e10]: User sign in
+    - generic [ref=f1e164]:
+      - heading "A sign-in that pays attention." [level=1] [ref=f1e165]
+      - paragraph [ref=f1e166]: The little guide follows your field activity while you sign in, then lets you get back to the work that matters.
+      - separator [ref=f1e167]
+      - generic [ref=f1e168]:
+        - paragraph [ref=f1e172]: Resume assigned assessments
+        - paragraph [ref=f1e176]: Track due-date urgency
+        - paragraph [ref=f1e180]: Review scored reports
+  - generic [ref=f1e182]:
+    - link [ref=f1e183] [cursor=pointer]:
+      - /url: /
+      - paragraph [ref=f1e186]: Back to home
+    - generic [ref=f1e188]:
+      - link [ref=f1e190] [cursor=pointer]:
+        - /url: /
+        - img "QMRI logo" [ref=f1e191]
+        - heading "QMRI" [level=6] [ref=f1e192]
+      - heading "Welcome back" [level=1] [ref=f1e193]
+      - paragraph [ref=f1e194]: Your workspace is ready. Sign in and continue your maturity journey.
+      - tablist [ref=f1e197]:
+        - tab "Sign In" [selected] [ref=f1e198] [cursor=pointer]
+        - tab "Sign Up" [ref=f1e199] [cursor=pointer]
+      - generic [ref=f1e201]:
+        - tablist [ref=f1e204]:
+          - tab "Account" [selected] [ref=f1e205] [cursor=pointer]
+          - tab "Identity Access" [ref=f1e206] [cursor=pointer]
+        - generic [ref=f1e209]:
+          - generic [ref=f1e210]:
+            - generic [ref=f1e211]:
+              - text: Email or username
+              - generic [ref=f1e212]: "*"
+            - generic [ref=f1e213]:
+              - textbox "Email or username" [active] [ref=f1e214]
+              - group:
+                - generic: Email or username *
+          - generic [ref=f1e215]:
+            - generic:
+              - text: Password
+              - generic: "*"
+            - generic [ref=f1e216]:
+              - textbox "Password" [ref=f1e217]
+              - button "Show password" [ref=f1e219] [cursor=pointer]
+              - group:
+                - generic: Password *
+          - button "Sign In" [ref=f1e222] [cursor=pointer]
