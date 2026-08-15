@@ -469,6 +469,30 @@ function RobotScanField({ phase, responseCount }: { phase: AnalysisPhase; respon
     <Box className={`qmri-agent-scan-field qmri-agent-scan-field--${phase}`}>
       <Box className="qmri-agent-dot-grid" aria-hidden="true" />
       <Box className="qmri-agent-center-glow" aria-hidden="true" />
+      <Box className="qmri-agent-robot-head" aria-hidden="true">
+        <Box className="qmri-agent-robot-antenna">
+          <span />
+        </Box>
+        <Box className="qmri-agent-robot-shell">
+          <Box className="qmri-agent-robot-ear qmri-agent-robot-ear--left" />
+          <Box className="qmri-agent-robot-ear qmri-agent-robot-ear--right" />
+          <Box className="qmri-agent-robot-faceplate">
+            <Box className="qmri-agent-robot-brow" />
+            <Box className="qmri-agent-robot-eye-row">
+              <span className="qmri-agent-robot-eye" />
+              <span className="qmri-agent-robot-eye" />
+            </Box>
+            <Box className="qmri-agent-robot-mouth">
+              <i />
+              <i />
+              <i />
+            </Box>
+          </Box>
+          <Box className="qmri-agent-robot-jaw" />
+        </Box>
+        <Box className="qmri-agent-robot-neck" />
+        <Box className="qmri-agent-robot-shadow" />
+      </Box>
       {[0, 1, 2].map((ring) => (
         <Box key={ring} className={`qmri-agent-ring qmri-agent-ring--${ring + 1}`} aria-hidden="true" />
       ))}
