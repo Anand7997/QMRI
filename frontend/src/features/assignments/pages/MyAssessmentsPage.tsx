@@ -76,6 +76,8 @@ export function MyAssessmentsPage() {
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const [submittedPrompt, setSubmittedPrompt] = useState<SubmittedAssessmentPrompt | null>(null);
   const handledLocationKey = useRef<string | null>(null);
+  const resumeScrollQuestionId = useRef<string | null>(null);
+  const resumeScrollApplied = useRef(false);
   const resumePointerReady = !user?.userId || resumePointerQuery.isFetched;
 
   const navigationAssessmentId = (location.state as { assessmentId?: string; resume?: boolean } | null)?.assessmentId;
@@ -258,10 +260,13 @@ export function MyAssessmentsPage() {
     if (!questionMode || !selectedSub) return;
     const pointer = resumePointerQuery.data;
     if (!pointer || pointer.assessmentId !== assessmentId || pointer.subModuleId !== selectedSub || !pointer.questionId) return;
+    if (resumeScrollApplied.current || pointer.questionId !== resumeScrollQuestionId.current) return;
 
-    window.setTimeout(() => {
+    resumeScrollApplied.current = true;
+    const timeoutId = window.setTimeout(() => {
       document.getElementById(`question-${pointer.questionId}`)?.scrollIntoView({ block: "center" });
     }, 100);
+    return () => window.clearTimeout(timeoutId);
   }, [assessmentId, questionMode, selectedSub, resumePointerReady, resumePointerQuery.data]);
 
   const selectAssessment = (id: string) => {
@@ -274,6 +279,8 @@ export function MyAssessmentsPage() {
     setOpenNotes({});
     setOptimisticAnswers({});
     setReviewOpen(false);
+    resumeScrollQuestionId.current = null;
+    resumeScrollApplied.current = false;
   };
 
   const openQuestions = async () => {
@@ -287,6 +294,10 @@ export function MyAssessmentsPage() {
       setStartError("Could not update the start time right now. Your answers will still be saved when you continue.");
     }
 
+    const pointer = resumePointerQuery.data;
+    resumeScrollQuestionId.current =
+      pointer?.assessmentId === assessmentId && pointer.questionId ? pointer.questionId : null;
+    resumeScrollApplied.current = false;
     setQuestionMode(true);
     setSelectedSub(null);
     setOpenModules({});
