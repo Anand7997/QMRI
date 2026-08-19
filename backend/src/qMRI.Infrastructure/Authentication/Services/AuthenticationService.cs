@@ -94,12 +94,11 @@ public sealed class AuthenticationService(
 
         var nowUtc = DateTime.UtcNow;
         if (!user.IdentityLinkExpiresAtUtc.HasValue
-            || user.IdentityLinkExpiresAtUtc.Value.ToUniversalTime() <= nowUtc
-            || user.IdentityLinkConsumedAtUtc.HasValue)
+            || user.IdentityLinkExpiresAtUtc.Value.ToUniversalTime() <= nowUtc)
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This identity link has expired or has already been used. Please contact your qMRI administrator.");
+                "This identity link has expired. Please contact your qMRI administrator.");
         }
 
         var eligibilityFailure = ValidateLoginEligibility(user);
@@ -107,10 +106,6 @@ public sealed class AuthenticationService(
         {
             return eligibilityFailure;
         }
-
-        user.IdentityLinkConsumedAtUtc = nowUtc;
-        user.IdentityLinkTokenHash = null;
-        await userRepository.SaveChangesAsync(cancellationToken);
 
         return await CreateLoginResponseAsync(user, cancellationToken);
     }

@@ -39,7 +39,7 @@ export function IdentityLinkLoginPage() {
       } catch {
         if (!cancelled) {
           setStatus("error");
-          setMessage("This identity link has expired, was already used, or is no longer valid.");
+          setMessage("This identity link has expired or is no longer valid.");
         }
       }
     }

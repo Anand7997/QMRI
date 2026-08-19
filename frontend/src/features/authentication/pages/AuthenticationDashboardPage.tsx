@@ -311,8 +311,12 @@ export function AuthenticationDashboardPage() {
       return;
     }
 
-    await navigator.clipboard.writeText(createdIdentityAccess.accessCode);
-    setIdentityFeedback({ severity: "success", message: "Access code copied to the clipboard." });
+    const copied = await copyTextToClipboard(createdIdentityAccess.accessCode);
+    setIdentityFeedback(
+      copied
+        ? { severity: "success", message: "Access code copied to the clipboard." }
+        : { severity: "error", message: "Unable to copy the access code. Select the code and copy it manually." },
+    );
   }
 
   function updateIdentityLinkExpiry(durationValue: string, unit: IdentityDurationUnit) {
@@ -381,8 +385,12 @@ export function AuthenticationDashboardPage() {
       return;
     }
 
-    await navigator.clipboard.writeText(createdIdentityLink.link);
-    setIdentityLinkFeedback({ severity: "success", message: "Identity link copied to the clipboard." });
+    const copied = await copyTextToClipboard(createdIdentityLink.link);
+    setIdentityLinkFeedback(
+      copied
+        ? { severity: "success", message: "Identity link copied to the clipboard." }
+        : { severity: "error", message: "Unable to copy the identity link. Select the link and copy it manually." },
+    );
   }
 
   const identityAccessGenerated = Boolean(createdIdentityAccess);
@@ -883,6 +891,44 @@ function toLocalDateTimeInput(value: Date) {
   const pad = (part: number) => String(part).padStart(2, "0");
 
   return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+async function copyTextToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // Some browsers expose the API but reject it outside secure or permitted contexts.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = value;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  textArea.style.top = "0";
+  document.body.appendChild(textArea);
+
+  const selection = document.getSelection();
+  const selectedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+  textArea.select();
+  textArea.setSelectionRange(0, textArea.value.length);
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textArea);
+    if (selectedRange && selection) {
+      selection.removeAllRanges();
+      selection.addRange(selectedRange);
+    }
+  }
+
+  return copied;
 }
 
 function getApiMessage(error: unknown) {
