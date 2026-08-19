@@ -904,6 +904,11 @@ function toLocalDateTimeInput(value: Date) {
 }
 
 async function copyTextToClipboard(value: string) {
+  const copiedWithSelection = copyTextWithSelection(value);
+  if (copiedWithSelection) {
+    return true;
+  }
+
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(value);
@@ -913,6 +918,10 @@ async function copyTextToClipboard(value: string) {
     }
   }
 
+  return false;
+}
+
+function copyTextWithSelection(value: string) {
   const textArea = document.createElement("textarea");
   textArea.value = value;
   textArea.setAttribute("readonly", "true");
