@@ -11,6 +11,7 @@ import {
   FormControl,
   MenuItem,
   Select,
+  Snackbar,
   Stack,
   Tab,
   Table,
@@ -98,6 +99,7 @@ export function AuthenticationDashboardPage() {
   );
   const [identityLinkFeedback, setIdentityLinkFeedback] = useState<Feedback | null>(null);
   const [createdIdentityLink, setCreatedIdentityLink] = useState<CreateIdentityLinkResponse | null>(null);
+  const [identityLinkCopiedOpen, setIdentityLinkCopiedOpen] = useState(false);
 
   const { data: users = [], isLoading, isError } = useUsers("all");
   const approveUser = useApproveUser();
@@ -386,6 +388,7 @@ export function AuthenticationDashboardPage() {
     }
 
     const copied = await copyTextToClipboard(createdIdentityLink.link);
+    setIdentityLinkCopiedOpen(copied);
     setIdentityLinkFeedback(
       copied
         ? { severity: "success", message: "Identity link copied to the clipboard." }
@@ -817,6 +820,13 @@ export function AuthenticationDashboardPage() {
                     <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyIdentityLink} sx={{ alignSelf: "flex-start" }}>
                       Copy link
                     </Button>
+                    <Snackbar
+                      open={identityLinkCopiedOpen}
+                      autoHideDuration={1800}
+                      onClose={() => setIdentityLinkCopiedOpen(false)}
+                      message="Copied"
+                      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+                    />
                   </Stack>
                 </Card>
               ) : null}
@@ -907,13 +917,20 @@ async function copyTextToClipboard(value: string) {
   textArea.value = value;
   textArea.setAttribute("readonly", "true");
   textArea.style.position = "fixed";
-  textArea.style.left = "-9999px";
+  textArea.style.left = "0";
   textArea.style.top = "0";
+  textArea.style.width = "1px";
+  textArea.style.height = "1px";
+  textArea.style.padding = "0";
+  textArea.style.border = "0";
+  textArea.style.opacity = "0";
   document.body.appendChild(textArea);
 
   const selection = document.getSelection();
   const selectedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
+  textArea.focus();
   textArea.select();
   textArea.setSelectionRange(0, textArea.value.length);
 
@@ -926,6 +943,7 @@ async function copyTextToClipboard(value: string) {
       selection.removeAllRanges();
       selection.addRange(selectedRange);
     }
+    activeElement?.focus();
   }
 
   return copied;
