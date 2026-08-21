@@ -55,6 +55,10 @@ type SubmittedAssessmentPrompt = {
   title: string;
   score?: number | null;
 };
+type AssessmentNavigationState = {
+  assessmentId?: string;
+  resume?: boolean;
+} | null;
 
 export function MyAssessmentsPage() {
   const location = useLocation();
@@ -76,11 +80,14 @@ export function MyAssessmentsPage() {
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const [submittedPrompt, setSubmittedPrompt] = useState<SubmittedAssessmentPrompt | null>(null);
   const handledLocationKey = useRef<string | null>(null);
+  const resumedLocationKey = useRef<string | null>(null);
   const resumeScrollQuestionId = useRef<string | null>(null);
   const resumeScrollApplied = useRef(false);
   const resumePointerReady = !user?.userId || resumePointerQuery.isFetched;
 
-  const navigationAssessmentId = (location.state as { assessmentId?: string; resume?: boolean } | null)?.assessmentId;
+  const navigationState = location.state as AssessmentNavigationState;
+  const navigationAssessmentId = navigationState?.assessmentId;
+  const shouldResumeNavigation = navigationState?.resume === true;
   const assessments = useMemo(
     () =>
       (assessmentsQuery.data ?? []).filter(
@@ -305,6 +312,16 @@ export function MyAssessmentsPage() {
     setOptimisticAnswers({});
     setReviewOpen(false);
   };
+
+  useEffect(() => {
+    if (!shouldResumeNavigation || !assessmentId || !resumePointerReady) return;
+    if (navigationAssessmentId && navigationAssessmentId !== assessmentId) return;
+    if (handledLocationKey.current !== location.key) return;
+    if (resumedLocationKey.current === location.key) return;
+
+    resumedLocationKey.current = location.key;
+    void openQuestions();
+  }, [assessmentId, location.key, navigationAssessmentId, resumePointerReady, shouldResumeNavigation]);
 
   const answeredInSub = (questions: { questionId: string }[]) =>
     questions.filter((q) => answersByQuestion.has(q.questionId)).length;

@@ -35,7 +35,7 @@ export function IdentityLinkLoginPage() {
           accessTokenExpiresAtUtc: response.accessTokenExpiresAtUtc,
           user: response.user,
         });
-        navigate(RoutePaths.portalAssessments, { replace: true });
+        navigate(RoutePaths.portalAssessments, { replace: true, state: { resume: true } });
       } catch {
         if (!cancelled) {
           setStatus("error");
