@@ -23,7 +23,6 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import KeyboardArrowLeftIcon from "@mui/icons-material/KeyboardArrowLeft";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -71,7 +70,7 @@ export function MyAssessmentsPage() {
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
   const [questionMode, setQuestionMode] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
-  const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [optimisticAnswers, setOptimisticAnswers] = useState<Record<string, number>>({});
@@ -107,7 +106,7 @@ export function MyAssessmentsPage() {
         setStartError(null);
         setQuestionMode(false);
         setSelectedSub(null);
-        setOpenModules({});
+        setSelectedQuestionId(null);
         setNotes({});
         setOpenNotes({});
         setReviewOpen(false);
@@ -127,7 +126,7 @@ export function MyAssessmentsPage() {
       setStartError(null);
       setQuestionMode(false);
       setSelectedSub(null);
-      setOpenModules({});
+      setSelectedQuestionId(null);
       setNotes({});
       setOpenNotes({});
       setReviewOpen(false);
@@ -148,7 +147,7 @@ export function MyAssessmentsPage() {
     setStartError(null);
     setQuestionMode(false);
     setSelectedSub(null);
-    setOpenModules({});
+    setSelectedQuestionId(null);
     setNotes({});
     setOpenNotes({});
     setOptimisticAnswers({});
@@ -224,44 +223,62 @@ export function MyAssessmentsPage() {
       .filter((category) => category.modules.length > 0);
   }, [selectedQuestionSet, tree]);
 
-  const submoduleSteps = useMemo(() => {
-    return filteredTree.flatMap((category) =>
-      category.modules.flatMap((module) =>
-        module.subModules
-          .map((sub) => ({
-            categoryId: category.categoryId,
-            category: category.name,
-            moduleId: module.moduleId,
-            module: module.name,
-            sub,
-          })),
-      ),
-    );
+  const categoryQuestionGroups = useMemo(() => {
+    return filteredTree
+      .map((category) => {
+        const questions = category.modules
+          .flatMap((module) =>
+            module.subModules.flatMap((sub) =>
+              sub.questions.map((question) => ({
+                categoryId: category.categoryId,
+                category: category.name,
+                moduleId: module.moduleId,
+                module: module.name,
+                sub,
+                question,
+              })),
+            ),
+          )
+          .map((step, index) => ({ ...step, questionNumber: index + 1 }));
+
+        return {
+          categoryId: category.categoryId,
+          category: category.name,
+          questions,
+        };
+      })
+      .filter((category) => category.questions.length > 0);
   }, [filteredTree]);
 
-  const currentStepIndex = useMemo(
-    () => submoduleSteps.findIndex((step) => step.sub.subModuleId === selectedSub),
-    [selectedSub, submoduleSteps],
+  const questionSteps = useMemo(
+    () => categoryQuestionGroups.flatMap((category) => category.questions),
+    [categoryQuestionGroups],
   );
 
-  const currentSub = currentStepIndex >= 0 ? submoduleSteps[currentStepIndex] : null;
-  const previousStep = currentStepIndex > 0 ? submoduleSteps[currentStepIndex - 1] : null;
-  const nextStep = currentStepIndex >= 0 && currentStepIndex < submoduleSteps.length - 1
-    ? submoduleSteps[currentStepIndex + 1]
+  const currentQuestionIndex = useMemo(
+    () => questionSteps.findIndex((step) => step.question.questionId === selectedQuestionId),
+    [selectedQuestionId, questionSteps],
+  );
+
+  const currentQuestionStep = currentQuestionIndex >= 0 ? questionSteps[currentQuestionIndex] : null;
+  const previousQuestionStep = currentQuestionIndex > 0 ? questionSteps[currentQuestionIndex - 1] : null;
+  const nextQuestionStep = currentQuestionIndex >= 0 && currentQuestionIndex < questionSteps.length - 1
+    ? questionSteps[currentQuestionIndex + 1]
     : null;
 
   useEffect(() => {
     if (!questionMode) return;
-    if (!selectedSub && submoduleSteps.length) {
+    if ((!selectedSub || !selectedQuestionId || currentQuestionIndex < 0) && questionSteps.length) {
       const pointer = resumePointerQuery.data;
       const pointerStep = pointer && pointer.assessmentId === assessmentId
-        ? submoduleSteps.find((step) => step.sub.subModuleId === pointer.subModuleId)
+        ? questionSteps.find((step) => step.question.questionId === pointer.questionId)
+          ?? questionSteps.find((step) => step.sub.subModuleId === pointer.subModuleId)
         : undefined;
-      const firstStep = pointerStep ?? submoduleSteps[0];
+      const firstStep = pointerStep ?? questionSteps[0];
       setSelectedSub(firstStep.sub.subModuleId);
-      setOpenModules({ [firstStep.moduleId]: true });
+      setSelectedQuestionId(firstStep.question.questionId);
     }
-  }, [assessmentId, questionMode, selectedSub, submoduleSteps, resumePointerReady, resumePointerQuery.data]);
+  }, [assessmentId, currentQuestionIndex, questionMode, selectedQuestionId, selectedSub, questionSteps, resumePointerReady, resumePointerQuery.data]);
 
   useEffect(() => {
     if (!questionMode || !selectedSub) return;
@@ -281,7 +298,7 @@ export function MyAssessmentsPage() {
     setStartError(null);
     setQuestionMode(false);
     setSelectedSub(null);
-    setOpenModules({});
+    setSelectedQuestionId(null);
     setNotes({});
     setOpenNotes({});
     setOptimisticAnswers({});
@@ -307,7 +324,7 @@ export function MyAssessmentsPage() {
     resumeScrollApplied.current = false;
     setQuestionMode(true);
     setSelectedSub(null);
-    setOpenModules({});
+    setSelectedQuestionId(null);
     setOpenNotes({});
     setOptimisticAnswers({});
     setReviewOpen(false);
@@ -322,9 +339,6 @@ export function MyAssessmentsPage() {
     resumedLocationKey.current = location.key;
     void openQuestions();
   }, [assessmentId, location.key, navigationAssessmentId, resumePointerReady, shouldResumeNavigation]);
-
-  const answeredInSub = (questions: { questionId: string }[]) =>
-    questions.filter((q) => answersByQuestion.has(q.questionId)).length;
 
   const answer = (questionId: string, value: number) => {
     if (!assessmentId) return;
@@ -361,15 +375,20 @@ export function MyAssessmentsPage() {
     saveResponse.mutate({ questionId, answer: currentAnswer, findings: notes[questionId] || null });
   };
 
-  const goToStep = (step: (typeof submoduleSteps)[number] | null) => {
+  const goToQuestion = (step: (typeof questionSteps)[number] | null) => {
     if (!step) return;
     if (assessmentId) {
       void saveResumePointerMutation
-        .mutateAsync({ assessmentId, subModuleId: step.sub.subModuleId, touchedAtUtc: new Date().toISOString() })
+        .mutateAsync({
+          assessmentId,
+          subModuleId: step.sub.subModuleId,
+          questionId: step.question.questionId,
+          touchedAtUtc: new Date().toISOString(),
+        })
         .catch(() => undefined);
     }
     setSelectedSub(step.sub.subModuleId);
-    setOpenModules((state) => ({ ...state, [step.moduleId]: true }));
+    setSelectedQuestionId(step.question.questionId);
   };
 
   const resultDialog = (
@@ -448,14 +467,14 @@ export function MyAssessmentsPage() {
 
   const isSubmitted = (summary?.status ?? 0) >= AssessmentStatus.Submitted;
   const answeredCount = Math.max(summary?.answeredCount ?? 0, answersByQuestion.size);
-  const questionCount = summary?.questionCount ?? submoduleSteps.reduce((total, step) => total + step.sub.questions.length, 0);
+  const questionCount = summary?.questionCount ?? questionSteps.length;
   const unansweredCount = Math.max(questionCount - answeredCount, 0);
 
   return (
     <Box sx={{ pb: 9 }}>
       <PageHeader
         title={summary?.title ?? "My Assessment"}
-        subtitle={currentSub ? `${currentSub.category} / ${currentSub.module}` : "Select a submodule to begin"}
+        subtitle={currentQuestionStep ? currentQuestionStep.category : "Select a question to begin"}
         actions={
           <Button variant="outlined" startIcon={<KeyboardArrowLeftIcon />} onClick={() => setQuestionMode(false)}>
             Assessment details
@@ -468,89 +487,75 @@ export function MyAssessmentsPage() {
           {treeQuery.isLoading ? (
             <LoadingState label="Loading questions..." />
           ) : (
-            filteredTree.map((c) => (
-              <Box key={c.categoryId} sx={{ mb: 1 }}>
-                <Typography variant="overline" color="text.secondary" sx={{ px: 1.5 }}>{c.name}</Typography>
-                {c.modules.map((m) => {
-                  const open = openModules[m.moduleId];
-                  return (
-                    <Box key={m.moduleId}>
+            categoryQuestionGroups.map((category) => (
+              <Box key={category.categoryId} sx={{ mb: 1.25 }}>
+                <Typography variant="overline" color="text.secondary" sx={{ px: 1.5 }}>
+                  {category.category}
+                </Typography>
+                <Stack spacing={0.35} sx={{ mt: 0.35 }}>
+                  {category.questions.map((step) => {
+                    const answered = answersByQuestion.has(step.question.questionId);
+                    const active = step.question.questionId === selectedQuestionId;
+
+                    return (
                       <Stack
+                        key={step.question.questionId}
                         direction="row"
+                        spacing={1}
                         alignItems="center"
-                        sx={{ px: 1, py: 0.5, cursor: "pointer" }}
-                        onClick={() => setOpenModules((s) => ({ ...s, [m.moduleId]: !open }))}
+                        onClick={() => goToQuestion(step)}
+                        sx={{
+                          px: 1.5,
+                          py: 0.75,
+                          borderRadius: 2,
+                          cursor: "pointer",
+                          bgcolor: active ? "action.selected" : "transparent",
+                          "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
+                        }}
                       >
-                        {open ? <ExpandMoreIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
-                        <Typography variant="body2" fontWeight={600} noWrap sx={{ flexGrow: 1 }}>{m.name}</Typography>
+                        {answered ? (
+                          <CheckCircleIcon fontSize="small" color="success" />
+                        ) : (
+                          <RadioButtonUncheckedIcon fontSize="small" sx={{ color: "text.disabled" }} />
+                        )}
+                        <Typography variant="body2" noWrap sx={{ flexGrow: 1 }}>
+                          Question {step.questionNumber}
+                        </Typography>
                       </Stack>
-                      <Collapse in={open}>
-                        {m.subModules.map((s) => {
-                          const done = answeredInSub(s.questions);
-                          const complete = s.questions.length > 0 && done === s.questions.length;
-                          const active = s.subModuleId === selectedSub;
-                          return (
-                            <Stack
-                              key={s.subModuleId}
-                              direction="row"
-                              spacing={1}
-                              alignItems="center"
-                              onClick={() => goToStep({ categoryId: c.categoryId, category: c.name, moduleId: m.moduleId, module: m.name, sub: s })}
-                              sx={{
-                                ml: 2,
-                                px: 1.5,
-                                py: 0.75,
-                                borderRadius: 2,
-                                cursor: "pointer",
-                                bgcolor: active ? "action.selected" : "transparent",
-                                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
-                              }}
-                            >
-                              {complete ? (
-                                <CheckCircleIcon fontSize="small" color="success" />
-                              ) : (
-                                <RadioButtonUncheckedIcon fontSize="small" sx={{ color: "text.disabled" }} />
-                              )}
-                              <Typography variant="body2" noWrap sx={{ flexGrow: 1 }}>{s.name}</Typography>
-                              <Typography variant="caption" color="text.secondary">{done}/{s.questions.length}</Typography>
-                            </Stack>
-                          );
-                        })}
-                      </Collapse>
-                    </Box>
-                  );
-                })}
+                    );
+                  })}
+                </Stack>
               </Box>
             ))
           )}
         </Card>
 
         <Card sx={{ p: 3 }}>
-          {!currentSub ? (
-            <EmptyState title="Select a submodule" description="Pick a submodule from the left to answer its questions." />
+          {!currentQuestionStep ? (
+            <EmptyState title="Select a question" description="Pick a question from the left to continue the assessment." />
           ) : (
             <>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }} sx={{ mb: 2 }}>
                 <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h2">{currentSub.sub.name}</Typography>
+                  <Typography variant="h2">Question {currentQuestionStep.questionNumber}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {currentSub.category} / {currentSub.module}
+                    {currentQuestionStep.category}
                   </Typography>
                 </Box>
                 <Chip
                   size="small"
-                  label={`Part ${currentStepIndex + 1} of ${submoduleSteps.length}`}
+                  label={`Question ${currentQuestionIndex + 1} of ${questionSteps.length}`}
                   color="primary"
                   variant="outlined"
                 />
               </Stack>
               <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />} spacing={2.5}>
-                {currentSub.sub.questions.map((q, i) => {
+                {[currentQuestionStep.question].map((q) => {
                   const value = answersByQuestion.get(q.questionId);
                   return (
-                    <Box key={q.questionId} id={`question-${q.questionId}`} sx={{ pt: i === 0 ? 0 : 2.5 }}>
+                    <Box key={q.questionId} id={`question-${q.questionId}`}>
                       <Typography variant="body1" fontWeight={500} sx={{ mb: q.guidance ? 0.5 : 1.5 }}>
-                        {i + 1}. {q.text}
+                        {q.text}
                       </Typography>
                       {q.guidance && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>{q.guidance}</Typography>
@@ -610,9 +615,6 @@ export function MyAssessmentsPage() {
                     </Box>
                   );
                 })}
-                {currentSub.sub.questions.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">No questions in this submodule.</Typography>
-                )}
               </Stack>
             </>
           )}
@@ -657,18 +659,18 @@ export function MyAssessmentsPage() {
               <Button
                 variant="outlined"
                 startIcon={<KeyboardArrowLeftIcon />}
-                disabled={!previousStep}
-                onClick={() => goToStep(previousStep)}
+                disabled={!previousQuestionStep}
+                onClick={() => goToQuestion(previousQuestionStep)}
               >
                 Previous
               </Button>
               <Button
                 variant="outlined"
                 endIcon={<KeyboardArrowRightIcon />}
-                disabled={!nextStep}
-                onClick={() => goToStep(nextStep)}
+                disabled={!nextQuestionStep}
+                onClick={() => goToQuestion(nextQuestionStep)}
               >
-                Next part
+                Next question
               </Button>
               <Button
                 variant="contained"
@@ -736,7 +738,7 @@ export function MyAssessmentsPage() {
                   setQuestionMode(false);
                   setAssessmentId(undefined);
                   setSelectedSub(null);
-                  setOpenModules({});
+                  setSelectedQuestionId(null);
                   setNotes({});
                   setOpenNotes({});
                   void clearResumePointerMutation.mutateAsync().catch(() => undefined);
