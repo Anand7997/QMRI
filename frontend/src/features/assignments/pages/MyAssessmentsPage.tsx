@@ -430,6 +430,23 @@ export function MyAssessmentsPage() {
     });
   };
 
+  const nextCategoryGroup =
+    selectedCategoryIndex >= 0
+      ? categoryQuestionGroups[selectedCategoryIndex + 1] ?? null
+      : categoryQuestionGroups[0] ?? null;
+
+  const goToNextCategory = () => {
+    if (!nextCategoryGroup) return;
+
+    setExpandedCategoryIds((current) => {
+      if (current.has(nextCategoryGroup.categoryId)) return current;
+      const next = new Set(current);
+      next.add(nextCategoryGroup.categoryId);
+      return next;
+    });
+    goToQuestion(nextCategoryGroup.questions[0] ?? null);
+  };
+
   const resultDialog = (
     <AssessmentResultDialog
       prompt={submittedPrompt}
@@ -748,13 +765,23 @@ export function MyAssessmentsPage() {
           {isSubmitted ? (
             <Chip color="success" label="Submitted" />
           ) : (
-            <Button
-              variant="contained"
-              disabled={submit.isPending || !canSubmitAssessment}
-              onClick={() => setReviewOpen(true)}
-            >
-              Submit
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                endIcon={<KeyboardArrowRightIcon />}
+                disabled={!nextCategoryGroup}
+                onClick={goToNextCategory}
+              >
+                Next section
+              </Button>
+              <Button
+                variant="contained"
+                disabled={submit.isPending || !canSubmitAssessment}
+                onClick={() => setReviewOpen(true)}
+              >
+                Submit
+              </Button>
+            </>
           )}
         </Stack>
       </Box>
