@@ -28,6 +28,7 @@ import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettin
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
@@ -40,6 +41,7 @@ import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
 import { EmptyState, FormDrawer, KpiTile, PageHeader, TableSkeleton } from "shared/components";
 import {
   useApproveUser,
+  useApproveUserWithIdentityLink,
   useCreateIdentityAccess,
   useCreateIdentityLink,
   useDeactivateUser,
@@ -52,6 +54,7 @@ import {
   type UserAccessRequest,
   type UserStatusFilter,
 } from "shared/api/users";
+import { RoutePaths } from "shared/constants/routePaths";
 
 type FilterTab = UserStatusFilter;
 type IdentityDurationUnit = "hours" | "days";
@@ -68,6 +71,8 @@ const defaultApprovalRole: ApprovalRoleCode = "USER";
 const guestApprovalRole: ApprovalRoleCode = "GUEST";
 const defaultApprovalCategory: ApprovalCategoryCode = "Fresher";
 const guestApprovalCategory: ApprovalCategoryCode = "Guest";
+const clientApprovalCategory: ApprovalCategoryCode = "Client";
+const defaultGeneratedLinkDays = 7;
 
 const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest", "Client"];
 const standardApprovalRoles: ApprovalRoleCode[] = ["USER", "ADMIN"];
@@ -100,13 +105,19 @@ export function AuthenticationDashboardPage() {
   const [identityLinkFeedback, setIdentityLinkFeedback] = useState<Feedback | null>(null);
   const [createdIdentityLink, setCreatedIdentityLink] = useState<CreateIdentityLinkResponse | null>(null);
   const [identityLinkCopiedOpen, setIdentityLinkCopiedOpen] = useState(false);
+  const [clientRequestLinkFeedback, setClientRequestLinkFeedback] = useState<Feedback | null>(null);
+  const [approvalLinkFeedback, setApprovalLinkFeedback] = useState<Feedback | null>(null);
+  const [approvedClientLinks, setApprovedClientLinks] = useState<CreateIdentityLinkResponse[]>([]);
 
   const { data: users = [], isLoading, isError } = useUsers("all");
   const approveUser = useApproveUser();
+  const approveUserWithIdentityLink = useApproveUserWithIdentityLink();
   const createIdentityAccess = useCreateIdentityAccess();
   const createIdentityLink = useCreateIdentityLink();
   const updateUserAccess = useUpdateUserAccess();
   const deactivateUser = useDeactivateUser();
+
+  const clientRequestLink = useMemo(() => `${window.location.origin}${RoutePaths.clientAccessRequest}`, []);
 
   const filteredUsers = useMemo(() => {
     return filter === "all" ? users : users.filter((user) => user.approvalStatus === filter);
@@ -125,6 +136,7 @@ export function AuthenticationDashboardPage() {
   const approvedCount = users.filter((user) => user.approvalStatus === "Approved").length;
   const adminRequestCount = users.filter((user) => user.requestedRoleCode.toUpperCase() === "ADMIN").length;
   const activeUserCount = users.filter((user) => user.isActive).length;
+  const approvalPending = approveUser.isPending || approveUserWithIdentityLink.isPending;
 
   function approvalRoleFor(user: UserAccessRequest) {
     return roleByUserId[user.userId]
@@ -176,38 +188,98 @@ export function AuthenticationDashboardPage() {
     setCategoryByUserId((current) => ({ ...current, [userId]: event.target.value as ApprovalCategoryCode }));
   }
 
-  function handleApprove(userId: string) {
+  async function handleApprove(userId: string) {
     const user = users.find((candidate) => candidate.userId === userId);
+    const selectedRole = user ? approvalRoleFor(user) : defaultApprovalRole;
+    const selectedCategory = user ? approvalCategoryFor(user) : defaultApprovalCategory;
 
     setApprovingUserId(userId);
-    approveUser.mutate(
-      {
-        userId,
-        roleCode: user ? approvalRoleFor(user) : defaultApprovalRole,
-        category: user ? approvalCategoryFor(user) : defaultApprovalCategory,
-      },
-      {
-        onSuccess: () => setSelectedIds((current) => current.filter((id) => id !== userId)),
-        onSettled: () => setApprovingUserId(null),
-      },
-    );
+    setApprovalLinkFeedback(null);
+    try {
+      if (user && shouldGenerateIdentityLinkForApproval(selectedRole, selectedCategory)) {
+        const result = await approveUserWithIdentityLink.mutateAsync(buildApproveWithLinkInput(user.userId, selectedRole, selectedCategory));
+        setApprovedClientLinks((current) => [result, ...current.filter((item) => item.user.userId !== result.user.userId)]);
+        setApprovalLinkFeedback({
+          severity: "success",
+          message: "Client approved and assessment link generated.",
+        });
+        setFilter("Approved");
+      } else {
+        await approveUser.mutateAsync({
+          userId,
+          roleCode: selectedRole,
+          category: selectedCategory,
+        });
+      }
+
+      setSelectedIds((current) => current.filter((id) => id !== userId));
+    } catch (error) {
+      setApprovalLinkFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to approve this request right now.",
+      });
+    } finally {
+      setApprovingUserId(null);
+    }
   }
 
   async function handleApproveAll() {
     setApprovingUserId("bulk");
+    setApprovalLinkFeedback(null);
+    const generatedLinks: CreateIdentityLinkResponse[] = [];
+
     try {
       for (const userId of selectedPendingIds) {
         const user = users.find((candidate) => candidate.userId === userId);
-        await approveUser.mutateAsync({
-          userId,
-          roleCode: user ? approvalRoleFor(user) : defaultApprovalRole,
-          category: user ? approvalCategoryFor(user) : defaultApprovalCategory,
-        });
+        const selectedRole = user ? approvalRoleFor(user) : defaultApprovalRole;
+        const selectedCategory = user ? approvalCategoryFor(user) : defaultApprovalCategory;
+
+        if (user && shouldGenerateIdentityLinkForApproval(selectedRole, selectedCategory)) {
+          generatedLinks.push(await approveUserWithIdentityLink.mutateAsync(buildApproveWithLinkInput(user.userId, selectedRole, selectedCategory)));
+        } else {
+          await approveUser.mutateAsync({
+            userId,
+            roleCode: selectedRole,
+            category: selectedCategory,
+          });
+        }
       }
+
+      if (generatedLinks.length > 0) {
+        setApprovedClientLinks((current) => [
+          ...generatedLinks,
+          ...current.filter((item) => generatedLinks.every((generated) => generated.user.userId !== item.user.userId)),
+        ]);
+        setApprovalLinkFeedback({
+          severity: "success",
+          message: `${generatedLinks.length} client assessment ${generatedLinks.length === 1 ? "link was" : "links were"} generated.`,
+        });
+        setFilter("Approved");
+      }
+
       setSelectedIds((current) => current.filter((id) => !selectedPendingIds.includes(id)));
+    } catch (error) {
+      setApprovalLinkFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to approve one or more selected requests.",
+      });
     } finally {
       setApprovingUserId(null);
     }
+  }
+
+  function buildApproveWithLinkInput(userId: string, roleCode: ApprovalRoleCode, category: ApprovalCategoryCode) {
+    return {
+      userId,
+      roleCode,
+      category,
+      expiresAtUtc: addDuration(new Date(), defaultGeneratedLinkDays, "days").toISOString(),
+      frontendBaseUrl: window.location.origin,
+    };
+  }
+
+  function shouldGenerateIdentityLinkForApproval(roleCode: ApprovalRoleCode, category: ApprovalCategoryCode) {
+    return roleCode === defaultApprovalRole && category === clientApprovalCategory;
   }
 
   async function handleSaveUser(user: UserAccessRequest) {
@@ -396,6 +468,24 @@ export function AuthenticationDashboardPage() {
     );
   }
 
+  async function copyClientRequestLink() {
+    const copied = await copyTextToClipboard(clientRequestLink);
+    setClientRequestLinkFeedback(
+      copied
+        ? { severity: "success", message: "Client request link copied to the clipboard." }
+        : { severity: "error", message: "Unable to confirm clipboard copy. Select the link and copy it manually." },
+    );
+  }
+
+  async function copyApprovedClientLink(link: string) {
+    const copied = await copyTextToClipboard(link);
+    setApprovalLinkFeedback(
+      copied
+        ? { severity: "success", message: "Assessment link copied to the clipboard." }
+        : { severity: "error", message: "Unable to confirm clipboard copy. Select the link and copy it manually." },
+    );
+  }
+
   const identityAccessGenerated = Boolean(createdIdentityAccess);
   const identityLinkGenerated = Boolean(createdIdentityLink);
   const identityModeGenerated = identityGenerationMode === "tokens" ? identityAccessGenerated : identityLinkGenerated;
@@ -417,9 +507,14 @@ export function AuthenticationDashboardPage() {
         title="Authentication"
         subtitle="Approve signup requests before users can access their dashboards."
         actions={(
-          <Button variant="contained" startIcon={<VpnKeyOutlinedIcon />} onClick={openIdentityDrawer} sx={{ whiteSpace: "nowrap" }}>
-            Identity Access
-          </Button>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+            <Button variant="outlined" startIcon={<EmailOutlinedIcon />} onClick={copyClientRequestLink} sx={{ whiteSpace: "nowrap" }}>
+              Copy client request link
+            </Button>
+            <Button variant="contained" startIcon={<VpnKeyOutlinedIcon />} onClick={openIdentityDrawer} sx={{ whiteSpace: "nowrap" }}>
+              Identity Access
+            </Button>
+          </Stack>
         )}
       />
 
@@ -429,6 +524,68 @@ export function AuthenticationDashboardPage() {
         <KpiTile label="Active users" value={activeUserCount} icon={<GroupOutlinedIcon />} />
         <KpiTile label="Admin requests" value={adminRequestCount} icon={<AdminPanelSettingsOutlinedIcon />} />
       </Box>
+
+      <Card sx={{ p: 2.5, mb: 2 }}>
+        <Stack spacing={1.5}>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5}>
+            <Box>
+              <Typography variant="h3">Client request link</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Send this link first. Client emails submitted there appear below as Pending requests.
+              </Typography>
+            </Box>
+            <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyClientRequestLink} sx={{ alignSelf: { xs: "stretch", md: "center" } }}>
+              Copy link
+            </Button>
+          </Stack>
+          {clientRequestLinkFeedback ? <Alert severity={clientRequestLinkFeedback.severity}>{clientRequestLinkFeedback.message}</Alert> : null}
+          <TextField label="Request link" value={clientRequestLink} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
+        </Stack>
+      </Card>
+
+      {approvedClientLinks.length > 0 ? (
+        <Card sx={{ p: 2.5, mb: 2 }}>
+          <Stack spacing={1.75}>
+            <Box>
+              <Typography variant="h3">Generated assessment links</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Copy these links and send them to the approved clients.
+              </Typography>
+            </Box>
+            {approvalLinkFeedback ? <Alert severity={approvalLinkFeedback.severity}>{approvalLinkFeedback.message}</Alert> : null}
+            {approvedClientLinks.map((item) => (
+              <Box
+                key={item.user.userId}
+                sx={{
+                  p: 2,
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  bgcolor: "background.default",
+                }}
+              >
+                <Stack spacing={1.25}>
+                  <Typography variant="body1" fontWeight={800}>
+                    {item.user.fullName} / {item.user.email}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Expires: {formatDateTime(item.identityLinkExpiresAtUtc)}
+                  </Typography>
+                  <TextField label="Assessment link" value={item.link} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
+                  <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={() => copyApprovedClientLink(item.link)} sx={{ alignSelf: "flex-start" }}>
+                    Copy assessment link
+                  </Button>
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        </Card>
+      ) : null}
+      {approvedClientLinks.length === 0 && approvalLinkFeedback ? (
+        <Alert severity={approvalLinkFeedback.severity} sx={{ mb: 2 }}>
+          {approvalLinkFeedback.message}
+        </Alert>
+      ) : null}
 
       <Card>
         <Stack
@@ -451,7 +608,7 @@ export function AuthenticationDashboardPage() {
             <Button
               variant="outlined"
               startIcon={<SelectAllOutlinedIcon />}
-              disabled={filteredIds.length === 0 || approveUser.isPending || updateUserAccess.isPending || deactivateUser.isPending}
+              disabled={filteredIds.length === 0 || approvalPending || updateUserAccess.isPending || deactivateUser.isPending}
               onClick={handleToggleAllFiltered}
             >
               Select all
@@ -459,7 +616,7 @@ export function AuthenticationDashboardPage() {
             <Button
               variant="contained"
               startIcon={approvingUserId === "bulk" ? <CircularProgress size={16} color="inherit" /> : <DoneAllOutlinedIcon />}
-              disabled={selectedPendingIds.length === 0 || approveUser.isPending}
+              disabled={selectedPendingIds.length === 0 || approvalPending}
               onClick={handleApproveAll}
             >
               Approve all ({selectedPendingIds.length})
@@ -481,7 +638,7 @@ export function AuthenticationDashboardPage() {
           </Stack>
         </Stack>
 
-        {approveUser.isError || updateUserAccess.isError || deactivateUser.isError ? (
+        {approveUser.isError || approveUserWithIdentityLink.isError || updateUserAccess.isError || deactivateUser.isError ? (
           <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to save one or more account changes.</Alert>
         ) : null}
         {isError ? <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to load authentication requests.</Alert> : null}
@@ -524,13 +681,14 @@ export function AuthenticationDashboardPage() {
                   const selectedRole = approvalRoleFor(user);
                   const selectedCategory = approvalCategoryFor(user);
                   const roleOptions = roleOptionsFor(user);
+                  const generatesIdentityLink = shouldGenerateIdentityLinkForApproval(selectedRole, selectedCategory);
 
                   return (
                     <TableRow key={user.userId} hover selected={selectedIds.includes(user.userId)}>
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={selectedIds.includes(user.userId)}
-                          disabled={approveUser.isPending || updateUserAccess.isPending || deactivateUser.isPending}
+                          disabled={approvalPending || updateUserAccess.isPending || deactivateUser.isPending}
                           onChange={() => handleToggleUser(user.userId)}
                           inputProps={{ "aria-label": `Select ${user.fullName}` }}
                         />
@@ -585,10 +743,10 @@ export function AuthenticationDashboardPage() {
                             variant="contained"
                             size="small"
                             startIcon={approvingUserId === user.userId ? <CircularProgress size={16} color="inherit" /> : <HowToRegOutlinedIcon />}
-                            disabled={approveUser.isPending}
+                            disabled={approvalPending}
                             onClick={() => handleApprove(user.userId)}
                           >
-                            Accept as {labelRole(selectedRole)}
+                            {generatesIdentityLink ? "Approve + link" : `Accept as ${labelRole(selectedRole)}`}
                           </Button>
                         ) : (
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
@@ -905,20 +1063,32 @@ function toLocalDateTimeInput(value: Date) {
 
 async function copyTextToClipboard(value: string) {
   const copiedWithSelection = copyTextWithSelection(value);
-  if (copiedWithSelection) {
+  if (copiedWithSelection && await clipboardContains(value)) {
     return true;
   }
 
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(value);
-      return true;
+      return await clipboardContains(value);
     } catch {
       // Some browsers expose the API but reject it outside secure or permitted contexts.
     }
   }
 
   return false;
+}
+
+async function clipboardContains(value: string) {
+  if (!navigator.clipboard?.readText) {
+    return false;
+  }
+
+  try {
+    return await navigator.clipboard.readText() === value;
+  } catch {
+    return false;
+  }
 }
 
 function copyTextWithSelection(value: string) {

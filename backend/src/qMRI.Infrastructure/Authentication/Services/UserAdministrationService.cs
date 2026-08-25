@@ -99,6 +99,66 @@ public sealed class UserAdministrationService(
         return MapUser(user);
     }
 
+    public async Task<CreateIdentityLinkResultDto?> ApproveUserWithIdentityLinkAsync(
+        Guid userId,
+        Guid approvedByUserId,
+        ApproveUserWithIdentityLinkRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await dbContext.Users
+            .Include(entity => entity.UserRoles)
+                .ThenInclude(userRole => userRole.Role)
+            .SingleOrDefaultAsync(entity => entity.UserId == userId, cancellationToken);
+
+        if (user is null)
+        {
+            return null;
+        }
+
+        var requestedRoleCode = NormalizeRequestedRole(request.RoleCode ?? user.RequestedRoleCode);
+        if (!string.Equals(requestedRoleCode, UserRoleCode, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Assessment links can only be generated for client user access.");
+        }
+
+        var expiresAtUtc = ToUtc(request.ExpiresAtUtc);
+        if (expiresAtUtc <= DateTime.UtcNow)
+        {
+            throw new ArgumentException("Identity link expiry must be in the future.", nameof(request.ExpiresAtUtc));
+        }
+
+        var normalizedCategory = NormalizeCategoryForRole(requestedRoleCode, request.Category ?? user.Category);
+        var role = await dbContext.Roles
+            .SingleOrDefaultAsync(entity => entity.Code == requestedRoleCode && entity.IsActive, cancellationToken);
+
+        if (role is null)
+        {
+            throw new InvalidOperationException($"Role '{requestedRoleCode}' is not configured.");
+        }
+
+        var linkToken = CreateIdentityLinkToken();
+        user.RequestedRoleCode = requestedRoleCode;
+        user.Category = normalizedCategory;
+        user.ApprovalStatus = UserApprovalStatus.Approved;
+        user.IsActive = true;
+        user.ApprovedAtUtc = DateTime.UtcNow;
+        user.ApprovedByUserId = approvedByUserId;
+        user.IdentityAccessExpiresAtUtc = null;
+        user.IdentityLinkTokenHash = AuthenticationService.HashIdentityLinkToken(linkToken);
+        user.IdentityLinkExpiresAtUtc = expiresAtUtc;
+        user.IdentityLinkConsumedAtUtc = null;
+
+        await ReplaceManagedRoleAsync(user, role, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new CreateIdentityLinkResultDto
+        {
+            Link = BuildIdentityLink(request.FrontendBaseUrl, linkToken),
+            IdentityLinkExpiresAtUtc = expiresAtUtc,
+            User = MapUser(user)
+        };
+    }
+
     public async Task<CreateIdentityAccessResultDto> CreateIdentityAccessAsync(
         Guid createdByUserId,
         CreateIdentityAccessRequestDto request,

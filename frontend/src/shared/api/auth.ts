@@ -32,6 +32,10 @@ export interface RegisterRequest {
   requestedRole: "USER" | "ADMIN";
 }
 
+export interface ClientAccessRequest {
+  email: string;
+}
+
 export interface RegisterResponse {
   userId: string;
   fullName: string;
@@ -58,5 +62,10 @@ export async function loginWithIdentityLink(request: IdentityLinkLoginRequest): 
 }
 export async function register(request: RegisterRequest): Promise<RegisterResponse> {
   const { data } = await axiosClient.post<RegisterResponse>("/auth/register", request);
+  return data;
+}
+
+export async function requestClientAccess(request: ClientAccessRequest): Promise<RegisterResponse> {
+  const { data } = await axiosClient.post<RegisterResponse>("/auth/client-access/request", request);
   return data;
 }

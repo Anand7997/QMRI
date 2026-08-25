@@ -31,6 +31,11 @@ export interface ApproveUserInput {
   category?: ApprovalCategoryCode;
 }
 
+export interface ApproveUserWithIdentityLinkInput extends ApproveUserInput {
+  expiresAtUtc: string;
+  frontendBaseUrl?: string;
+}
+
 export interface UpdateUserAccessInput {
   userId: string;
   roleCode: ApprovalRoleCode;
@@ -76,6 +81,16 @@ export async function approveUser(input: ApproveUserInput): Promise<UserAccessRe
   return data;
 }
 
+export async function approveUserWithIdentityLink(input: ApproveUserWithIdentityLinkInput): Promise<CreateIdentityLinkResponse> {
+  const { data } = await axiosClient.post<CreateIdentityLinkResponse>(`/users/${input.userId}/approve-with-identity-link`, {
+    roleCode: input.roleCode,
+    category: input.category,
+    expiresAtUtc: input.expiresAtUtc,
+    frontendBaseUrl: input.frontendBaseUrl,
+  });
+  return data;
+}
+
 export async function createIdentityLink(input: CreateIdentityLinkInput): Promise<CreateIdentityLinkResponse> {
   const { data } = await axiosClient.post<CreateIdentityLinkResponse>("/users/identity-link", input);
   return data;
@@ -98,6 +113,17 @@ export function useApproveUser() {
 
   return useMutation({
     mutationFn: approveUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QueryKeys.users });
+    },
+  });
+}
+
+export function useApproveUserWithIdentityLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: approveUserWithIdentityLink,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QueryKeys.users });
     },

@@ -13,4 +13,6 @@ public interface IAuthenticationService
     Task<LoginResultDto> LoginWithIdentityLinkAsync(IdentityLinkLoginRequestDto request, CancellationToken cancellationToken = default);
 
     Task<RegisterResultDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken = default);
+
+    Task<RegisterResultDto> RequestClientAccessAsync(ClientAccessRequestDto request, CancellationToken cancellationToken = default);
 }

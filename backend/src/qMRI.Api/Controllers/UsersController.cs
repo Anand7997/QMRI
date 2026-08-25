@@ -99,6 +99,37 @@ public sealed class UsersController(IUserAdministrationService userAdministratio
         return user is null ? NotFound() : Ok(user);
     }
 
+    [HttpPost("{userId:guid}/approve-with-identity-link")]
+    [ProducesResponseType(typeof(CreateIdentityLinkResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ApproveUserWithIdentityLink(
+        Guid userId,
+        [FromBody] ApproveUserWithIdentityLinkRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        var approvedByUserId = TryGetCurrentUserId();
+        if (approvedByUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (request is null)
+        {
+            return BadRequest(new { message = "Approval link request is required." });
+        }
+
+        var result = await userAdministrationService.ApproveUserWithIdentityLinkAsync(
+            userId,
+            approvedByUserId.Value,
+            request,
+            cancellationToken);
+
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [HttpPut("{userId:guid}")]
     public async Task<IActionResult> UpdateUser(Guid userId, [FromBody] UpdateUserAccessRequest request, CancellationToken cancellationToken)
     {

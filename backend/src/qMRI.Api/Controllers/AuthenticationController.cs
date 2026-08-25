@@ -55,6 +55,29 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
 
 
     [AllowAnonymous]
+    [HttpPost("client-access/request")]
+    [ProducesResponseType(typeof(RegisterResponseDto), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RequestClientAccess([FromBody] ClientAccessRequestDto? request, CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(new { code = "Validation", message = "Email is required." });
+        }
+
+        var result = await authenticationService.RequestClientAccessAsync(request, cancellationToken);
+        if (result.Response is not null)
+        {
+            return Accepted(result.Response);
+        }
+
+        return result.FailureReason == RegistrationFailureReason.DuplicateAccount
+            ? Conflict(new { code = "DuplicateAccount", message = result.Message })
+            : BadRequest(new { code = "Validation", message = result.Message });
+    }
+
+    [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType(typeof(RegisterResponseDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

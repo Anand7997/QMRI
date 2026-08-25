@@ -16,6 +16,12 @@ public interface IUserAdministrationService
         string? category = null,
         CancellationToken cancellationToken = default);
 
+    Task<CreateIdentityLinkResultDto?> ApproveUserWithIdentityLinkAsync(
+        Guid userId,
+        Guid approvedByUserId,
+        ApproveUserWithIdentityLinkRequestDto request,
+        CancellationToken cancellationToken = default);
+
     Task<CreateIdentityAccessResultDto> CreateIdentityAccessAsync(
         Guid createdByUserId,
         CreateIdentityAccessRequestDto request,

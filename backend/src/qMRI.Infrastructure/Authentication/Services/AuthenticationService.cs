@@ -19,6 +19,7 @@ public sealed class AuthenticationService(
     private const string AdminRoleCode = "ADMIN";
     private const string UserRoleCode = "USER";
     private const string GuestRoleCode = "GUEST";
+    private const string ClientCategory = "Client";
     private readonly int _refreshTokenDays = configuration.GetValue<int?>("Jwt:RefreshTokenDays") ?? 7;
 
     public async Task<LoginResultDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
@@ -166,6 +167,55 @@ public sealed class AuthenticationService(
         });
     }
 
+    public async Task<RegisterResultDto> RequestClientAccessAsync(ClientAccessRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var email = request.Email?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Email is required.");
+        }
+
+        if (!IsEmailLike(email))
+        {
+            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Enter a valid client email address.");
+        }
+
+        var exists = await userRepository.ExistsByUserNameOrEmailAsync(email, email, cancellationToken);
+        if (exists)
+        {
+            return RegisterResultDto.Failure(RegistrationFailureReason.DuplicateAccount, "An account or request with this email already exists.");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var user = new User
+        {
+            UserId = Guid.NewGuid(),
+            FullName = BuildClientFullName(email),
+            UserName = BuildClientRequestUserName(),
+            Email = email,
+            PasswordHash = passwordHashingService.HashPassword(CreateRandomPassword()),
+            IsActive = false,
+            ApprovalStatus = UserApprovalStatus.Pending,
+            RequestedRoleCode = UserRoleCode,
+            Category = ClientCategory,
+            RequestedAtUtc = nowUtc,
+            CreatedAtUtc = nowUtc
+        };
+
+        await userRepository.AddAsync(user, cancellationToken);
+
+        return RegisterResultDto.Success(new RegisterResponseDto
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            UserName = user.UserName,
+            Email = user.Email,
+            RequestedRoleCode = user.RequestedRoleCode,
+            ApprovalStatus = user.ApprovalStatus.ToString(),
+            Message = "Your request has been sent to the qMRI administrator for approval."
+        });
+    }
+
     private async Task<LoginResultDto> CreateLoginResponseAsync(User user, CancellationToken cancellationToken)
     {
         var roles = user.UserRoles
@@ -269,5 +319,37 @@ public sealed class AuthenticationService(
         }
 
         return UserRoleCode;
+    }
+
+    private static bool IsEmailLike(string email)
+    {
+        return email.Contains("@", StringComparison.Ordinal) && email.Contains(".", StringComparison.Ordinal);
+    }
+
+    private static string BuildClientFullName(string email)
+    {
+        var localPart = email.Split('@', 2)[0]
+            .Replace('.', ' ')
+            .Replace('_', ' ')
+            .Replace('-', ' ')
+            .Trim();
+
+        if (string.IsNullOrWhiteSpace(localPart))
+        {
+            return "Client";
+        }
+
+        var fullName = $"Client {localPart}";
+        return fullName.Length <= 200 ? fullName : fullName[..200];
+    }
+
+    private static string BuildClientRequestUserName()
+    {
+        return $"client.{Guid.NewGuid():N}"[..39];
+    }
+
+    private static string CreateRandomPassword()
+    {
+        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     }
 }
