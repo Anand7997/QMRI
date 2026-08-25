@@ -1,8 +1,10 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using qMRI.Application.Authentication.Abstractions;
 using qMRI.Application.Authentication.DTOs;
+using qMRI.Domain.Assessments.Enums;
 using qMRI.Domain.Common.Entities;
 using qMRI.Domain.Common.Enums;
 using qMRI.Infrastructure.Persistence;
@@ -11,7 +13,8 @@ namespace qMRI.Infrastructure.Authentication.Services;
 
 public sealed class UserAdministrationService(
     qMRIDbContext dbContext,
-    IPasswordHashingService passwordHashingService) : IUserAdministrationService
+    IPasswordHashingService passwordHashingService,
+    IIdentityLinkEmailSender identityLinkEmailSender) : IUserAdministrationService
 {
     private const string AdminRoleCode = "ADMIN";
     private const string UserRoleCode = "USER";
@@ -315,6 +318,101 @@ public sealed class UserAdministrationService(
             User = MapUser(user)
         };
     }
+
+    public async Task<bool> SendIdentityLinkEmailAsync(
+        Guid userId,
+        SendIdentityLinkEmailRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var link = request.Link?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(link))
+        {
+            throw new ArgumentException("Identity link is required.", nameof(request.Link));
+        }
+
+        var token = ExtractIdentityLinkToken(link);
+        var tokenHash = AuthenticationService.HashIdentityLinkToken(token);
+
+        var user = await dbContext.Users
+            .Include(entity => entity.UserRoles)
+                .ThenInclude(userRole => userRole.Role)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.UserId == userId, cancellationToken);
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(user.RequestedRoleCode, UserRoleCode, StringComparison.OrdinalIgnoreCase)
+            || user.ApprovalStatus != UserApprovalStatus.Approved
+            || !user.IsActive)
+        {
+            throw new InvalidOperationException("Assessment links can only be emailed to active approved users.");
+        }
+
+        if (string.IsNullOrWhiteSpace(user.IdentityLinkTokenHash) || !user.IdentityLinkExpiresAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("No active assessment link exists for this user. Generate a fresh link before sending email.");
+        }
+
+        var expiresAtUtc = user.IdentityLinkExpiresAtUtc.Value.ToUniversalTime();
+        if (expiresAtUtc <= DateTime.UtcNow)
+        {
+            throw new InvalidOperationException("This assessment link has expired. Generate a fresh link before sending email.");
+        }
+
+        if (!HashesMatch(user.IdentityLinkTokenHash, tokenHash))
+        {
+            throw new InvalidOperationException("This assessment link does not match the active link for this user. Generate a fresh link before sending email.");
+        }
+
+        var assignedAssessmentRows = await dbContext.Assessments
+            .AsNoTracking()
+            .Where(assessment => assessment.UserId == userId && assessment.Status <= AssessmentStatus.InProgress)
+            .OrderByDescending(assessment => assessment.CreatedAtUtc)
+            .Select(assessment => new
+            {
+                assessment.AssessmentId,
+                assessment.Title,
+                assessment.Description,
+                assessment.Departments,
+                assessment.SelectedQuestionIds,
+                assessment.Status,
+                assessment.CreatedAtUtc
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var assignedAssessments = assignedAssessmentRows
+            .Select(assessment => new IdentityLinkAssessmentEmailDetailDto
+            {
+                AssessmentId = assessment.AssessmentId,
+                Title = assessment.Title,
+                Description = assessment.Description,
+                Departments = FormatSerializedStringList(assessment.Departments),
+                QuestionCount = CountSerializedGuidList(assessment.SelectedQuestionIds),
+                Status = assessment.Status.ToString(),
+                CreatedAtUtc = assessment.CreatedAtUtc
+            })
+            .ToArray();
+
+        await identityLinkEmailSender.SendAsync(new IdentityLinkEmailMessageDto
+        {
+            RecipientName = string.IsNullOrWhiteSpace(user.FullName) ? user.Email : user.FullName,
+            RecipientEmail = user.Email,
+            RoleCode = user.RequestedRoleCode,
+            Category = NormalizeCategoryForRole(user.RequestedRoleCode, user.Category),
+            ApprovalStatus = user.ApprovalStatus.ToString(),
+            RequestedAtUtc = user.RequestedAtUtc,
+            ApprovedAtUtc = user.ApprovedAtUtc,
+            IdentityLinkExpiresAtUtc = expiresAtUtc,
+            Link = link,
+            Assessments = assignedAssessments
+        }, cancellationToken);
+
+        return true;
+    }
+
     public async Task<UserAccessRequestDto?> UpdateUserAccessAsync(
         Guid userId,
         Guid modifiedByUserId,
@@ -479,6 +577,77 @@ public sealed class UserAdministrationService(
 
         return $"{baseUrl.TrimEnd('/')}/identity-link?token={Uri.EscapeDataString(token)}";
     }
+
+    private static string ExtractIdentityLinkToken(string link)
+    {
+        if (!Uri.TryCreate(link, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("Enter a valid assessment link.", nameof(link));
+        }
+
+        var normalizedPath = uri.AbsolutePath.TrimEnd('/');
+        if (!normalizedPath.EndsWith("/identity-link", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Enter a valid assessment link.", nameof(link));
+        }
+
+        foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separatorIndex = part.IndexOf('=');
+            var key = separatorIndex < 0 ? part : part[..separatorIndex];
+            if (!string.Equals(Uri.UnescapeDataString(key), "token", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = separatorIndex < 0 ? string.Empty : part[(separatorIndex + 1)..];
+            var token = Uri.UnescapeDataString(value).Trim();
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                return token;
+            }
+        }
+
+        throw new ArgumentException("Enter an assessment link with a token.", nameof(link));
+    }
+
+    private static bool HashesMatch(string first, string second)
+    {
+        var firstBytes = Encoding.UTF8.GetBytes(first);
+        var secondBytes = Encoding.UTF8.GetBytes(second);
+        return firstBytes.Length == secondBytes.Length
+            && CryptographicOperations.FixedTimeEquals(firstBytes, secondBytes);
+    }
+
+    private static string FormatSerializedStringList(string? serialized)
+    {
+        var values = DeserializeJsonArray<string>(serialized);
+        return values.Length == 0 ? "--" : string.Join(", ", values);
+    }
+
+    private static int CountSerializedGuidList(string? serialized)
+    {
+        return DeserializeJsonArray<Guid>(serialized).Length;
+    }
+
+    private static T[] DeserializeJsonArray<T>(string? serialized)
+    {
+        if (string.IsNullOrWhiteSpace(serialized))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<T[]>(serialized) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
     private static string CreateAccessCode(int length = 10)
     {
         var builder = new StringBuilder(length);

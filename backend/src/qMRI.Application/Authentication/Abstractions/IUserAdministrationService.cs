@@ -28,14 +28,14 @@ public interface IUserAdministrationService
         CancellationToken cancellationToken = default);
 
     Task<CreateIdentityLinkResultDto> CreateIdentityLinkAsync(
-
         Guid createdByUserId,
-
         CreateIdentityLinkRequestDto request,
-
         CancellationToken cancellationToken = default);
 
-
+    Task<bool> SendIdentityLinkEmailAsync(
+        Guid userId,
+        SendIdentityLinkEmailRequestDto request,
+        CancellationToken cancellationToken = default);
 
     Task<UserAccessRequestDto?> UpdateUserAccessAsync(
         Guid userId,

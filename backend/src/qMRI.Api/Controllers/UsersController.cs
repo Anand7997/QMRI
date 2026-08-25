@@ -130,6 +130,30 @@ public sealed class UsersController(IUserAdministrationService userAdministratio
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpPost("{userId:guid}/identity-link/email")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SendIdentityLinkEmail(
+        Guid userId,
+        [FromBody] SendIdentityLinkEmailRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(new { message = "Identity link email request is required." });
+        }
+
+        var sent = await userAdministrationService.SendIdentityLinkEmailAsync(
+            userId,
+            request,
+            cancellationToken);
+
+        return sent ? NoContent() : NotFound();
+    }
+
     [HttpPut("{userId:guid}")]
     public async Task<IActionResult> UpdateUser(Guid userId, [FromBody] UpdateUserAccessRequest request, CancellationToken cancellationToken)
     {

@@ -61,6 +61,12 @@ export interface CreateIdentityLinkResponse {
   identityLinkExpiresAtUtc: string;
   user: UserAccessRequest;
 }
+
+export interface SendIdentityLinkEmailInput {
+  userId: string;
+  link: string;
+}
+
 export interface CreateIdentityAccessResponse {
   accessCode: string;
   identityAccessExpiresAtUtc: string;
@@ -95,6 +101,13 @@ export async function createIdentityLink(input: CreateIdentityLinkInput): Promis
   const { data } = await axiosClient.post<CreateIdentityLinkResponse>("/users/identity-link", input);
   return data;
 }
+
+export async function sendIdentityLinkEmail(input: SendIdentityLinkEmailInput): Promise<void> {
+  await axiosClient.post(`/users/${input.userId}/identity-link/email`, {
+    link: input.link,
+  });
+}
+
 export async function createIdentityAccess(input: CreateIdentityAccessInput): Promise<CreateIdentityAccessResponse> {
   const { data } = await axiosClient.post<CreateIdentityAccessResponse>("/users/identity-access", input);
   return data;
@@ -140,6 +153,13 @@ export function useCreateIdentityLink() {
     },
   });
 }
+
+export function useSendIdentityLinkEmail() {
+  return useMutation({
+    mutationFn: sendIdentityLinkEmail,
+  });
+}
+
 export function useCreateIdentityAccess() {
   const queryClient = useQueryClient();
 

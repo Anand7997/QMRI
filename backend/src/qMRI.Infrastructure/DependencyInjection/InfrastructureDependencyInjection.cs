@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Authentication.Abstractions;
 using qMRI.Infrastructure.Assessments.Services;
+using qMRI.Infrastructure.Authentication.Options;
 using qMRI.Infrastructure.Authentication.Repositories;
 using qMRI.Infrastructure.Authentication.Services;
 using qMRI.Infrastructure.Persistence;
@@ -21,6 +22,7 @@ public static class InfrastructureDependencyInjection
 
         var commandTimeoutSeconds = configuration.GetValue<int?>("Database:CommandTimeoutSeconds");
         var enableSensitiveDataLogging = configuration.GetValue<bool?>("Database:EnableSensitiveDataLogging") ?? false;
+        services.Configure<IdentityLinkEmailOptions>(configuration.GetSection(IdentityLinkEmailOptions.SectionName));
 
         services.AddDbContext<qMRIDbContext>(options =>
         {
@@ -48,6 +50,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IRefreshTokenFactory, RefreshTokenFactory>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IUserAdministrationService, UserAdministrationService>();
+        services.AddScoped<IIdentityLinkEmailSender, SmtpIdentityLinkEmailSender>();
         services.AddScoped<IAssessmentCatalogService, AssessmentCatalogService>();
         services.AddScoped<IScoringConfigurationService, ScoringConfigurationService>();
         services.AddScoped<IDashboardGovernanceService, DashboardGovernanceService>();

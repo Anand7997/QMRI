@@ -45,6 +45,7 @@ import {
   useCreateIdentityAccess,
   useCreateIdentityLink,
   useDeactivateUser,
+  useSendIdentityLinkEmail,
   useUpdateUserAccess,
   useUsers,
   type ApprovalCategoryCode,
@@ -108,12 +109,14 @@ export function AuthenticationDashboardPage() {
   const [clientRequestLinkFeedback, setClientRequestLinkFeedback] = useState<Feedback | null>(null);
   const [approvalLinkFeedback, setApprovalLinkFeedback] = useState<Feedback | null>(null);
   const [approvedClientLinks, setApprovedClientLinks] = useState<CreateIdentityLinkResponse[]>([]);
+  const [sendingLinkEmailUserId, setSendingLinkEmailUserId] = useState<string | null>(null);
 
   const { data: users = [], isLoading, isError } = useUsers("all");
   const approveUser = useApproveUser();
   const approveUserWithIdentityLink = useApproveUserWithIdentityLink();
   const createIdentityAccess = useCreateIdentityAccess();
   const createIdentityLink = useCreateIdentityLink();
+  const sendIdentityLinkEmail = useSendIdentityLinkEmail();
   const updateUserAccess = useUpdateUserAccess();
   const deactivateUser = useDeactivateUser();
 
@@ -486,6 +489,48 @@ export function AuthenticationDashboardPage() {
     );
   }
 
+  async function sendApprovedClientLinkEmail(item: CreateIdentityLinkResponse) {
+    setSendingLinkEmailUserId(item.user.userId);
+    setApprovalLinkFeedback(null);
+    try {
+      await sendIdentityLinkEmail.mutateAsync({
+        userId: item.user.userId,
+        link: item.link,
+      });
+      setApprovalLinkFeedback({ severity: "success", message: `Assessment link sent to ${item.user.email}.` });
+    } catch (error) {
+      setApprovalLinkFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to send the assessment link email right now.",
+      });
+    } finally {
+      setSendingLinkEmailUserId(null);
+    }
+  }
+
+  async function sendCreatedIdentityLinkEmail() {
+    if (!createdIdentityLink) {
+      return;
+    }
+
+    setSendingLinkEmailUserId(createdIdentityLink.user.userId);
+    setIdentityLinkFeedback(null);
+    try {
+      await sendIdentityLinkEmail.mutateAsync({
+        userId: createdIdentityLink.user.userId,
+        link: createdIdentityLink.link,
+      });
+      setIdentityLinkFeedback({ severity: "success", message: `Assessment link sent to ${createdIdentityLink.user.email}.` });
+    } catch (error) {
+      setIdentityLinkFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to send the assessment link email right now.",
+      });
+    } finally {
+      setSendingLinkEmailUserId(null);
+    }
+  }
+
   const identityAccessGenerated = Boolean(createdIdentityAccess);
   const identityLinkGenerated = Boolean(createdIdentityLink);
   const identityModeGenerated = identityGenerationMode === "tokens" ? identityAccessGenerated : identityLinkGenerated;
@@ -549,7 +594,7 @@ export function AuthenticationDashboardPage() {
             <Box>
               <Typography variant="h3">Generated assessment links</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Copy these links and send them to the approved clients.
+                Copy or email these links to the approved clients.
               </Typography>
             </Box>
             {approvalLinkFeedback ? <Alert severity={approvalLinkFeedback.severity}>{approvalLinkFeedback.message}</Alert> : null}
@@ -572,9 +617,19 @@ export function AuthenticationDashboardPage() {
                     Expires: {formatDateTime(item.identityLinkExpiresAtUtc)}
                   </Typography>
                   <TextField label="Assessment link" value={item.link} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
-                  <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={() => copyApprovedClientLink(item.link)} sx={{ alignSelf: "flex-start" }}>
-                    Copy assessment link
-                  </Button>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                    <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={() => copyApprovedClientLink(item.link)}>
+                      Copy assessment link
+                    </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={sendingLinkEmailUserId === item.user.userId ? <CircularProgress size={16} color="inherit" /> : <EmailOutlinedIcon />}
+                      disabled={sendIdentityLinkEmail.isPending}
+                      onClick={() => sendApprovedClientLinkEmail(item)}
+                    >
+                      {sendingLinkEmailUserId === item.user.userId ? "Sending..." : "Send mail"}
+                    </Button>
+                  </Stack>
                 </Stack>
               </Box>
             ))}
@@ -975,9 +1030,19 @@ export function AuthenticationDashboardPage() {
                       Expires: {formatDateTime(createdIdentityLink.identityLinkExpiresAtUtc)}
                     </Typography>
                     <TextField label="Direct assessment link" value={createdIdentityLink.link} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
-                    <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyIdentityLink} sx={{ alignSelf: "flex-start" }}>
-                      Copy link
-                    </Button>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                      <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyIdentityLink}>
+                        Copy link
+                      </Button>
+                      <Button
+                        variant="contained"
+                        startIcon={sendingLinkEmailUserId === createdIdentityLink.user.userId ? <CircularProgress size={16} color="inherit" /> : <EmailOutlinedIcon />}
+                        disabled={sendIdentityLinkEmail.isPending}
+                        onClick={sendCreatedIdentityLinkEmail}
+                      >
+                        {sendingLinkEmailUserId === createdIdentityLink.user.userId ? "Sending..." : "Send mail"}
+                      </Button>
+                    </Stack>
                     <Snackbar
                       open={identityLinkCopiedOpen}
                       autoHideDuration={1800}

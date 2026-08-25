@@ -132,6 +132,7 @@ dotnet build backend/src/qMRI.Api/qMRI.Api.csproj
 - Backend launch ports are configured in `backend/src/qMRI.Api/Properties/launchSettings.json`.
 - The frontend proxy target and UI port are configured in `frontend/vite.config.ts` and `frontend/vite.config.js`.
 - Database and JWT development settings live under the backend appsettings files.
+- Assessment-link email delivery uses `Email__...` environment variables. Set `Email__Enabled=true`, `Email__Host`, `Email__Port`, `Email__FromAddress`, and SMTP credentials before using Send Mail.
 
 ## Troubleshooting
 

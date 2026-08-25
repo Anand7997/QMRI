@@ -71,6 +71,7 @@ export function MyAssessmentsPage() {
   const [questionMode, setQuestionMode] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(() => new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [optimisticAnswers, setOptimisticAnswers] = useState<Record<string, number>>({});
@@ -107,6 +108,7 @@ export function MyAssessmentsPage() {
         setQuestionMode(false);
         setSelectedSub(null);
         setSelectedQuestionId(null);
+        setExpandedCategoryIds(new Set());
         setNotes({});
         setOpenNotes({});
         setReviewOpen(false);
@@ -127,6 +129,7 @@ export function MyAssessmentsPage() {
       setQuestionMode(false);
       setSelectedSub(null);
       setSelectedQuestionId(null);
+      setExpandedCategoryIds(new Set());
       setNotes({});
       setOpenNotes({});
       setReviewOpen(false);
@@ -148,6 +151,7 @@ export function MyAssessmentsPage() {
     setQuestionMode(false);
     setSelectedSub(null);
     setSelectedQuestionId(null);
+    setExpandedCategoryIds(new Set());
     setNotes({});
     setOpenNotes({});
     setOptimisticAnswers({});
@@ -261,10 +265,18 @@ export function MyAssessmentsPage() {
   );
 
   const currentQuestionStep = currentQuestionIndex >= 0 ? questionSteps[currentQuestionIndex] : null;
-  const previousQuestionStep = currentQuestionIndex > 0 ? questionSteps[currentQuestionIndex - 1] : null;
-  const nextQuestionStep = currentQuestionIndex >= 0 && currentQuestionIndex < questionSteps.length - 1
-    ? questionSteps[currentQuestionIndex + 1]
-    : null;
+  const selectedCategoryGroup = useMemo(() => {
+    const selectedCategoryId = currentQuestionStep?.categoryId;
+    return (
+      categoryQuestionGroups.find((category) => category.categoryId === selectedCategoryId) ??
+      categoryQuestionGroups[0] ??
+      null
+    );
+  }, [categoryQuestionGroups, currentQuestionStep?.categoryId]);
+  const selectedCategoryIndex = useMemo(
+    () => categoryQuestionGroups.findIndex((category) => category.categoryId === selectedCategoryGroup?.categoryId),
+    [categoryQuestionGroups, selectedCategoryGroup?.categoryId],
+  );
 
   useEffect(() => {
     if (!questionMode) return;
@@ -299,6 +311,7 @@ export function MyAssessmentsPage() {
     setQuestionMode(false);
     setSelectedSub(null);
     setSelectedQuestionId(null);
+    setExpandedCategoryIds(new Set());
     setNotes({});
     setOpenNotes({});
     setOptimisticAnswers({});
@@ -325,6 +338,7 @@ export function MyAssessmentsPage() {
     setQuestionMode(true);
     setSelectedSub(null);
     setSelectedQuestionId(null);
+    setExpandedCategoryIds(new Set());
     setOpenNotes({});
     setOptimisticAnswers({});
     setReviewOpen(false);
@@ -340,13 +354,20 @@ export function MyAssessmentsPage() {
     void openQuestions();
   }, [assessmentId, location.key, navigationAssessmentId, resumePointerReady, shouldResumeNavigation]);
 
-  const answer = (questionId: string, value: number) => {
+  const answer = (step: (typeof questionSteps)[number], value: number) => {
     if (!assessmentId) return;
-    if (selectedSub) {
-      void saveResumePointerMutation
-        .mutateAsync({ assessmentId, subModuleId: selectedSub, questionId, touchedAtUtc: new Date().toISOString() })
-        .catch(() => undefined);
-    }
+    const questionId = step.question.questionId;
+    setSelectedSub(step.sub.subModuleId);
+    setSelectedQuestionId(questionId);
+    setExpandedCategoryIds((current) => {
+      if (current.has(step.categoryId)) return current;
+      const next = new Set(current);
+      next.add(step.categoryId);
+      return next;
+    });
+    void saveResumePointerMutation
+      .mutateAsync({ assessmentId, subModuleId: step.sub.subModuleId, questionId, touchedAtUtc: new Date().toISOString() })
+      .catch(() => undefined);
     setOptimisticAnswers((state) => ({ ...state, [questionId]: value }));
     saveResponse.mutate(
       { questionId, answer: value, findings: notes[questionId] || null },
@@ -375,7 +396,7 @@ export function MyAssessmentsPage() {
     saveResponse.mutate({ questionId, answer: currentAnswer, findings: notes[questionId] || null });
   };
 
-  const goToQuestion = (step: (typeof questionSteps)[number] | null) => {
+  const goToQuestion = (step: (typeof questionSteps)[number] | null, shouldScroll = true) => {
     if (!step) return;
     if (assessmentId) {
       void saveResumePointerMutation
@@ -389,6 +410,24 @@ export function MyAssessmentsPage() {
     }
     setSelectedSub(step.sub.subModuleId);
     setSelectedQuestionId(step.question.questionId);
+    if (shouldScroll) {
+      window.setTimeout(() => {
+        document.getElementById(`question-${step.question.questionId}`)?.scrollIntoView({ block: "center" });
+      }, 0);
+    }
+  };
+
+  const selectCategory = (category: (typeof categoryQuestionGroups)[number], hasAnsweredQuestions: boolean) => {
+    goToQuestion(category.questions[0] ?? null, false);
+    setExpandedCategoryIds((current) => {
+      const next = new Set(current);
+      if (next.has(category.categoryId) && !hasAnsweredQuestions) {
+        next.delete(category.categoryId);
+      } else {
+        next.add(category.categoryId);
+      }
+      return next;
+    });
   };
 
   const resultDialog = (
@@ -469,12 +508,15 @@ export function MyAssessmentsPage() {
   const answeredCount = Math.max(summary?.answeredCount ?? 0, answersByQuestion.size);
   const questionCount = summary?.questionCount ?? questionSteps.length;
   const unansweredCount = Math.max(questionCount - answeredCount, 0);
+  const selectedCategoryAnsweredCount = selectedCategoryGroup
+    ? selectedCategoryGroup.questions.filter((step) => answersByQuestion.has(step.question.questionId)).length
+    : 0;
 
   return (
     <Box sx={{ pb: 9 }}>
       <PageHeader
         title={summary?.title ?? "My Assessment"}
-        subtitle={currentQuestionStep ? currentQuestionStep.category : "Select a question to begin"}
+        subtitle={selectedCategoryGroup ? selectedCategoryGroup.category : "Select a category to begin"}
         actions={
           <Button variant="outlined" startIcon={<KeyboardArrowLeftIcon />} onClick={() => setQuestionMode(false)}>
             Assessment details
@@ -487,86 +529,137 @@ export function MyAssessmentsPage() {
           {treeQuery.isLoading ? (
             <LoadingState label="Loading questions..." />
           ) : (
-            categoryQuestionGroups.map((category) => (
-              <Box key={category.categoryId} sx={{ mb: 1.25 }}>
-                <Typography variant="overline" color="text.secondary" sx={{ px: 1.5 }}>
-                  {category.category}
-                </Typography>
-                <Stack spacing={0.35} sx={{ mt: 0.35 }}>
-                  {category.questions.map((step) => {
-                    const answered = answersByQuestion.has(step.question.questionId);
-                    const active = step.question.questionId === selectedQuestionId;
+            categoryQuestionGroups.map((category) => {
+              const answeredInCategory = category.questions.filter((step) =>
+                answersByQuestion.has(step.question.questionId),
+              ).length;
+              const expanded = answeredInCategory > 0 || expandedCategoryIds.has(category.categoryId);
+              const activeCategory = selectedCategoryGroup?.categoryId === category.categoryId;
 
-                    return (
-                      <Stack
-                        key={step.question.questionId}
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        onClick={() => goToQuestion(step)}
-                        sx={{
-                          px: 1.5,
-                          py: 0.75,
-                          borderRadius: 2,
-                          cursor: "pointer",
-                          bgcolor: active ? "action.selected" : "transparent",
-                          "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
-                        }}
-                      >
-                        {answered ? (
-                          <CheckCircleIcon fontSize="small" color="success" />
-                        ) : (
-                          <RadioButtonUncheckedIcon fontSize="small" sx={{ color: "text.disabled" }} />
-                        )}
-                        <Typography variant="body2" noWrap sx={{ flexGrow: 1 }}>
-                          Question {step.questionNumber}
-                        </Typography>
-                      </Stack>
-                    );
-                  })}
-                </Stack>
-              </Box>
-            ))
+              return (
+                <Box key={category.categoryId} sx={{ mb: 0.75 }}>
+                  <Stack
+                    role="button"
+                    tabIndex={0}
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    aria-expanded={expanded}
+                    onClick={() => selectCategory(category, answeredInCategory > 0)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        selectCategory(category, answeredInCategory > 0);
+                      }
+                    }}
+                    sx={{
+                      px: 1.25,
+                      py: 1,
+                      borderRadius: 2,
+                      cursor: "pointer",
+                      bgcolor: activeCategory ? "action.selected" : "transparent",
+                      transition: "background-color 180ms",
+                      "&:hover": { bgcolor: activeCategory ? "action.selected" : "action.hover" },
+                      "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
+                    }}
+                  >
+                    <KeyboardArrowRightIcon
+                      fontSize="small"
+                      sx={{
+                        color: "text.secondary",
+                        transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+                        transition: "transform 180ms",
+                      }}
+                    />
+                    <Typography variant="overline" color="text.secondary" noWrap sx={{ flexGrow: 1 }}>
+                      {category.category}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      variant={answeredInCategory > 0 ? "filled" : "outlined"}
+                      color={answeredInCategory > 0 ? "success" : "default"}
+                      label={`${answeredInCategory}/${category.questions.length}`}
+                    />
+                  </Stack>
+                  <Collapse in={expanded} timeout="auto" unmountOnExit>
+                    <Stack spacing={0.35} sx={{ mt: 0.35, pl: 1 }}>
+                      {category.questions.map((step) => {
+                        const answered = answersByQuestion.has(step.question.questionId);
+                        const active = step.question.questionId === selectedQuestionId;
+
+                        return (
+                          <Stack
+                            key={step.question.questionId}
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            onClick={() => goToQuestion(step)}
+                            sx={{
+                              px: 1.5,
+                              py: 0.75,
+                              borderRadius: 2,
+                              cursor: "pointer",
+                              bgcolor: active ? "action.selected" : "transparent",
+                              "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
+                            }}
+                          >
+                            {answered ? (
+                              <CheckCircleIcon fontSize="small" color="success" />
+                            ) : (
+                              <RadioButtonUncheckedIcon fontSize="small" sx={{ color: "text.disabled" }} />
+                            )}
+                            <Typography variant="body2" noWrap sx={{ flexGrow: 1 }}>
+                              Question {step.questionNumber}
+                            </Typography>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+                  </Collapse>
+                </Box>
+              );
+            })
           )}
         </Card>
 
-        <Card sx={{ p: 3 }}>
-          {!currentQuestionStep ? (
-            <EmptyState title="Select a question" description="Pick a question from the left to continue the assessment." />
+        <Card sx={{ p: { xs: 2, md: 3 } }}>
+          {!selectedCategoryGroup ? (
+            <EmptyState title="Select a category" description="Pick a category from the left to continue the assessment." />
           ) : (
             <>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }} sx={{ mb: 2 }}>
                 <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h2">Question {currentQuestionStep.questionNumber}</Typography>
+                  <Typography variant="h2">{selectedCategoryGroup.category}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {currentQuestionStep.category}
+                    {selectedCategoryAnsweredCount} / {selectedCategoryGroup.questions.length} questions answered
                   </Typography>
                 </Box>
                 <Chip
                   size="small"
-                  label={`Question ${currentQuestionIndex + 1} of ${questionSteps.length}`}
+                  label={`Category ${selectedCategoryIndex + 1} of ${categoryQuestionGroups.length}`}
                   color="primary"
                   variant="outlined"
                 />
               </Stack>
               <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />} spacing={2.5}>
-                {[currentQuestionStep.question].map((q) => {
+                {selectedCategoryGroup.questions.map((step) => {
+                  const q = step.question;
                   const value = answersByQuestion.get(q.questionId);
                   return (
                     <Box key={q.questionId} id={`question-${q.questionId}`}>
-                      <Typography variant="body1" fontWeight={500} sx={{ mb: q.guidance ? 0.5 : 1.5 }}>
+                      <Typography variant="overline" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                        Question {step.questionNumber}
+                      </Typography>
+                      <Typography variant="body1" fontWeight={500} sx={{ mb: 1.5 }}>
                         {q.text}
                       </Typography>
-                      {q.guidance && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>{q.guidance}</Typography>
-                      )}
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                         <ToggleButtonGroup
                           exclusive
                           size="small"
                           value={value ?? null}
                           disabled={isSubmitted}
-                          onChange={(_, v: number | null) => v !== null && answer(q.questionId, v)}
+                          onChange={(_, v: number | null) => v !== null && answer(step, v)}
                         >
                           {OPTIONS.map((opt) => {
                             const label = answerLabel[opt];
@@ -655,31 +748,13 @@ export function MyAssessmentsPage() {
           {isSubmitted ? (
             <Chip color="success" label="Submitted" />
           ) : (
-            <>
-              <Button
-                variant="outlined"
-                startIcon={<KeyboardArrowLeftIcon />}
-                disabled={!previousQuestionStep}
-                onClick={() => goToQuestion(previousQuestionStep)}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outlined"
-                endIcon={<KeyboardArrowRightIcon />}
-                disabled={!nextQuestionStep}
-                onClick={() => goToQuestion(nextQuestionStep)}
-              >
-                Next question
-              </Button>
-              <Button
-                variant="contained"
-                disabled={submit.isPending || !canSubmitAssessment}
-                onClick={() => setReviewOpen(true)}
-              >
-                Submit
-              </Button>
-            </>
+            <Button
+              variant="contained"
+              disabled={submit.isPending || !canSubmitAssessment}
+              onClick={() => setReviewOpen(true)}
+            >
+              Submit
+            </Button>
           )}
         </Stack>
       </Box>
