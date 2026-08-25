@@ -14,6 +14,8 @@ public sealed class AssessmentExecutionService(
     qMRIDbContext dbContext,
     IScoringConfigurationService scoringConfigurationService) : IAssessmentExecutionService
 {
+    private const string ExpectedAnswerScoredSubModuleCode = "MANDATORY_OPERATIONAL_QUESTIONS";
+
     public async Task<AssessmentSummaryDto> CreateAssessmentAsync(
         CreateAssessmentRequest request,
         CancellationToken cancellationToken = default)
@@ -437,6 +439,7 @@ public sealed class AssessmentExecutionService(
         }
 
         var question = await dbContext.Questions
+            .Include(entity => entity.SubModule)
             .AsNoTracking()
             .SingleOrDefaultAsync(entity => entity.QuestionId == request.QuestionId && entity.IsActive, cancellationToken);
 
@@ -453,10 +456,11 @@ public sealed class AssessmentExecutionService(
         var scoringModelId = assessment.ScoringModelId
             ?? (await scoringConfigurationService.EnsureDefaultScoringModelAsync(cancellationToken)).ScoringModelId;
 
-        var points = await dbContext.ScoringRules
-            .Where(rule => rule.ScoringModelId == scoringModelId && rule.Answer == request.Answer)
-            .Select(rule => rule.Points)
-            .SingleOrDefaultAsync(cancellationToken);
+        var scoringRules = await dbContext.ScoringRules
+            .Where(rule => rule.ScoringModelId == scoringModelId)
+            .ToDictionaryAsync(rule => rule.Answer, rule => rule.Points, cancellationToken);
+
+        var points = ResolveResponsePoints(question, request.Answer, scoringRules);
 
         var response = await dbContext.AssessmentResponses
             .SingleOrDefaultAsync(entity =>
@@ -883,6 +887,53 @@ public sealed class AssessmentExecutionService(
     {
         var selectedQuestionIds = GetSelectedQuestionIds(assessment);
         return selectedQuestionIds.Count == 0 || selectedQuestionIds.Contains(questionId);
+    }
+
+    private static decimal ResolveResponsePoints(
+        Question question,
+        AnswerOption answer,
+        IReadOnlyDictionary<AnswerOption, decimal> scoringRules)
+    {
+        if (!IsExpectedAnswerScoredQuestion(question))
+        {
+            return GetScoringRulePoints(scoringRules, answer);
+        }
+
+        if (answer == AnswerOption.Partial)
+        {
+            return question.ExpectedAnswer == AnswerOption.Partial
+                ? GetScoringRulePoints(scoringRules, AnswerOption.Yes)
+                : GetScoringRulePoints(scoringRules, AnswerOption.Partial);
+        }
+
+        return answer == question.ExpectedAnswer
+            ? GetScoringRulePoints(scoringRules, AnswerOption.Yes)
+            : GetScoringRulePoints(scoringRules, AnswerOption.No);
+    }
+
+    private static bool IsExpectedAnswerScoredQuestion(Question question)
+    {
+        return string.Equals(
+            question.SubModule?.Code,
+            ExpectedAnswerScoredSubModuleCode,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static decimal GetScoringRulePoints(
+        IReadOnlyDictionary<AnswerOption, decimal> scoringRules,
+        AnswerOption answer)
+    {
+        if (scoringRules.TryGetValue(answer, out var points))
+        {
+            return points;
+        }
+
+        return answer switch
+        {
+            AnswerOption.Yes => 100,
+            AnswerOption.Partial => 50,
+            _ => 0
+        };
     }
 
     private static HashSet<Guid> GetSelectedQuestionIds(Assessment assessment)
