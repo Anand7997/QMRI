@@ -11,12 +11,11 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import { requestClientAccess } from "shared/api/auth";
 import { RoutePaths } from "shared/constants/routePaths";
 import { QmriLogo } from "shared/components";
-import { brandTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
+import { brandTokens, neutralTokens } from "app/theme/tokens/palette";
 
 type Feedback = { severity: "error" | "info" | "success"; message: string };
 type ApiErrorBody = { code?: string; message?: string };
@@ -25,7 +24,7 @@ export function ClientAccessRequestPage() {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
@@ -44,15 +43,16 @@ export function ClientAccessRequestPage() {
 
     setSubmitting(true);
     try {
-      const response = await requestClientAccess({ email: normalizedEmail });
-      setSubmittedEmail(response.email);
+      await requestClientAccess({ email: normalizedEmail });
+      setRequestSubmitted(true);
       setFeedback({
         severity: "success",
-        message: response.message || "Your request has been sent to the qMRI administrator.",
+        message:
+          "Your request has been submitted. The review and approval process may take some time. You will receive your qMRI assessment access link by email.",
       });
     } catch (error) {
       const apiError = getApiError(error);
-      setSubmittedEmail(null);
+      setRequestSubmitted(false);
       setFeedback({
         severity: "error",
         message: apiError?.message ?? "Unable to submit the access request right now.",
@@ -61,8 +61,6 @@ export function ClientAccessRequestPage() {
       setSubmitting(false);
     }
   }
-
-  const requestComplete = Boolean(submittedEmail);
 
   return (
     <Box
@@ -91,26 +89,7 @@ export function ClientAccessRequestPage() {
 
               {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
 
-              {requestComplete ? (
-                <Stack
-                  spacing={1.25}
-                  sx={{
-                    p: 2,
-                    border: 1,
-                    borderColor: semanticTokens.successMain,
-                    bgcolor: semanticTokens.successSurface,
-                    borderRadius: 2,
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <CheckCircleOutlineIcon sx={{ color: semanticTokens.successMain }} />
-                    <Typography variant="h4">Request received</Typography>
-                  </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    Email: {submittedEmail}
-                  </Typography>
-                </Stack>
-              ) : (
+              {!requestSubmitted ? (
                 <Box component="form" onSubmit={handleSubmit} noValidate>
                   <Stack spacing={2}>
                     <TextField
@@ -141,7 +120,7 @@ export function ClientAccessRequestPage() {
                     </Button>
                   </Stack>
                 </Box>
-              )}
+              ) : null}
             </Stack>
           </Card>
         </Stack>
