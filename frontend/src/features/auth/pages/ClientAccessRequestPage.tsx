@@ -78,14 +78,16 @@ export function ClientAccessRequestPage() {
             <Stack spacing={2.5}>
               <QmriLogo to={RoutePaths.landing} size="md" />
 
-              <Box>
-                <Typography variant="h1" sx={{ fontSize: { xs: "1.9rem", sm: "2.25rem" }, fontWeight: 900, lineHeight: 1.1 }}>
-                  Request assessment access
-                </Typography>
-                <Typography variant="body1" sx={{ mt: 1, color: neutralTokens.ink500, lineHeight: 1.65 }}>
-                  Please provide the email address where you would like to receive your qMRI assessment
-                </Typography>
-              </Box>
+              {!requestSubmitted ? (
+                <Box>
+                  <Typography variant="h1" sx={{ fontSize: { xs: "1.9rem", sm: "2.25rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Request assessment access
+                  </Typography>
+                  <Typography variant="body1" sx={{ mt: 1, color: neutralTokens.ink500, lineHeight: 1.65 }}>
+                    Please provide the email address where you would like to receive your qMRI assessment
+                  </Typography>
+                </Box>
+              ) : null}
 
               {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
 
