@@ -128,10 +128,9 @@ export function AuthenticationDashboardPage() {
 
   const pendingFilteredUsers = filteredUsers.filter((user) => user.approvalStatus === "Pending");
   const pendingFilteredIds = pendingFilteredUsers.map((user) => user.userId);
-  const approvedFilteredIds = filteredUsers.filter((user) => user.approvalStatus === "Approved" && user.isActive).map((user) => user.userId);
   const filteredIds = filteredUsers.map((user) => user.userId);
   const selectedPendingIds = selectedIds.filter((id) => pendingFilteredIds.includes(id));
-  const selectedApprovedIds = selectedIds.filter((id) => approvedFilteredIds.includes(id));
+  const selectedVisibleIds = selectedIds.filter((id) => filteredIds.includes(id));
   const isAllFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
   const isSomeFilteredSelected = selectedIds.some((id) => filteredIds.includes(id)) && !isAllFilteredSelected;
 
@@ -680,10 +679,10 @@ export function AuthenticationDashboardPage() {
               variant="outlined"
               color="error"
               startIcon={<DeleteOutlineIcon />}
-              disabled={selectedApprovedIds.length === 0 || deactivateUser.isPending}
-              onClick={() => handleDeactivateUsers(selectedApprovedIds)}
+              disabled={selectedVisibleIds.length === 0 || deactivateUser.isPending}
+              onClick={() => handleDeactivateUsers(selectedVisibleIds)}
             >
-              Delete ({selectedApprovedIds.length})
+              Delete ({selectedVisibleIds.length})
             </Button>
             <Tabs value={filter} onChange={(_, value: FilterTab) => setFilter(value)}>
               {filterTabs.map((tab) => (
@@ -794,15 +793,26 @@ export function AuthenticationDashboardPage() {
                       <TableCell>{formatDateTime(user.requestedAtUtc)}</TableCell>
                       <TableCell align="right">
                         {isPending ? (
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={approvingUserId === user.userId ? <CircularProgress size={16} color="inherit" /> : <HowToRegOutlinedIcon />}
-                            disabled={approvalPending}
-                            onClick={() => handleApprove(user.userId)}
-                          >
-                            {generatesIdentityLink ? "Approve + link" : `Accept as ${labelRole(selectedRole)}`}
-                          </Button>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={approvingUserId === user.userId ? <CircularProgress size={16} color="inherit" /> : <HowToRegOutlinedIcon />}
+                              disabled={approvalPending || deactivateUser.isPending}
+                              onClick={() => handleApprove(user.userId)}
+                            >
+                              {generatesIdentityLink ? "Approve + link" : `Accept as ${labelRole(selectedRole)}`}
+                            </Button>
+                            <Button
+                              size="small"
+                              color="error"
+                              startIcon={<DeleteOutlineIcon />}
+                              disabled={deactivateUser.isPending || approvalPending}
+                              onClick={() => handleDeactivateUsers([user.userId])}
+                            >
+                              Delete
+                            </Button>
+                          </Stack>
                         ) : (
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
                             <Button
