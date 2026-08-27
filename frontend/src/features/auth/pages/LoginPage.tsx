@@ -740,7 +740,7 @@ function getApiError(error: unknown): ApiErrorBody | null {
 
 function getEmailValidationMessage(value: string): string | null {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-    return "Enter email.";
+    return "Email is not valid.";
   }
 
   return null;
