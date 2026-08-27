@@ -132,6 +132,11 @@ public sealed class AuthenticationService(
             return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Password must be at least 8 characters.");
         }
 
+        if (!ContainsSpecialCharacter(request.Password))
+        {
+            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Password must include at least one special character.");
+        }
+
         var exists = await userRepository.ExistsByUserNameOrEmailAsync(userName, email, cancellationToken);
         if (exists)
         {
@@ -324,6 +329,19 @@ public sealed class AuthenticationService(
     private static bool IsEmailLike(string email)
     {
         return email.Contains("@", StringComparison.Ordinal) && email.Contains(".", StringComparison.Ordinal);
+    }
+
+    private static bool ContainsSpecialCharacter(string value)
+    {
+        foreach (var character in value)
+        {
+            if (!char.IsLetterOrDigit(character))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string BuildClientFullName(string email)

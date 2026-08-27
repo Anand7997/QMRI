@@ -70,7 +70,9 @@ export function LoginPage() {
   const [fullName, setFullName] = useState("");
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
+  const [signUpEmailError, setSignUpEmailError] = useState<string | null>(null);
   const [signUpPassword, setSignUpPassword] = useState("");
+  const [signUpPasswordError, setSignUpPasswordError] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<ActiveField>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [formMouse, setFormMouse] = useState({ x: 0.5, y: 0.5 });
@@ -83,6 +85,8 @@ export function LoginPage() {
     setMode(initialMode);
     setSignInMethod("account");
     setFeedback(null);
+    setSignUpEmailError(null);
+    setSignUpPasswordError(null);
     setRequestSent(false);
     setActiveField(null);
     setIsTyping(false);
@@ -236,14 +240,28 @@ export function LoginPage() {
   async function handleSignUp(event: FormEvent) {
     event.preventDefault();
     setFeedback(null);
+    setSignUpEmailError(null);
+    setSignUpPasswordError(null);
 
     if (!fullName.trim() || !userName.trim() || !email.trim() || !signUpPassword) {
       setFeedback({ severity: "error", message: "Complete all fields to request access." });
       return;
     }
 
-    if (signUpPassword.length < 8) {
-      setFeedback({ severity: "error", message: "Password must be at least 8 characters." });
+    const normalizedEmail = email.trim();
+    const emailValidationMessage = getEmailValidationMessage(normalizedEmail);
+
+    if (emailValidationMessage) {
+      setSignUpEmailError(emailValidationMessage);
+      setFeedback({ severity: "error", message: emailValidationMessage });
+      return;
+    }
+
+    const passwordValidationMessage = getPasswordValidationMessage(signUpPassword);
+
+    if (passwordValidationMessage) {
+      setSignUpPasswordError(passwordValidationMessage);
+      setFeedback({ severity: "error", message: passwordValidationMessage });
       return;
     }
 
@@ -252,7 +270,7 @@ export function LoginPage() {
       const response = await registerRequest({
         fullName: fullName.trim(),
         userName: userName.trim(),
-        email: email.trim(),
+        email: normalizedEmail,
         password: signUpPassword,
         requestedRole: audience === "admin" ? "ADMIN" : "USER",
       });
@@ -574,8 +592,8 @@ export function LoginPage() {
 
                       <TextField label="Full name" value={fullName} onFocus={() => setActiveField("fullName")} onBlur={() => setActiveField(null)} onChange={(e) => { setFullName(e.target.value); markTyping(); }} autoComplete="name" autoFocus fullWidth required disabled={submitting || requestSent} />
                       <TextField label="Username" value={userName} onFocus={() => setActiveField("userName")} onBlur={() => setActiveField(null)} onChange={(e) => { setUserName(e.target.value); markTyping(); }} autoComplete="username" fullWidth required disabled={submitting || requestSent} />
-                      <TextField label="Work email" type="email" value={email} onFocus={() => setActiveField("email")} onBlur={() => setActiveField(null)} onChange={(e) => { setEmail(e.target.value); markTyping(); }} autoComplete="email" fullWidth required disabled={submitting || requestSent} />
-                      <TextField label="Password" type="password" value={signUpPassword} onFocus={() => setActiveField("signUpPassword")} onBlur={() => setActiveField(null)} onChange={(e) => { setSignUpPassword(e.target.value); markTyping(); }} autoComplete="new-password" fullWidth required disabled={submitting || requestSent} />
+                      <TextField label="Work email" type="email" value={email} onFocus={() => setActiveField("email")} onBlur={() => setActiveField(null)} onChange={(e) => { setEmail(e.target.value); setSignUpEmailError(null); markTyping(); }} autoComplete="email" fullWidth required error={Boolean(signUpEmailError)} helperText={signUpEmailError} disabled={submitting || requestSent} />
+                      <TextField label="Password" type="password" value={signUpPassword} onFocus={() => setActiveField("signUpPassword")} onBlur={() => setActiveField(null)} onChange={(e) => { setSignUpPassword(e.target.value); setSignUpPasswordError(null); markTyping(); }} autoComplete="new-password" fullWidth required error={Boolean(signUpPasswordError)} helperText={signUpPasswordError} disabled={submitting || requestSent} />
                       <Button type="submit" variant="contained" size="large" disabled={submitting || requestSent} sx={{ minHeight: 50, cursor: requestSent ? "default" : "pointer", fontWeight: 850 }}>
                         {submitting ? <CircularProgress size={22} color="inherit" /> : "Request Access"}
                       </Button>
@@ -718,4 +736,24 @@ function getApiError(error: unknown): ApiErrorBody | null {
   }
 
   return error.response?.data ?? null;
+}
+
+function getEmailValidationMessage(value: string): string | null {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return "Enter email.";
+  }
+
+  return null;
+}
+
+function getPasswordValidationMessage(value: string): string | null {
+  if (value.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+
+  if (!/[^\dA-Za-z]/.test(value)) {
+    return "Password must include at least one special character.";
+  }
+
+  return null;
 }

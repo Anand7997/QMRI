@@ -23,6 +23,7 @@ type ApiErrorBody = { code?: string; message?: string };
 
 export function ClientAccessRequestPage() {
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -30,15 +31,20 @@ export function ClientAccessRequestPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFeedback(null);
+    setEmailError(null);
 
-    if (!email.trim()) {
-      setFeedback({ severity: "error", message: "Enter your email address." });
+    const normalizedEmail = email.trim();
+    const validationMessage = getEmailValidationMessage(normalizedEmail);
+
+    if (validationMessage) {
+      setEmailError(validationMessage);
+      setFeedback({ severity: "error", message: validationMessage });
       return;
     }
 
     setSubmitting(true);
     try {
-      const response = await requestClientAccess({ email: email.trim() });
+      const response = await requestClientAccess({ email: normalizedEmail });
       setSubmittedEmail(response.email);
       setFeedback({
         severity: "success",
@@ -111,11 +117,16 @@ export function ClientAccessRequestPage() {
                       label="Email ID"
                       type="email"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
+                      onChange={(event) => {
+                        setEmail(event.target.value);
+                        setEmailError(null);
+                      }}
                       autoComplete="email"
                       autoFocus
                       fullWidth
                       required
+                      error={Boolean(emailError)}
+                      helperText={emailError}
                       disabled={submitting}
                     />
                     <Button
@@ -145,4 +156,16 @@ function getApiError(error: unknown): ApiErrorBody | null {
   }
 
   return error.response?.data ?? null;
+}
+
+function getEmailValidationMessage(value: string): string | null {
+  if (!value) {
+    return "Enter your email address.";
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return "Enter email.";
+  }
+
+  return null;
 }
