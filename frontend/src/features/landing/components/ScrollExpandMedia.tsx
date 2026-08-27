@@ -9,6 +9,7 @@ interface ScrollExpandMediaProps {
   /** Optional logo rendered centred over the media as the focal point. */
   logoSrc?: string;
   logoAlt?: string;
+  logoSteps?: readonly string[];
   title?: string;
   date?: string;
   scrollToExpand?: string;
@@ -30,6 +31,7 @@ export function ScrollExpandMedia({
   bgImageSrc,
   logoSrc,
   logoAlt = "Logo",
+  logoSteps,
   title,
   date,
   scrollToExpand,
@@ -96,7 +98,7 @@ export function ScrollExpandMedia({
             sx={{
               position: "relative",
               width: { xs: "88vw", md: "min(1040px, 82vw)" },
-              height: { xs: 260, md: 420, lg: 500 },
+              height: { xs: 260, sm: 340, md: 440, lg: 520 },
               borderRadius: 4,
               overflow: "hidden",
               boxShadow: "0px 0px 50px rgba(0, 0, 0, 0.3)",
@@ -142,23 +144,94 @@ export function ScrollExpandMedia({
 
             {logoSrc && (
               <Box
-                component="img"
-                src={logoSrc}
-                alt={logoAlt}
                 sx={{
                   position: "absolute",
                   top: "50%",
                   left: "50%",
                   transform: "translate(-50%, -50%)",
                   zIndex: 20,
-                  width: { xs: "54%", md: "42%" },
-                  maxWidth: 400,
-                  height: "auto",
-                  objectFit: "contain",
+                  width: { xs: "min(64%, 320px)", sm: "min(68%, 400px)", md: "min(58%, 560px)", lg: "min(56%, 620px)" },
+                  maxHeight: "90%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
                   pointerEvents: "none",
-                  filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.45))",
                 }}
-              />
+              >
+                <Box
+                  sx={{
+                    width: "100%",
+                    aspectRatio: "1092 / 735",
+                    overflow: "hidden",
+                    filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.45))",
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={logoSrc}
+                    alt={logoAlt}
+                    sx={{
+                      width: "100%",
+                      height: "auto",
+                      display: "block",
+                    }}
+                  />
+                </Box>
+
+                {logoSteps?.length ? (
+                  <Box
+                    aria-label={logoSteps.join(", ")}
+                    sx={{
+                      mt: { xs: 0.75, md: 1.25 },
+                      display: "flex",
+                      flexWrap: "nowrap",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: { xs: 0.5, sm: 1.25, md: 1.75 },
+                      width: { xs: "min(86vw, 430px)", md: "100%" },
+                      color: "#eaf6ff",
+                      textShadow: "0 2px 10px rgba(0,0,0,0.75)",
+                    }}
+                  >
+                    {logoSteps.map((step, index) => (
+                      <Box
+                        key={step}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: { xs: 0.5, md: 1.25 },
+                          minWidth: 0,
+                        }}
+                      >
+                        {index > 0 ? (
+                          <Box
+                            aria-hidden="true"
+                            sx={{
+                              width: 1,
+                              height: { xs: 14, md: 22 },
+                              bgcolor: "rgba(234,246,255,0.6)",
+                            }}
+                          />
+                        ) : null}
+                        <Typography
+                          component="span"
+                          sx={{
+                            fontSize: { xs: "0.64rem", sm: "0.82rem", md: "0.95rem" },
+                            fontWeight: 900,
+                            letterSpacing: "0.08em",
+                            lineHeight: 1.15,
+                            textTransform: "uppercase",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {step}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : null}
+              </Box>
             )}
           </Box>
 

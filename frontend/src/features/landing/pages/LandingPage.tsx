@@ -115,6 +115,7 @@ export function LandingPage() {
         bgImageSrc={heroBgImage}
         logoSrc="/qmri-logo-cutout.png"
         logoAlt="QMRI - Quinnox Measures, Recommend and Implement"
+        logoSteps={["Quinnox", "Measures", "Recommend", "Implement"]}
         title="Accelerate Success"
         date="Measure . Recommend . Implement"
         scrollToExpand="Scroll to explore QMRI"
