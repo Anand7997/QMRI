@@ -1,5 +1,4 @@
 import { type FormEvent, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import axios from "axios";
 import {
   Alert,
@@ -12,7 +11,6 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import { requestClientAccess } from "shared/api/auth";
@@ -72,27 +70,6 @@ export function ClientAccessRequestPage() {
     >
       <Container maxWidth="sm">
         <Stack spacing={2.5}>
-          <Stack
-            component={RouterLink}
-            to={RoutePaths.landing}
-            direction="row"
-            spacing={0.75}
-            alignItems="center"
-            sx={{
-              width: "fit-content",
-              color: neutralTokens.ink500,
-              textDecoration: "none",
-              cursor: "pointer",
-              "&:hover": { color: brandTokens.blue600 },
-              "&:focus-visible": { outline: `2px solid ${brandTokens.blue500}`, outlineOffset: 3, borderRadius: 1 },
-            }}
-          >
-            <ArrowBackIcon sx={{ fontSize: 18 }} />
-            <Typography variant="body2" fontWeight={800}>
-              Back to home
-            </Typography>
-          </Stack>
-
           <Card sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 3 }}>
             <Stack spacing={2.5}>
               <QmriLogo to={RoutePaths.landing} size="md" />
@@ -102,7 +79,7 @@ export function ClientAccessRequestPage() {
                   Request assessment access
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 1, color: neutralTokens.ink500, lineHeight: 1.65 }}>
-                  Enter the email address where your qMRI assessment link should be sent.
+                  Please provide the email address where you would like to receive your qMRI assessment
                 </Typography>
               </Box>
 
@@ -131,7 +108,7 @@ export function ClientAccessRequestPage() {
                 <Box component="form" onSubmit={handleSubmit} noValidate>
                   <Stack spacing={2}>
                     <TextField
-                      label="Client email"
+                      label="Email ID"
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
