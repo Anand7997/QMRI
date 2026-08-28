@@ -15,8 +15,6 @@ import {
   LinearProgress,
   Stack,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -199,8 +197,6 @@ export function MyAssessmentsPage() {
   }, [savedAnswersByQuestion]);
 
   const summary = detail.data?.summary ?? selectedSummary;
-  const percent = Math.round(summary?.completionPercentage ?? 0);
-  const canSubmitAssessment = percent >= MIN_SUBMIT_COMPLETION_PERCENT;
   const selectedQuestionSet = useMemo(() => {
     const ids = summary?.questionIds ?? [];
     return ids.length ? new Set(ids) : null;
@@ -258,6 +254,16 @@ export function MyAssessmentsPage() {
     () => categoryQuestionGroups.flatMap((category) => category.questions),
     [categoryQuestionGroups],
   );
+  const questionCount = summary?.questionCount ?? questionSteps.length;
+  const answeredCount = Math.min(
+    questionCount,
+    Math.max(summary?.answeredCount ?? 0, answersByQuestion.size),
+  );
+  const percent =
+    questionCount > 0
+      ? Math.round((answeredCount / questionCount) * 100)
+      : Math.round(summary?.completionPercentage ?? 0);
+  const canSubmitAssessment = percent >= MIN_SUBMIT_COMPLETION_PERCENT;
 
   const currentQuestionIndex = useMemo(
     () => questionSteps.findIndex((step) => step.question.questionId === selectedQuestionId),
@@ -522,8 +528,6 @@ export function MyAssessmentsPage() {
   }
 
   const isSubmitted = (summary?.status ?? 0) >= AssessmentStatus.Submitted;
-  const answeredCount = Math.max(summary?.answeredCount ?? 0, answersByQuestion.size);
-  const questionCount = summary?.questionCount ?? questionSteps.length;
   const unansweredCount = Math.max(questionCount - answeredCount, 0);
   const selectedCategoryAnsweredCount = selectedCategoryGroup
     ? selectedCategoryGroup.questions.filter((step) => answersByQuestion.has(step.question.questionId)).length
@@ -534,11 +538,11 @@ export function MyAssessmentsPage() {
       <PageHeader
         title={summary?.title ?? "My Assessment"}
         subtitle={selectedCategoryGroup ? selectedCategoryGroup.category : "Select a category to begin"}
-        actions={
+        actions={!isAssessmentLinkNavigation ? (
           <Button variant="outlined" startIcon={<KeyboardArrowLeftIcon />} onClick={() => setQuestionMode(false)}>
             Assessment details
           </Button>
-        }
+        ) : undefined}
       />
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" } }}>
@@ -671,34 +675,53 @@ export function MyAssessmentsPage() {
                         {q.text}
                       </Typography>
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                        <ToggleButtonGroup
-                          exclusive
-                          size="small"
-                          value={value ?? null}
-                          disabled={isSubmitted}
-                          onChange={(_, v: number | null) => v !== null && answer(step, v)}
+                        <Stack
+                          role="radiogroup"
+                          aria-label={`Answer question ${step.questionNumber}`}
+                          direction="row"
+                          spacing={1}
+                          flexWrap="wrap"
+                          useFlexGap
                         >
                           {OPTIONS.map((opt) => {
                             const label = answerLabel[opt];
+                            const selected = value === opt;
+                            const color = answerColor[label];
                             return (
-                              <ToggleButton
+                              <Button
                                 key={opt}
-                                value={opt}
+                                type="button"
+                                role="radio"
+                                aria-checked={selected}
+                                variant={selected ? "contained" : "outlined"}
+                                disableElevation
+                                disabled={isSubmitted}
+                                onClick={() => answer(step, opt)}
                                 sx={{
-                                  px: 2.5,
-                                  "&.Mui-selected": {
-                                    bgcolor: alpha(answerColor[label], 0.14),
-                                    color: answerColor[label],
-                                    borderColor: alpha(answerColor[label], 0.4),
-                                    "&:hover": { bgcolor: alpha(answerColor[label], 0.2) },
+                                  minWidth: 92,
+                                  minHeight: 40,
+                                  px: 2.25,
+                                  borderColor: alpha(color, selected ? 0.55 : 0.32),
+                                  bgcolor: selected ? alpha(color, 0.16) : "background.paper",
+                                  color: selected ? color : "text.primary",
+                                  fontWeight: 800,
+                                  cursor: isSubmitted ? "default" : "pointer",
+                                  "&:hover": {
+                                    bgcolor: selected ? alpha(color, 0.22) : alpha(color, 0.08),
+                                    borderColor: alpha(color, 0.6),
+                                  },
+                                  "&.Mui-disabled": {
+                                    bgcolor: selected ? alpha(color, 0.12) : "action.disabledBackground",
+                                    borderColor: selected ? alpha(color, 0.32) : "action.disabled",
+                                    color: selected ? color : "text.disabled",
                                   },
                                 }}
                               >
                                 {label}
-                              </ToggleButton>
+                              </Button>
                             );
                           })}
-                        </ToggleButtonGroup>
+                        </Stack>
                         <IconButton
                           size="small"
                           aria-label="Add findings"
