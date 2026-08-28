@@ -11,33 +11,42 @@ interface PortalLayoutProps {
   items: PortalNavItem[];
   homePath: string;
   profile: PortalProfile;
+  hideChrome?: boolean;
 }
 
-export function PortalLayout({ brandTitle, items, homePath, profile }: PortalLayoutProps) {
+export function PortalLayout({ brandTitle, items, homePath, profile, hideChrome = false }: PortalLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <PortalTopNav
-        items={items}
-        homePath={homePath}
-        profile={profile}
-        onMenuClick={() => setMobileOpen(true)}
-      />
-      <PortalSidebar
-        brandTitle={brandTitle}
-        items={items}
-        mobileOpen={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-      />
+      {!hideChrome && (
+        <>
+          <PortalTopNav
+            items={items}
+            homePath={homePath}
+            profile={profile}
+            onMenuClick={() => setMobileOpen(true)}
+          />
+          <PortalSidebar
+            brandTitle={brandTitle}
+            items={items}
+            mobileOpen={mobileOpen}
+            onClose={() => setMobileOpen(false)}
+          />
+        </>
+      )}
 
       <Box component="main" sx={{ flexGrow: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {/* Spacer offsetting the fixed AppBar */}
-        <Toolbar />
-        <Box sx={{ flexGrow: 1, p: 3 }}>
+        {!hideChrome && (
+          <>
+            {/* Spacer offsetting the fixed AppBar */}
+            <Toolbar />
+          </>
+        )}
+        <Box sx={{ flexGrow: 1, p: hideChrome ? { xs: 2, sm: 3 } : 3 }}>
           <Outlet />
         </Box>
-        <PortalFooter />
+        {!hideChrome && <PortalFooter />}
       </Box>
     </Box>
   );

@@ -44,6 +44,10 @@ import {
   useResumePointer,
   useSaveResumePointer,
 } from "shared/api/dashboardGovernance";
+import {
+  isAssessmentLinkNavigationState,
+  type AssessmentNavigationState,
+} from "shared/constants/assessmentNavigation";
 import { portalAgentAnalysisPath } from "shared/constants/routePaths";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
@@ -54,11 +58,6 @@ type SubmittedAssessmentPrompt = {
   title: string;
   score?: number | null;
 };
-type AssessmentNavigationState = {
-  assessmentId?: string;
-  resume?: boolean;
-} | null;
-
 export function MyAssessmentsPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -88,6 +87,7 @@ export function MyAssessmentsPage() {
   const navigationState = location.state as AssessmentNavigationState;
   const navigationAssessmentId = navigationState?.assessmentId;
   const shouldResumeNavigation = navigationState?.resume === true;
+  const isAssessmentLinkNavigation = isAssessmentLinkNavigationState(location.state);
   const assessments = useMemo(
     () =>
       (assessmentsQuery.data ?? []).filter(
@@ -735,7 +735,7 @@ export function MyAssessmentsPage() {
         sx={{
           position: "fixed",
           bottom: 0,
-          left: { xs: 0, md: 264 },
+          left: { xs: 0, md: isAssessmentLinkNavigation ? 0 : 264 },
           right: 0,
           bgcolor: "background.paper",
           borderTop: 1,

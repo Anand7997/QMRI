@@ -4,6 +4,7 @@ import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthContext } from "contexts/AuthContext";
 import { loginWithIdentityLink } from "shared/api/auth";
+import { ASSESSMENT_LINK_NAVIGATION_SOURCE } from "shared/constants/assessmentNavigation";
 import { RoutePaths } from "shared/constants/routePaths";
 
 export function IdentityLinkLoginPage() {
@@ -35,7 +36,10 @@ export function IdentityLinkLoginPage() {
           accessTokenExpiresAtUtc: response.accessTokenExpiresAtUtc,
           user: response.user,
         });
-        navigate(RoutePaths.portalAssessments, { replace: true, state: { resume: true } });
+        navigate(RoutePaths.portalAssessments, {
+          replace: true,
+          state: { resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE },
+        });
       } catch {
         if (!cancelled) {
           setStatus("error");

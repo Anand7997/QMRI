@@ -1,11 +1,16 @@
 import { PortalLayout } from "./portal/PortalLayout";
 import { userNavItems } from "./user/navItems";
+import { useLocation } from "react-router-dom";
 import { useAuthContext } from "contexts/AuthContext";
+import { isAssessmentLinkNavigationState } from "shared/constants/assessmentNavigation";
 import { RoutePaths } from "shared/constants/routePaths";
 
 export function UserLayout() {
+  const location = useLocation();
   const { user } = useAuthContext();
   const displayName = user?.fullName || user?.userName || "Portal User";
+  const hidePortalChrome =
+    location.pathname === RoutePaths.portalAssessments && isAssessmentLinkNavigationState(location.state);
 
   return (
     <PortalLayout
@@ -19,6 +24,7 @@ export function UserLayout() {
         profilePath: RoutePaths.portalProfile,
         settingsPath: RoutePaths.portalSettings,
       }}
+      hideChrome={hidePortalChrome}
     />
   );
 }
