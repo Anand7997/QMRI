@@ -75,12 +75,12 @@ export function QmriAgentAnalysisPage() {
       .filter((score) => score.scope === ScoreScope.Category && score.categoryName)
       .map((score) => {
         const value = clampScore(score.score);
-        const maturity = maturityFor(value);
+        const maturity = maturityDisplayForScore(value);
         return {
           category: score.categoryName as string,
           score: value,
           color: maturity.color,
-          maturity: score.maturityLevel ?? maturity.band,
+          maturity: maturity.label,
         };
       })
       .sort((left, right) => right.score - left.score),
@@ -146,7 +146,7 @@ export function QmriAgentAnalysisPage() {
           <Typography component="h1" variant="h1">QMRI Agent analysis</Typography>
           <Typography component="p" variant="h3" sx={{ mt: 0.55 }}>{phase === "complete" ? "Executive maturity snapshot" : "Reading your responses"}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
-            {summary.title} · {Math.round(summary.overallScore ?? 0)}/100
+            {summary.title} · {formatAveragePercent(summary.overallScore ?? 0)}
           </Typography>
         </Box>
         <Chip
@@ -160,7 +160,6 @@ export function QmriAgentAnalysisPage() {
         <ExecutiveAnalysisOverview
           analysis={analysis}
           overallScore={clampScore(summary.overallScore ?? 0)}
-          overallMaturity={summary.overallMaturityLevel}
           categoryMetrics={categoryMetrics}
           responseCount={responseCount}
         />
@@ -235,17 +234,15 @@ export function QmriAgentAnalysisPage() {
 function ExecutiveAnalysisOverview({
   analysis,
   overallScore,
-  overallMaturity,
   categoryMetrics,
   responseCount,
 }: {
   analysis: QmriAgentAnalysisDto;
   overallScore: number;
-  overallMaturity?: string | null;
   categoryMetrics: CategoryMetric[];
   responseCount: number;
 }) {
-  const overallBand = maturityFor(overallScore);
+  const overallBand = maturityDisplayForScore(overallScore);
   const leader = categoryMetrics[0];
   const focus = categoryMetrics[categoryMetrics.length - 1];
   const categorySpread = leader && focus ? Math.max(0, leader.score - focus.score) : 0;
@@ -281,23 +278,19 @@ function ExecutiveAnalysisOverview({
             className="qmri-agent-score-ring"
             style={scoreStyle}
             role="img"
-            aria-label={"Overall maturity score " + Math.round(overallScore) + " out of 100"}
+            aria-label={"Average maturity score " + Math.round(overallScore) + " percent"}
           >
             <Box className="qmri-agent-score-ring-center">
-              <strong>{Math.round(overallScore)}</strong>
-              <span>out of 100</span>
+              <strong>{Math.round(overallScore)}%</strong>
+              <span>average score</span>
             </Box>
           </Box>
           <Typography component="p" variant="h3" className="qmri-agent-score-band">
-            {overallMaturity ?? overallBand.band}
+            {overallBand.label}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", lineHeight: 1.5 }}>
-            Current maturity based on all scored responses.
+            {formatAveragePercent(overallScore)} based on all scored responses.
           </Typography>
-          <Box className="qmri-agent-score-scale" aria-hidden="true">
-            <span>Foundation</span>
-            <span>Leading</span>
-          </Box>
         </Card>
 
         <Card className="qmri-agent-category-card">
@@ -337,14 +330,14 @@ function ExecutiveAnalysisOverview({
                     />
                     <ChartTooltip
                       cursor={{ fill: "rgba(15, 108, 189, 0.05)" }}
-                      formatter={(value) => [Math.round(Number(value)) + "/100", "Maturity score"]}
+                      formatter={(value) => [Math.round(Number(value)) + "%", "Average score"]}
                       contentStyle={{ borderRadius: 6, border: "1px solid #E1E7EE", boxShadow: "0 8px 22px rgba(28, 60, 92, 0.12)" }}
                     />
                     <Bar dataKey="score" barSize={22} radius={[0, 5, 5, 0]}>
                       {categoryMetrics.map((metric) => (
                         <Cell key={metric.category} fill={metric.color} />
                       ))}
-                      <LabelList dataKey="score" position="right" formatter={(value: number) => Math.round(value)} fill="#323238" fontSize={11} fontWeight={800} />
+                      <LabelList dataKey="score" position="right" formatter={(value: number) => Math.round(value) + "%"} fill="#323238" fontSize={11} fontWeight={800} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -390,7 +383,7 @@ function ExecutiveAnalysisOverview({
             <Typography variant="overline">Leading capability</Typography>
             <Typography component="p" variant="h3">{leader?.category ?? "Not available"}</Typography>
             <Typography variant="caption" color="text.secondary">
-              {leader ? Math.round(leader.score) + "/100 - " + leader.maturity : "No category score available"}
+              {leader ? formatAveragePercent(leader.score) + " - " + leader.maturity : "No category score available"}
             </Typography>
           </Box>
         </Box>
@@ -400,7 +393,7 @@ function ExecutiveAnalysisOverview({
             <Typography variant="overline">Immediate attention</Typography>
             <Typography component="p" variant="h3">{focus?.category ?? "Not available"}</Typography>
             <Typography variant="caption" color="text.secondary">
-              {focus ? Math.round(focus.score) + "/100 - " + focus.maturity : "No category score available"}
+              {focus ? formatAveragePercent(focus.score) + " - " + focus.maturity : "No category score available"}
             </Typography>
           </Box>
         </Box>
@@ -798,6 +791,27 @@ function InsightSection({
 
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Number.isFinite(score) ? score : 0));
+}
+
+function maturityDisplayForScore(score: number) {
+  const normalized = Math.round(clampScore(score));
+  const base = maturityFor(normalized);
+  const label = normalized <= 30
+    ? "Foundation"
+    : normalized <= 60
+      ? "Building"
+      : normalized <= 80
+        ? "Scaling"
+        : "Leading";
+
+  return {
+    label,
+    color: base.color,
+  };
+}
+
+function formatAveragePercent(score: number) {
+  return `Average is ${Math.round(clampScore(score))} percent`;
 }
 
 function getAnalysisErrorMessage(error: unknown) {
