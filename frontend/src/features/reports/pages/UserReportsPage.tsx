@@ -115,8 +115,8 @@ export function UserReportsPage() {
             <MotionReveal sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
               <MetricTile label="Reports" value={summary.count} icon={<AssessmentOutlinedIcon fontSize="inherit" />} accent={brandTokens.blue600} />
               <MetricTile label="Average stage" value={summary.avgStageLevel} format={(n) => `${n.toFixed(1)}/5`} sub={<Typography variant="caption" color="text.secondary">{summary.avgStageLabel}</Typography>} icon={<SpeedOutlinedIcon fontSize="inherit" />} accent={semanticTokens.infoMain} />
-              <MetricTile label="Average score" value={summary.avgScore} icon={<SpeedOutlinedIcon fontSize="inherit" />} accent={dataTokens.bandQE} />
-              <MetricTile label="Best score" value={summary.bestScore} icon={<EmojiEventsOutlinedIcon fontSize="inherit" />} accent={dataTokens.bandIQ} />
+              <MetricTile label="Average score" value={summary.avgScore} format={(n) => `${Math.round(n)}%`} icon={<SpeedOutlinedIcon fontSize="inherit" />} accent={dataTokens.bandQE} />
+              <MetricTile label="Best score" value={summary.bestScore} format={(n) => `${Math.round(n)}%`} icon={<EmojiEventsOutlinedIcon fontSize="inherit" />} accent={dataTokens.bandIQ} />
             </MotionReveal>
 
             <MotionReveal delay={0.08} sx={{ mt: 2 }}>
@@ -172,7 +172,7 @@ export function UserReportsPage() {
                                   value={score}
                                   sx={{ flexGrow: 1, height: 6, borderRadius: 999, bgcolor: neutralTokens.line200, "& .MuiLinearProgress-bar": { bgcolor: stage.color } }}
                                 />
-                                <Typography variant="body2" fontWeight={800} sx={{ minWidth: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{score}</Typography>
+                                <Typography variant="body2" fontWeight={800} sx={{ minWidth: 36, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{score}%</Typography>
                               </Stack>
                             </TableCell>
                             <TableCell align="right"><ArrowForwardIcon fontSize="small" sx={{ color: brandTokens.blue600, verticalAlign: "middle" }} /></TableCell>

@@ -249,8 +249,8 @@ export function buildKpis(
   const delta = previousScore == null ? undefined : overallScore - previousScore;
 
   return [
-    { key: "overall", label: "Overall score", value: `${overallScore}/100`, numeric: overallScore, delta, deltaSuffix: " pts", sub: `${stage.label} maturity stage`, accent: stage.color, sparkline: history },
-    { key: "avg", label: "Avg competency score", value: `${avg}/100`, numeric: avg, sub: `Across ${groups.length} competencies`, accent: brandTokens.blue600 },
+    { key: "overall", label: "Overall score", value: `${overallScore}%`, numeric: overallScore, delta, deltaSuffix: " pts", sub: `${stage.label} maturity stage`, accent: stage.color, sparkline: history },
+    { key: "avg", label: "Avg competency score", value: `${avg}%`, numeric: avg, sub: `Across ${groups.length} competencies`, accent: brandTokens.blue600 },
     { key: "best", label: "Highest performing area", value: best ? `${best.score}` : "--", sub: best ? best.categoryName : "No data", accent: semanticTokens.successMain },
     { key: "worst", label: "Lowest performing area", value: worst ? `${worst.score}` : "--", sub: worst ? worst.categoryName : "No data", accent: semanticTokens.errorMain },
     { key: "completion", label: "Completion", value: `${Math.round(completion)}%`, numeric: Math.round(completion), sub: "Of assigned questions answered", accent: dataTokens.bandQE },
@@ -400,7 +400,7 @@ export function buildInsights(groups: CategoryGroup[], overallDelta: number | nu
       id: "strength",
       tone: "positive",
       title: "Top strength",
-      body: `${strongest.categoryName} leads at ${strongest.score}/100 (${strongest.stage.label}). Protect this and use it as a model for weaker areas.`,
+      body: `${strongest.categoryName} leads at ${strongest.score}% (${strongest.stage.label}). Protect this and use it as a model for weaker areas.`,
     });
   }
 
@@ -411,7 +411,7 @@ export function buildInsights(groups: CategoryGroup[], overallDelta: number | nu
       id: "weak",
       tone: weakest.stage.level <= 2 ? "critical" : "warning",
       title: "Weakest competency",
-      body: `${weakest.categoryName} is your lowest area at ${weakest.score}/100${gap > 0 ? `, ${Math.round(gap)} points below your own average` : ""}. Prioritise improvement here.`,
+      body: `${weakest.categoryName} is your lowest area at ${weakest.score}%${gap > 0 ? `, ${Math.round(gap)} points below your own average` : ""}. Prioritise improvement here.`,
     });
   }
 
@@ -443,7 +443,7 @@ export function buildInsights(groups: CategoryGroup[], overallDelta: number | nu
       id: "outlier",
       tone: above ? "info" : "warning",
       title: "Notable outlier",
-      body: `${outlier.categoryName} stands out ${above ? "above" : "below"} the rest at ${outlier.score}/100 (${Math.abs(Math.round(outlier.score - mean))} points ${above ? "above" : "below"} average).`,
+      body: `${outlier.categoryName} stands out ${above ? "above" : "below"} the rest at ${outlier.score}% (${Math.abs(Math.round(outlier.score - mean))} points ${above ? "above" : "below"} average).`,
     });
   }
 
@@ -519,7 +519,7 @@ export function buildRecommendations(
       return enrichOne(
         `derived-${group.categoryId}`,
         `Strengthen ${group.categoryName}`,
-        `${group.categoryName} is at ${group.score}/100 (${group.stage.label}). Focus on the lowest-aligned modules to raise this competency to the next maturity stage.`,
+        `${group.categoryName} is at ${group.score}% (${group.stage.label}). Focus on the lowest-aligned modules to raise this competency to the next maturity stage.`,
         group.categoryName,
         priority,
         group,
@@ -549,7 +549,7 @@ function enrichOne(
     priority,
     impact,
     effort,
-    expectedImprovement: group ? `+${gap} pts to reach ${target}/100` : "Improves overall maturity",
+    expectedImprovement: group ? `+${gap} pts to reach ${target}%` : "Improves overall maturity",
     suggestedTraining: `Targeted ${category} enablement & coaching`,
   };
 }
@@ -581,7 +581,7 @@ export function buildOpportunities(groups: CategoryGroup[]): Opportunity[] {
         target,
         gap: Math.max(0, target - g.score),
         stage: g.stage,
-        suggestedActions: weakModule ? `Start with "${weakModule.moduleName}" (${weakModule.score}/100), the weakest module in this area.` : "Review the misaligned answers in this competency.",
+        suggestedActions: weakModule ? `Start with "${weakModule.moduleName}" (${weakModule.score}%), the weakest module in this area.` : "Review the misaligned answers in this competency.",
       };
     });
 }

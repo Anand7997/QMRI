@@ -77,7 +77,7 @@ export function ScoreGauge({ score, color, size = 200, label }: { score: number;
       </ResponsiveContainer>
       <Box sx={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <Typography sx={{ fontSize: size * 0.28, fontWeight: 800, lineHeight: 1, color, fontVariantNumeric: "tabular-nums" }}>{Math.round(score)}</Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: "0.04em" }}>{label ?? "/ 100"}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: "0.04em" }}>{label ?? "%"}</Typography>
       </Box>
     </Box>
   );
@@ -99,7 +99,7 @@ export function Sparkline({ values, color }: { values: number[]; color: string }
 }
 
 /* Recharts custom tooltip rendered in plain business language. */
-export function PlainTooltip({ active, payload, label, unit = "/100" }: {
+export function PlainTooltip({ active, payload, label, unit = "%" }: {
   active?: boolean;
   payload?: Array<{ name?: string; value?: number | string; color?: string; dataKey?: string }>;
   label?: string | number;
@@ -146,7 +146,7 @@ export function Heatmap({ rows, onSelect, selectedId }: { rows: HeatRow[]; onSel
           <Typography variant="caption" fontWeight={700} noWrap title={row.categoryName}>{row.categoryName}</Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
             {row.cells.map((cell) => (
-              <MuiTooltip key={cell.key} arrow title={`${cell.moduleName}: ${cell.score}/100 - ${cell.stageLabel}`}>
+              <MuiTooltip key={cell.key} arrow title={`${cell.moduleName}: ${cell.score}% - ${cell.stageLabel}`}>
                 <Box
                   onClick={onSelect ? () => onSelect(row.categoryId) : undefined}
                   sx={{

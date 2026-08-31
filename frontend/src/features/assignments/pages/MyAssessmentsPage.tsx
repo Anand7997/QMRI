@@ -889,7 +889,7 @@ function AssessmentResultDialog({
   onClose: () => void;
   onAnalyze: () => void;
 }) {
-  const scoreLabel = typeof prompt?.score === "number" ? `${Math.round(prompt.score)}/100` : "Ready";
+  const scoreLabel = typeof prompt?.score === "number" ? `${Math.round(prompt.score)}%` : "Ready";
 
   return (
     <Dialog open={Boolean(prompt)} onClose={onClose} maxWidth="xs" fullWidth>

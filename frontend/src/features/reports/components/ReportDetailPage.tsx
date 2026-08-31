@@ -45,8 +45,6 @@ import {
   Cell,
   LabelList,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   PolarAngleAxis,
@@ -74,14 +72,11 @@ import {
   alignmentColors,
   alignmentData,
   answerDistribution,
-  averageOverall,
-  buildBenchmark,
   buildCategoryGroups,
   buildInsights,
   buildKpis,
   buildOpportunities,
   buildRecommendations,
-  buildRiskAnalysis,
   formatDate,
   heatmapData,
   historyScores,
@@ -91,12 +86,10 @@ import {
   radarData,
   rankingData,
   resolveDate,
-  riskColor,
   stageDistribution,
   stageForScore,
   statusBadgeFor,
   STAGES,
-  trendData,
   type CategoryGroup,
   type Insight,
   type Kpi,
@@ -111,14 +104,13 @@ const insightTone: Record<Insight["tone"], { color: string; surface: string }> =
   info: { color: brandTokens.blue600, surface: brandTokens.blue50 },
 };
 
-type TabKey = "overview" | "strengths" | "actions" | "trends" | "details";
+type TabKey = "overview" | "strengths" | "actions" | "details";
 type FactTone = "default" | "success" | "error";
 
 const REPORT_TABS: Array<{ key: TabKey; label: string; icon: React.ReactElement }> = [
   { key: "overview", label: "Overview", icon: <DashboardOutlinedIcon fontSize="small" /> },
   { key: "strengths", label: "Strengths & Gaps", icon: <InsightsOutlinedIcon fontSize="small" /> },
   { key: "actions", label: "Action Plan", icon: <FlagOutlinedIcon fontSize="small" /> },
-  { key: "trends", label: "Trends & Risk", icon: <TrendingUpOutlinedIcon fontSize="small" /> },
   { key: "details", label: "Full Details", icon: <FormatListBulletedIcon fontSize="small" /> },
 ];
 
@@ -151,7 +143,6 @@ export function ReportDetailPage({
 
   const previousScore = useMemo(() => previousScoreFor(history, summary), [history, summary]);
   const overallDelta = previousScore == null ? null : overallScore - previousScore;
-  const yourAverage = useMemo(() => averageOverall(history), [history]);
   const spark = useMemo(() => historyScores(history, summary), [history, summary]);
 
   const kpis = useMemo(
@@ -170,14 +161,11 @@ export function ReportDetailPage({
     [detail?.recommendations, categoryGroups],
   );
   const opportunities = useMemo(() => buildOpportunities(categoryGroups), [categoryGroups]);
-  const risk = useMemo(() => buildRiskAnalysis(categoryGroups, overallDelta), [categoryGroups, overallDelta]);
-  const benchmark = useMemo(() => buildBenchmark(overallScore, yourAverage, previousScore), [overallScore, yourAverage, previousScore]);
-  const trend = useMemo(() => trendData(history, summary), [history, summary]);
-
   const [tab, setTab] = useState<TabKey>("overview");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [shared, setShared] = useState(false);
+  const [isPrintExporting, setIsPrintExporting] = useState(false);
   const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([]);
   const detailedStepsRef = useRef<HTMLDivElement | null>(null);
 
@@ -223,6 +211,20 @@ export function ReportDetailPage({
     }
   }
 
+  function printFullReport() {
+    setIsPrintExporting(true);
+    window.setTimeout(() => window.print(), 120);
+  }
+
+  useEffect(() => {
+    function finishPrintExport() {
+      setIsPrintExporting(false);
+    }
+
+    window.addEventListener("afterprint", finishPrintExport);
+    return () => window.removeEventListener("afterprint", finishPrintExport);
+  }, []);
+
   const highestName = kpis.find((k) => k.key === "best")?.sub ?? "";
   const lowestName = kpis.find((k) => k.key === "worst")?.sub ?? "";
   const readinessValue = kpis.find((k) => k.key === "readiness")?.value ?? "--";
@@ -233,13 +235,33 @@ export function ReportDetailPage({
 
   return (
     <MotionConfig reducedMotion="user">
-      <Box>
+      <Box
+        sx={{
+          "@media print": {
+            bgcolor: "#ffffff",
+            color: neutralTokens.ink900,
+            printColorAdjust: "exact",
+            WebkitPrintColorAdjust: "exact",
+            "& .MuiCard-root": {
+              breakInside: "avoid",
+              pageBreakInside: "avoid",
+              boxShadow: "none",
+            },
+            "& .recharts-responsive-container": {
+              breakInside: "avoid",
+              pageBreakInside: "avoid",
+            },
+          },
+        }}
+      >
         <PageHeader
           title="Detailed report"
           subtitle="A visual, plain-language read-out of your quality-maturity assessment - with the actions to take next."
           actions={
-            <Stack direction="row" spacing={1}>
-              <Button variant="text" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>Print / PDF</Button>
+            <Stack direction="row" spacing={1} sx={{ "@media print": { display: "none" } }}>
+              <Button variant="text" startIcon={<PrintOutlinedIcon />} disabled={isPrintExporting} onClick={printFullReport}>
+                {isPrintExporting ? "Preparing PDF..." : "Print / PDF"}
+              </Button>
               <Button variant="text" startIcon={<ShareOutlinedIcon />} onClick={shareReport}>Share</Button>
               <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={onBack}>Back to reports</Button>
             </Stack>
@@ -333,7 +355,7 @@ export function ReportDetailPage({
               <ReportTabs value={tab} onChange={setTab} />
 
               {/* ============================== OVERVIEW ============================== */}
-              {tab === "overview" ? (
+              {(tab === "overview" || isPrintExporting) ? (
                 <MotionReveal delay={0.04} key="overview">
                   <Stack spacing={2.5}>
                     <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", xl: "repeat(4, 1fr)" } }}>
@@ -352,7 +374,7 @@ export function ReportDetailPage({
               ) : null}
 
               {/* ============================== STRENGTHS & GAPS ============================== */}
-              {tab === "strengths" ? (
+              {(tab === "strengths" || isPrintExporting) ? (
               <Stack spacing={2.5} key="strengths">
               <SectionTitle icon={<InsightsOutlinedIcon />} title="Performance overview" subtitle="How each competency scores, ranked and mapped. Click any competency to jump to its detailed breakdown." />
               <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
@@ -482,7 +504,7 @@ export function ReportDetailPage({
               ) : null}
 
               {/* ============================== ACTION PLAN ============================== */}
-              {tab === "actions" ? (
+              {(tab === "actions" || isPrintExporting) ? (
               <Stack spacing={2.5} key="actions">
               {insights.length === 0 && recommendations.length === 0 && opportunities.length === 0 ? (
                 <Card sx={{ p: 4 }}>
@@ -560,101 +582,8 @@ export function ReportDetailPage({
               </Stack>
               ) : null}
 
-              {/* ============================== TRENDS & RISK ============================== */}
-              {tab === "trends" ? (
-              <Stack spacing={2.5} key="trends">
-              {/* -------------------------------------------------------- Trend + Benchmark */}
-              <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1.3fr 1fr" } }}>
-                <MotionReveal delay={0.05}>
-                  <ChartCard
-                    title="Trend over time"
-                    subtitle="Score and completion across your past assessments of this type"
-                    interpretation={trend.length >= 2 ? trendInterpretation(trend) : undefined}
-                  >
-                    {trend.length >= 2 ? (
-                      <ResponsiveContainer width="100%" height={280}>
-                        <LineChart data={trend} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={neutralTokens.line200} />
-                          <XAxis dataKey="label" tick={{ fill: neutralTokens.ink500, fontSize: 12 }} />
-                          <YAxis domain={[0, 100]} tick={{ fill: neutralTokens.ink500, fontSize: 12 }} />
-                          <Tooltip content={<PlainTooltip unit="" />} />
-                          <Legend wrapperStyle={{ fontSize: 12 }} />
-                          <Line type="monotone" dataKey="score" name="Maturity score" stroke={brandTokens.blue600} strokeWidth={3} dot={{ r: 3 }} isAnimationActive />
-                          <Line type="monotone" dataKey="completion" name="Completion %" stroke={semanticTokens.successMain} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} isAnimationActive />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyState title="Trend appears over time" description="Complete another assessment of this type to unlock the score-over-time trend." />
-                    )}
-                  </ChartCard>
-                </MotionReveal>
-
-                <MotionReveal delay={0.08}>
-                  <ChartCard
-                    title="Benchmark comparison"
-                    subtitle="This assessment vs your history and the Optimized target"
-                    interpretation={benchmarkInterpretation(overallScore, yourAverage, previousScore)}
-                  >
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={benchmark} layout="vertical" margin={{ left: 12, right: 28, top: 4, bottom: 4 }}>
-                        <CartesianGrid horizontal={false} stroke={neutralTokens.line200} strokeDasharray="3 3" />
-                        <XAxis type="number" domain={[0, 100]} tick={{ fill: neutralTokens.ink500, fontSize: 12 }} />
-                        <YAxis type="category" dataKey="label" width={130} tick={{ fill: neutralTokens.ink700, fontSize: 11 }} />
-                        <Tooltip content={<PlainTooltip />} cursor={{ fill: alpha(brandTokens.blue600, 0.06) }} />
-                        <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={20} isAnimationActive>
-                          {benchmark.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
-                          <LabelList dataKey="score" position="right" style={{ fontSize: 11, fontWeight: 700, fill: neutralTokens.ink700 }} />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </ChartCard>
-                </MotionReveal>
-              </Box>
-
-              {/* -------------------------------------------------------- Risk analysis */}
-              <SectionTitle icon={<ShieldOutlinedIcon />} title="Risk analysis" subtitle="Where quality risk concentrates today." />
-              <MotionReveal delay={0.05}>
-                <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
-                  <Card sx={{ p: 2.5 }}>
-                    <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1.5 }}>Competencies at risk</Typography>
-                    <Stack spacing={1}>
-                      {risk.areas.map((area) => (
-                        <Stack key={area.id} direction="row" alignItems="center" spacing={1.5} sx={{ p: 1.25, borderRadius: 2, border: `1px solid ${alpha(riskColor[area.level], 0.25)}`, bgcolor: alpha(riskColor[area.level], 0.05) }}>
-                          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: riskColor[area.level], flexShrink: 0 }} />
-                          <Typography variant="body2" fontWeight={700} sx={{ flexGrow: 1, minWidth: 0 }} noWrap>{area.name}</Typography>
-                          <Typography variant="body2" fontWeight={800} sx={{ color: riskColor[area.level], fontVariantNumeric: "tabular-nums" }}>{area.score}</Typography>
-                          <Chip size="small" label={`${area.level} risk`} sx={{ bgcolor: alpha(riskColor[area.level], 0.12), color: riskColor[area.level], fontWeight: 700 }} />
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Card>
-                  <Card sx={{ p: 2.5 }}>
-                    <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1.5 }}>Modules needing attention</Typography>
-                    {risk.performanceDecline ? (
-                      <Alert severity="warning" sx={{ mb: 1.5 }}>Overall score fell {risk.declineAmount} points versus your previous assessment - review what changed.</Alert>
-                    ) : null}
-                    {risk.modules.length === 0 ? (
-                      <EmptyState title="No high-risk modules" description="No module is at Immature or Developing maturity. Keep it up." />
-                    ) : (
-                      <Stack spacing={1}>
-                        {risk.modules.map((module) => (
-                          <Stack key={module.id} direction="row" alignItems="center" spacing={1.5} sx={{ p: 1.25, borderRadius: 2, border: `1px solid ${neutralTokens.line200}` }}>
-                            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: riskColor[module.level], flexShrink: 0 }} />
-                            <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>{module.name}</Typography>
-                            <Typography variant="body2" fontWeight={800} sx={{ color: riskColor[module.level], fontVariantNumeric: "tabular-nums" }}>{module.score}</Typography>
-                          </Stack>
-                        ))}
-                      </Stack>
-                    )}
-                    <InterpretationNote>High-risk areas are those at Immature or Developing maturity. Direct the next review and training budget here first.</InterpretationNote>
-                  </Card>
-                </Box>
-              </MotionReveal>
-              </Stack>
-              ) : null}
-
               {/* ============================== FULL DETAILS ============================== */}
-              {tab === "details" ? (
+              {(tab === "details" || isPrintExporting) ? (
               <Stack spacing={2.5} key="details">
                 <MotionReveal delay={0.04}>
                   <Card ref={detailedStepsRef} sx={{ p: { xs: 1.5, md: 2 } }}>
@@ -672,7 +601,7 @@ export function ReportDetailPage({
                     <Box sx={{ mt: 1.5, border: `1px solid ${neutralTokens.line200}`, borderRadius: 1.5, overflow: "hidden", bgcolor: "background.paper" }}>
                       {categoryGroups.map((group, groupIndex) => {
                         const categoryNodeId = `category:${group.categoryId}`;
-                        const categoryOpen = detailNodeOpen(categoryNodeId);
+                        const categoryOpen = isPrintExporting || detailNodeOpen(categoryNodeId);
                         return (
                           <Box key={group.categoryId} sx={{ borderTop: groupIndex === 0 ? 0 : `1px solid ${neutralTokens.line200}` }}>
                             <DetailTreeRow
@@ -687,7 +616,7 @@ export function ReportDetailPage({
                               <Box sx={{ display: "grid", gap: 0.6, px: { xs: 0.75, md: 1 }, pb: 0.9 }}>
                                 {group.modules.map((module) => {
                                   const moduleNodeId = `module:${module.key}`;
-                                  const moduleOpen = detailNodeOpen(moduleNodeId);
+                                  const moduleOpen = isPrintExporting || detailNodeOpen(moduleNodeId);
                                   return (
                                     <Box key={module.key} sx={{ border: `1px solid ${neutralTokens.line200}`, borderRadius: 1.25, overflow: "hidden", bgcolor: neutralTokens.surface1 }}>
                                       <DetailTreeRow
@@ -702,7 +631,7 @@ export function ReportDetailPage({
                                         <Box sx={{ display: "grid", gap: 0.6, px: { xs: 0.65, md: 0.9 }, pb: 0.8 }}>
                                           {module.subModules.map((subModule) => {
                                             const subModuleNodeId = `sub-module:${subModule.key}`;
-                                            const subModuleOpen = detailNodeOpen(subModuleNodeId);
+                                            const subModuleOpen = isPrintExporting || detailNodeOpen(subModuleNodeId);
                                             return (
                                               <Box key={subModule.key} sx={{ border: `1px solid ${neutralTokens.line200}`, borderRadius: 1.15, overflow: "hidden", bgcolor: "background.paper" }}>
                                                 <DetailTreeRow
@@ -829,6 +758,7 @@ function ReportTabs({ value, onChange }: { value: TabKey; onChange: (key: TabKey
         borderRadius: 2,
         border: `1px solid ${neutralTokens.line200}`,
         boxShadow: `0 6px 20px ${alpha(brandTokens.blue600, 0.06)}`,
+        "@media print": { display: "none" },
       }}
     >
       <Tabs
@@ -1093,7 +1023,7 @@ function MaturityJourney({ currentLevel }: { currentLevel: number }) {
   );
 }
 
-function DonutChart({ data, unit = "/100" }: { data: Array<{ name: string; value: number; color: string; percent: number }>; unit?: string }) {
+function DonutChart({ data, unit = "%" }: { data: Array<{ name: string; value: number; color: string; percent: number }>; unit?: string }) {
   if (data.length === 0) return <EmptyState title="No data" description="Nothing to plot yet." />;
   return (
     <Box>
@@ -1336,7 +1266,7 @@ function strengthInterpretation(groups: CategoryGroup[]) {
 function rankingInterpretation(groups: CategoryGroup[]) {
   const worst = groups.slice().sort((a, b) => a.score - b.score)[0];
   if (!worst) return null;
-  return `${worst.categoryName} sits at the bottom (${worst.score}/100). Lifting the lowest-ranked competency usually moves the overall score the most.`;
+  return `${worst.categoryName} sits at the bottom (${worst.score}%). Lifting the lowest-ranked competency usually moves the overall score the most.`;
 }
 
 function distributionInterpretation(groups: CategoryGroup[]) {
@@ -1344,23 +1274,6 @@ function distributionInterpretation(groups: CategoryGroup[]) {
   const total = groups.length || 1;
   const pct = Math.round((managed / total) * 100);
   return `${pct}% of competencies are at Managed maturity or higher. The more weight sits in the green stages, the more dependable your quality practices are.`;
-}
-
-function trendInterpretation(trend: Array<{ score: number }>) {
-  const first = trend[0].score;
-  const last = trend[trend.length - 1].score;
-  const diff = last - first;
-  if (diff === 0) return "Your maturity score has held steady across assessments. Target a specific weak competency to break the plateau.";
-  return `Your maturity score has ${diff > 0 ? "risen" : "fallen"} ${Math.abs(diff)} points since your first assessment of this type. ${diff > 0 ? "Keep reinforcing what is working." : "Investigate which competencies slipped."}`;
-}
-
-function benchmarkInterpretation(score: number, average: number | null, previous: number | null) {
-  const parts: string[] = [];
-  if (previous != null) parts.push(`${score >= previous ? "ahead of" : "behind"} your previous assessment (${previous})`);
-  if (average != null) parts.push(`${score >= average ? "above" : "below"} your running average (${average})`);
-  const target = 85 - score;
-  const gap = target > 0 ? `${target} points from the Optimized target (85).` : "already at or beyond the Optimized target (85).";
-  return `This assessment (${score}) is ${parts.join(" and ") || "your first data point"}. You are ${gap}`;
 }
 
 function toStatus(status: number): EntityStatus {
