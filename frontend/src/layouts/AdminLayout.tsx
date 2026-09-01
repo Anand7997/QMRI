@@ -9,7 +9,7 @@ export function AdminLayout() {
 
   return (
     <PortalLayout
-      brandTitle="QMRI Admin"
+      brandTitle="QAScan Admin"
       items={adminNavItems}
       homePath={RoutePaths.dashboard}
       profile={{

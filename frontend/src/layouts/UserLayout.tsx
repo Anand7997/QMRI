@@ -14,7 +14,7 @@ export function UserLayout() {
 
   return (
     <PortalLayout
-      brandTitle="QMRI Portal"
+      brandTitle="QAScan Portal"
       items={userNavItems}
       homePath={RoutePaths.portalDashboard}
       profile={{
