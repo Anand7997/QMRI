@@ -162,7 +162,7 @@ export function ScrollExpandMedia({
                 <Box
                   sx={{
                     width: "100%",
-                    aspectRatio: "1092 / 735",
+                    aspectRatio: "726 / 156",
                     overflow: "hidden",
                     filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.45))",
                   }}

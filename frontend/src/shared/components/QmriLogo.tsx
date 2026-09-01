@@ -11,12 +11,12 @@ interface QmriLogoProps {
 }
 
 const sizeMap = {
-  sm: 32,
-  md: 40,
-  lg: 56,
+  sm: { width: 148, height: 39 },
+  md: { width: 184, height: 49 },
+  lg: { width: 244, height: 64 },
 };
 
-export function QmriLogo({ label = "QMRI", to, size = "md", light = false, showText = true, sx }: QmriLogoProps) {
+export function QmriLogo({ label = "Everforth Quinnox", to, size = "md", light = false, showText = false, sx }: QmriLogoProps) {
   const imageSize = sizeMap[size];
   const rootSx: SxProps<Theme> = [
     {
@@ -33,15 +33,15 @@ export function QmriLogo({ label = "QMRI", to, size = "md", light = false, showT
     <>
       <Box
         component="img"
-        src="/qmri-logo.png"
-        alt="QMRI logo"
+        src="/everforth-quinnox-logo.svg"
+        alt="Everforth Quinnox logo"
         sx={{
-          width: imageSize,
-          height: imageSize,
+          width: imageSize.width,
+          height: imageSize.height,
           objectFit: "contain",
           display: "block",
           flex: "0 0 auto",
-          borderRadius: 1.5,
+          borderRadius: 0,
         }}
       />
       {showText ? (

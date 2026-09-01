@@ -113,9 +113,8 @@ export function LandingPage() {
         mediaType="image"
         mediaSrc={heroMediaImage}
         bgImageSrc={heroBgImage}
-        logoSrc="/qmri-logo-cutout.png"
-        logoAlt="QMRI - Quinnox Measures, Recommend and Implement"
-        logoSteps={["Quinnox", "Measures", "Recommend", "Implement"]}
+        logoSrc="/everforth-quinnox-logo.svg"
+        logoAlt="Everforth Quinnox"
         title="Accelerate Success"
         date="Measure . Recommend . Implement"
         scrollToExpand="Scroll to explore QMRI"
