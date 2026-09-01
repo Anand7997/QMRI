@@ -98,10 +98,10 @@ export function AuthenticationDashboardPage() {
   const [identityLinkFullName, setIdentityLinkFullName] = useState("");
   const [identityLinkEmail, setIdentityLinkEmail] = useState("");
   const [identityLinkCategory, setIdentityLinkCategory] = useState<ApprovalCategoryCode>(defaultApprovalCategory);
-  const [identityLinkDurationValue, setIdentityLinkDurationValue] = useState("7");
+  const [identityLinkDurationValue, setIdentityLinkDurationValue] = useState(String(defaultGeneratedLinkDays));
   const [identityLinkDurationUnit, setIdentityLinkDurationUnit] = useState<IdentityDurationUnit>("days");
   const [identityLinkExpiresAtLocal, setIdentityLinkExpiresAtLocal] = useState(() =>
-    toLocalDateTimeInput(addDuration(new Date(), 7, "days")),
+    toLocalDateTimeInput(addDuration(new Date(), defaultGeneratedLinkDays, "days")),
   );
   const [identityLinkFeedback, setIdentityLinkFeedback] = useState<Feedback | null>(null);
   const [createdIdentityLink, setCreatedIdentityLink] = useState<CreateIdentityLinkResponse | null>(null);
@@ -322,9 +322,9 @@ export function AuthenticationDashboardPage() {
     setIdentityLinkFullName("");
     setIdentityLinkEmail("");
     setIdentityLinkCategory(defaultApprovalCategory);
-    setIdentityLinkDurationValue("7");
+    setIdentityLinkDurationValue(String(defaultGeneratedLinkDays));
     setIdentityLinkDurationUnit("days");
-    setIdentityLinkExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), 7, "days")));
+    setIdentityLinkExpiresAtLocal(toLocalDateTimeInput(addDuration(new Date(), defaultGeneratedLinkDays, "days")));
     setIdentityLinkFeedback(null);
     setCreatedIdentityLink(null);
   }
@@ -468,6 +468,32 @@ export function AuthenticationDashboardPage() {
         ? { severity: "success", message: "Identity link copied to the clipboard." }
         : { severity: "error", message: "Unable to copy the identity link. Select the link and copy it manually." },
     );
+  }
+
+  async function handleRegenerateClientLink(user: UserAccessRequest) {
+    setApprovingUserId(user.userId);
+    setApprovalLinkFeedback(null);
+
+    try {
+      const selectedRole = approvalRoleFor(user);
+      const selectedCategory = approvalCategoryFor(user);
+      const result = await approveUserWithIdentityLink.mutateAsync(
+        buildApproveWithLinkInput(user.userId, selectedRole, selectedCategory),
+      );
+
+      setApprovedClientLinks((current) => [result, ...current.filter((item) => item.user.userId !== result.user.userId)]);
+      setApprovalLinkFeedback({
+        severity: "success",
+        message: `Fresh assessment link generated for ${result.user.email}. Copy or email this new link.`,
+      });
+    } catch (error) {
+      setApprovalLinkFeedback({
+        severity: "error",
+        message: getApiMessage(error) ?? "Unable to generate a fresh assessment link right now.",
+      });
+    } finally {
+      setApprovingUserId(null);
+    }
   }
 
   async function copyClientRequestLink() {
@@ -815,6 +841,17 @@ export function AuthenticationDashboardPage() {
                           </Stack>
                         ) : (
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            {generatesIdentityLink ? (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                startIcon={approvingUserId === user.userId ? <CircularProgress size={16} color="inherit" /> : <LinkOutlinedIcon />}
+                                disabled={approvalPending || updateUserAccess.isPending || deactivateUser.isPending}
+                                onClick={() => handleRegenerateClientLink(user)}
+                              >
+                                Generate link
+                              </Button>
+                            ) : null}
                             <Button
                               size="small"
                               variant="outlined"

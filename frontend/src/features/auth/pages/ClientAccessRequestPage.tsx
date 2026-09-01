@@ -21,7 +21,9 @@ type Feedback = { severity: "error" | "info" | "success"; message: string };
 type ApiErrorBody = { code?: string; message?: string };
 
 export function ClientAccessRequestPage() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [fullNameError, setFullNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
@@ -30,10 +32,19 @@ export function ClientAccessRequestPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFeedback(null);
+    setFullNameError(null);
     setEmailError(null);
 
+    const normalizedFullName = fullName.trim();
     const normalizedEmail = email.trim();
+    const nameValidationMessage = getNameValidationMessage(normalizedFullName);
     const validationMessage = getEmailValidationMessage(normalizedEmail);
+
+    if (nameValidationMessage) {
+      setFullNameError(nameValidationMessage);
+      setFeedback({ severity: "error", message: nameValidationMessage });
+      return;
+    }
 
     if (validationMessage) {
       setEmailError(validationMessage);
@@ -43,12 +54,12 @@ export function ClientAccessRequestPage() {
 
     setSubmitting(true);
     try {
-      await requestClientAccess({ email: normalizedEmail });
+      await requestClientAccess({ fullName: normalizedFullName, email: normalizedEmail });
       setRequestSubmitted(true);
       setFeedback({
         severity: "success",
         message:
-          "Your request has been submitted. The review and approval process may take some time. You will receive your qMRI assessment access link by email.",
+          "Your request has been submitted. The review and approval process may take some time. You will receive your QAscan assessment access link by email.",
       });
     } catch (error) {
       const apiError = getApiError(error);
@@ -84,7 +95,7 @@ export function ClientAccessRequestPage() {
                     Request assessment access
                   </Typography>
                   <Typography variant="body1" sx={{ mt: 1, color: neutralTokens.ink500, lineHeight: 1.65 }}>
-                    Please provide the email address where you would like to receive your qMRI assessment
+                    Please provide your name and email address where you would like to receive your QAscan assessment.
                   </Typography>
                 </Box>
               ) : null}
@@ -95,6 +106,21 @@ export function ClientAccessRequestPage() {
                 <Box component="form" onSubmit={handleSubmit} noValidate>
                   <Stack spacing={2}>
                     <TextField
+                      label="Name"
+                      value={fullName}
+                      onChange={(event) => {
+                        setFullName(event.target.value);
+                        setFullNameError(null);
+                      }}
+                      autoComplete="name"
+                      autoFocus
+                      fullWidth
+                      required
+                      error={Boolean(fullNameError)}
+                      helperText={fullNameError}
+                      disabled={submitting}
+                    />
+                    <TextField
                       label="Email ID"
                       type="email"
                       value={email}
@@ -103,7 +129,6 @@ export function ClientAccessRequestPage() {
                         setEmailError(null);
                       }}
                       autoComplete="email"
-                      autoFocus
                       fullWidth
                       required
                       error={Boolean(emailError)}
@@ -137,6 +162,14 @@ function getApiError(error: unknown): ApiErrorBody | null {
   }
 
   return error.response?.data ?? null;
+}
+
+function getNameValidationMessage(value: string): string | null {
+  if (!value) {
+    return "Enter your name.";
+  }
+
+  return null;
 }
 
 function getEmailValidationMessage(value: string): string | null {

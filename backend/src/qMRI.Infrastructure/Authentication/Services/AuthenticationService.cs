@@ -99,7 +99,7 @@ public sealed class AuthenticationService(
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This identity link has expired. Please contact your qMRI administrator.");
+                "This identity link has expired. Please contact your QAscan administrator.");
         }
 
         var eligibilityFailure = ValidateLoginEligibility(user);
@@ -174,7 +174,13 @@ public sealed class AuthenticationService(
 
     public async Task<RegisterResultDto> RequestClientAccessAsync(ClientAccessRequestDto request, CancellationToken cancellationToken = default)
     {
+        var fullName = request.FullName?.Trim() ?? string.Empty;
         var email = request.Email?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Name is required.");
+        }
+
         if (string.IsNullOrWhiteSpace(email))
         {
             return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Email is required.");
@@ -195,7 +201,7 @@ public sealed class AuthenticationService(
         var user = new User
         {
             UserId = Guid.NewGuid(),
-            FullName = BuildClientFullName(email),
+            FullName = fullName.Length <= 200 ? fullName : fullName[..200],
             UserName = BuildClientRequestUserName(),
             Email = email,
             PasswordHash = passwordHashingService.HashPassword(CreateRandomPassword()),
@@ -217,7 +223,7 @@ public sealed class AuthenticationService(
             Email = user.Email,
             RequestedRoleCode = user.RequestedRoleCode,
             ApprovalStatus = user.ApprovalStatus.ToString(),
-            Message = "Your request has been sent to the qMRI administrator for approval."
+            Message = "Your request has been sent to the QAscan administrator for approval."
         });
     }
 
@@ -292,7 +298,7 @@ public sealed class AuthenticationService(
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This account is not active. Please contact your qMRI administrator.");
+                "This account is not active. Please contact your QAscan administrator.");
         }
 
         if (string.Equals(user.RequestedRoleCode, GuestRoleCode, StringComparison.OrdinalIgnoreCase)
@@ -300,7 +306,7 @@ public sealed class AuthenticationService(
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This identity access has expired. Please contact your qMRI administrator.");
+                "This identity access has expired. Please contact your QAscan administrator.");
         }
 
         return null;

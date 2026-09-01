@@ -7,7 +7,7 @@ type AppContextValue = {
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
 const appContextValue: AppContextValue = {
-  appName: "QMRI",
+  appName: "QAScan",
 };
 
 export function AppContextProvider({ children }: PropsWithChildren) {

@@ -33,6 +33,7 @@ export interface RegisterRequest {
 }
 
 export interface ClientAccessRequest {
+  fullName: string;
   email: string;
 }
 

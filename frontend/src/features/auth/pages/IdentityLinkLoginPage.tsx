@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -40,10 +41,10 @@ export function IdentityLinkLoginPage() {
           replace: true,
           state: { resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE },
         });
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setStatus("error");
-          setMessage("This identity link has expired or is no longer valid.");
+          setMessage(getApiMessage(error) ?? "This identity link has expired or is no longer valid.");
         }
       }
     }
@@ -101,4 +102,12 @@ export function IdentityLinkLoginPage() {
       </Stack>
     </Box>
   );
+}
+
+function getApiMessage(error: unknown) {
+  if (!axios.isAxiosError<{ message?: string }>(error)) {
+    return null;
+  }
+
+  return error.response?.data?.message ?? null;
 }
