@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { isAxiosError } from "axios";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -44,6 +44,7 @@ import {
 } from "shared/api/types";
 import { maturityFor } from "shared/domain/maturity";
 import { RoutePaths } from "shared/constants/routePaths";
+import { ASSESSMENT_LINK_NAVIGATION_SOURCE, isAssessmentLinkNavigationState } from "shared/constants/assessmentNavigation";
 import "./qmriAgentAnalysis.css";
 
 type AnalysisPhase = "active" | "complete" | "error";
@@ -58,6 +59,7 @@ interface CategoryMetric {
 export function QmriAgentAnalysisPage() {
   const { assessmentId } = useParams<{ assessmentId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const assessmentQuery = useAssessment(assessmentId);
   const isReady = (assessmentQuery.data?.summary.status ?? -1) >= AssessmentStatus.Scored;
   const analysisQuery = useQmriAgentAnalysis(assessmentId, Boolean(assessmentQuery.data && isReady));
@@ -90,7 +92,7 @@ export function QmriAgentAnalysisPage() {
   if (assessmentQuery.isLoading) {
     return (
       <Box className="qmri-agent-page" aria-busy="true">
-        <Typography component="h1" variant="h1">QMRI Agent analysis</Typography>
+        <Typography component="h1" variant="h1">QAscan Agent analysis</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mb: 2 }}>
           Preparing the assessment evidence trail.
         </Typography>
@@ -102,7 +104,7 @@ export function QmriAgentAnalysisPage() {
   if (!assessmentId || assessmentQuery.isError || !assessmentQuery.data) {
     return (
       <Box className="qmri-agent-page">
-        <Typography component="h1" variant="h1">QMRI Agent analysis</Typography>
+        <Typography component="h1" variant="h1">QAscan Agent analysis</Typography>
         <Alert severity="error" sx={{ mt: 2 }}>
           This assessment could not be loaded. Return to your assessments and try again.
         </Alert>
@@ -127,9 +129,13 @@ export function QmriAgentAnalysisPage() {
   const summary = assessmentQuery.data.summary;
   const analysis = analysisQuery.data;
   const responseCount = answeredResponses.length || summary.answeredCount;
-  const reportAction = () => navigate(RoutePaths.portalReports, { state: { assessmentId } });
+  const reportAction = () => navigate(RoutePaths.portalReports, {
+    state: isAssessmentLinkNavigationState(location.state)
+      ? { assessmentId, resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE }
+      : { assessmentId },
+  });
   const errorMessage = !isReady
-    ? "This assessment must be submitted and scored before QMRI Agent can analyse it."
+    ? "This assessment must be submitted and scored before QAscan Agent can analyse it."
     : getAnalysisErrorMessage(analysisQuery.error);
 
   return (
@@ -143,7 +149,7 @@ export function QmriAgentAnalysisPage() {
       >
         <Box>
           <Typography className="qmri-agent-eyebrow">ASSESSMENT INTERPRETATION</Typography>
-          <Typography component="h1" variant="h1">QMRI Agent analysis</Typography>
+          <Typography component="h1" variant="h1">QAscan Agent analysis</Typography>
           <Typography component="p" variant="h3" sx={{ mt: 0.55 }}>{phase === "complete" ? "Executive maturity snapshot" : "Reading your responses"}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
             {summary.title} · {formatAveragePercent(summary.overallScore ?? 0)}
@@ -165,7 +171,7 @@ export function QmriAgentAnalysisPage() {
         />
       ) : (
         <Box className="qmri-agent-chamber">
-          <Box component="section" aria-label="QMRI Agent scan field" className="qmri-agent-visual-column">
+          <Box component="section" aria-label="QAscan Agent scan field" className="qmri-agent-visual-column">
             <RobotScanField phase={phase} responseCount={responseCount} />
             <AggregateProgress
               phase={phase}
@@ -222,7 +228,7 @@ export function QmriAgentAnalysisPage() {
         <Stack direction="row" spacing={0.8} alignItems="flex-start" className="qmri-agent-trust-note">
           <InfoOutlinedIcon sx={{ fontSize: 17, mt: 0.15, flexShrink: 0 }} />
           <Typography variant="caption" color="text.secondary">
-            QMRI Agent feedback is generated from your assessment responses and is intended to support review and planning.
+            QAscan Agent feedback is generated from your assessment responses and is intended to support review and planning.
             Use the detailed report for the full evidence trail.
           </Typography>
         </Stack>
@@ -568,11 +574,11 @@ function AgentConversation({
   onRetry: () => void;
 }) {
   return (
-    <Card component="aside" className="qmri-agent-conversation" aria-label="Conversation with QMRI Agent">
+    <Card component="aside" className="qmri-agent-conversation" aria-label="Conversation with QAscan Agent">
       <Box className="qmri-agent-conversation-header">
         <Box className="qmri-agent-avatar"><AutoAwesomeOutlinedIcon /></Box>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h3">QMRI Agent</Typography>
+          <Typography variant="h3">QAscan Agent</Typography>
           <Stack direction="row" spacing={0.75} alignItems="center">
             <span className={`qmri-agent-status-dot qmri-agent-status-dot--${phase}`} aria-hidden="true" />
             <Typography variant="caption" color="text.secondary">
@@ -599,8 +605,8 @@ function AgentConversation({
             <Box className="qmri-agent-message-bubble">
               <Typography variant="body1">
                 {phase === "complete"
-                  ? "I have finished reading your submitted responses and checked the result against the QMRI maturity framework."
-                  : `I am reviewing all ${responseCount} submitted responses together against the QMRI maturity framework.`}
+                  ? "I have finished reading your submitted responses and checked the result against the QAscan maturity framework."
+                  : `I am reviewing all ${responseCount} submitted responses together against the QAscan maturity framework.`}
               </Typography>
             </Box>
             <AnalysisTerminal
@@ -621,7 +627,7 @@ function AgentConversation({
               </Box>
             ) : null}
             {pending ? (
-              <Stack direction="row" spacing={0.6} alignItems="center" className="qmri-agent-typing" aria-label="QMRI Agent is preparing feedback">
+              <Stack direction="row" spacing={0.6} alignItems="center" className="qmri-agent-typing" aria-label="QAscan Agent is preparing feedback">
                 <span /><span /><span />
                 <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>Preparing evidence-based feedback</Typography>
               </Stack>
@@ -672,7 +678,7 @@ function AnalysisTerminal({
       className={`qmri-agent-terminal qmri-agent-terminal--${phase}`}
       role="status"
       aria-live={pending ? "polite" : "off"}
-      aria-label="QMRI Agent analysis activity log"
+      aria-label="QAscan Agent analysis activity log"
     >
       <Box className="qmri-agent-terminal-header">
         <span className="qmri-agent-terminal-lights" aria-hidden="true"><i /><i /><i /></span>
@@ -704,7 +710,7 @@ function AnalysisTerminal({
           );
         })}
         <Box className="qmri-agent-terminal-prompt">
-          <span>qmri-agent</span>
+          <span>qascan-agent</span>
           <strong>{promptText}</strong>
         </Box>
       </Box>
@@ -819,5 +825,5 @@ function getAnalysisErrorMessage(error: unknown) {
     return error.response.data.detail;
   }
 
-  return "QMRI Agent could not complete the analysis. Try again or use the detailed report, which remains the source of truth.";
+  return "QAscan Agent could not complete the analysis. Try again or use the detailed report, which remains the source of truth.";
 }

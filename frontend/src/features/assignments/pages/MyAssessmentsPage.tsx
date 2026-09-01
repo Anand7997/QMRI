@@ -43,6 +43,7 @@ import {
   useSaveResumePointer,
 } from "shared/api/dashboardGovernance";
 import {
+  ASSESSMENT_LINK_NAVIGATION_SOURCE,
   isAssessmentLinkNavigationState,
   type AssessmentNavigationState,
 } from "shared/constants/assessmentNavigation";
@@ -461,7 +462,11 @@ export function MyAssessmentsPage() {
         if (!submittedPrompt) return;
         const targetAssessmentId = submittedPrompt.assessmentId;
         setSubmittedPrompt(null);
-        navigate(portalAgentAnalysisPath(targetAssessmentId));
+        navigate(portalAgentAnalysisPath(targetAssessmentId), {
+          state: isAssessmentLinkNavigationState(location.state)
+            ? { resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE }
+            : undefined,
+        });
       }}
     />
   );
@@ -910,7 +915,7 @@ function AssessmentResultDialog({
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Your assessment has been submitted and scored. QMRI Agent can now read your responses, identify patterns,
+            Your assessment has been submitted and scored. QAscan Agent can now read your responses, identify patterns,
             and prepare practical feedback for you.
           </Typography>
           <Box sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
@@ -925,7 +930,7 @@ function AssessmentResultDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button variant="contained" onClick={onAnalyze} fullWidth>
-          Analyse your responses by QMRI Agent
+          Analyse your responses by QAscan Agent
         </Button>
       </DialogActions>
     </Dialog>

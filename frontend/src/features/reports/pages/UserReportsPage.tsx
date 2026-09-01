@@ -34,6 +34,8 @@ import { formatDate, resolveDate, stageForScore, stageLabelForAverage, type Stag
 type ReportRouteState = {
   assessmentId?: string;
   focus?: "steps";
+  resume?: boolean;
+  source?: string;
 };
 
 export function UserReportsPage() {
@@ -53,6 +55,7 @@ export function UserReportsPage() {
   const routeState = location.state as ReportRouteState | null;
   const routeAssessmentId = routeState?.assessmentId;
   const routeFocus = routeState?.focus;
+  const shouldPreserveRouteState = routeState?.resume === true && routeState?.source === "identity-link";
   const detailQuery = useAssessment(selectedId);
 
   const summary = useMemo(() => {
@@ -76,8 +79,11 @@ export function UserReportsPage() {
 
     setSelectedId(routeAssessmentId);
     setFocusSteps(routeFocus === "steps");
-    navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, navigate, reports, routeAssessmentId, routeFocus]);
+    navigate(location.pathname, {
+      replace: true,
+      state: shouldPreserveRouteState ? { resume: true, source: routeState?.source } : null,
+    });
+  }, [location.pathname, navigate, reports, routeAssessmentId, routeFocus, routeState, shouldPreserveRouteState]);
 
   if (selectedSummary) {
     return (

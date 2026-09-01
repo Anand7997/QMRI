@@ -9,8 +9,10 @@ export function UserLayout() {
   const location = useLocation();
   const { user } = useAuthContext();
   const displayName = user?.fullName || user?.userName || "Portal User";
+  const isIdentityLinkSession = isAssessmentLinkNavigationState(location.state);
   const hidePortalChrome =
-    location.pathname === RoutePaths.portalAssessments && isAssessmentLinkNavigationState(location.state);
+    isIdentityLinkSession
+    && (location.pathname === RoutePaths.portalAssessments || location.pathname === RoutePaths.portalReports);
 
   return (
     <PortalLayout
