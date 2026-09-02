@@ -2,11 +2,8 @@ import { useMemo, useState } from "react";
 import { Box, Button, Card, Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
-import GridOnOutlinedIcon from "@mui/icons-material/GridOnOutlined";
-import TableViewOutlinedIcon from "@mui/icons-material/TableViewOutlined";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
 import { AssessmentStatus, assessmentStatusLabel, type AssessmentDetailDto, type AssessmentSummaryDto } from "shared/api/types";
 import { useAppendGovernanceAuditEntry } from "shared/api/dashboardGovernance";
 
@@ -16,9 +13,11 @@ interface ExportCenterProps {
   assessments: AssessmentSummaryDto[];
   details?: AssessmentDetailDto[];
   actor?: string;
+  onPdfExport?: () => void;
+  isPdfExporting?: boolean;
 }
 
-type ExportFormat = "pdf" | "xlsx" | "csv";
+type ExportFormat = "pdf";
 
 const statusOptions = [
   { value: "all", label: "All statuses" },
@@ -29,7 +28,15 @@ const statusOptions = [
   { value: String(AssessmentStatus.Archived), label: "Archived" },
 ] as const;
 
-export function ExportCenter({ title, scope, assessments, details = [], actor = "System" }: ExportCenterProps) {
+export function ExportCenter({
+  title,
+  scope,
+  assessments,
+  details = [],
+  actor = "System",
+  onPdfExport,
+  isPdfExporting = false,
+}: ExportCenterProps) {
   const [status, setStatus] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -69,15 +76,11 @@ export function ExportCenter({ title, scope, assessments, details = [], actor = 
 
   function exportData(format: ExportFormat) {
     if (format === "pdf") {
-      exportPdf(title, scope, rows, recommendationRows);
-    }
-
-    if (format === "xlsx") {
-      exportWorkbook(title, rows, recommendationRows);
-    }
-
-    if (format === "csv") {
-      downloadText(`${slug(title)}.csv`, toCsv(rows), "text/csv;charset=utf-8");
+      if (onPdfExport) {
+        onPdfExport();
+      } else {
+        exportPdf(title, scope, rows, recommendationRows);
+      }
     }
 
     void appendAuditEntry.mutateAsync({
@@ -90,7 +93,7 @@ export function ExportCenter({ title, scope, assessments, details = [], actor = 
   }
 
   return (
-    <Card sx={{ p: 2.5 }}>
+    <Card sx={{ p: 2.5, "@media print": { display: "none" } }}>
       <Stack direction={{ xs: "column", lg: "row" }} spacing={1.5} alignItems={{ lg: "center" }} justifyContent="space-between">
         <Box>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
@@ -117,14 +120,13 @@ export function ExportCenter({ title, scope, assessments, details = [], actor = 
       </Stack>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ mt: 2 }}>
-        <Button variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} disabled={rows.length === 0} onClick={() => exportData("pdf")}>
-          PDF
-        </Button>
-        <Button variant="outlined" startIcon={<GridOnOutlinedIcon />} disabled={rows.length === 0} onClick={() => exportData("xlsx")}>
-          Excel
-        </Button>
-        <Button variant="outlined" startIcon={<TableViewOutlinedIcon />} disabled={rows.length === 0} onClick={() => exportData("csv")}>
-          CSV
+        <Button
+          variant="contained"
+          startIcon={<PictureAsPdfOutlinedIcon />}
+          disabled={rows.length === 0 || isPdfExporting}
+          onClick={() => exportData("pdf")}
+        >
+          {isPdfExporting ? "Preparing PDF..." : "PDF"}
         </Button>
       </Stack>
     </Card>
@@ -160,43 +162,6 @@ function exportPdf(
   }
 
   doc.save(`${slug(title)}.pdf`);
-}
-
-function exportWorkbook(
-  title: string,
-  rows: Record<string, string>[],
-  recommendationRows: Record<string, string | number>[],
-) {
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "Assessments");
-  if (recommendationRows.length) {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(recommendationRows), "Recommendations");
-  }
-  XLSX.writeFile(workbook, `${slug(title)}.xlsx`);
-}
-
-function toCsv(rows: Record<string, string>[]) {
-  if (!rows.length) return "";
-  const headers = Object.keys(rows[0]);
-  const lines = [headers.join(",")];
-  rows.forEach((row) => {
-    lines.push(headers.map((header) => escapeCsv(row[header])).join(","));
-  });
-  return lines.join("\n");
-}
-
-function escapeCsv(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function downloadText(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function resolveDate(assessment: AssessmentSummaryDto) {

@@ -1,6 +1,6 @@
 import { PortalLayout } from "./portal/PortalLayout";
 import { userNavItems } from "./user/navItems";
-import { useLocation } from "react-router-dom";
+import { matchPath, useLocation } from "react-router-dom";
 import { useAuthContext } from "contexts/AuthContext";
 import { isAssessmentLinkNavigationState } from "shared/constants/assessmentNavigation";
 import { RoutePaths } from "shared/constants/routePaths";
@@ -12,7 +12,11 @@ export function UserLayout() {
   const isIdentityLinkSession = isAssessmentLinkNavigationState(location.state);
   const hidePortalChrome =
     isIdentityLinkSession
-    && (location.pathname === RoutePaths.portalAssessments || location.pathname === RoutePaths.portalReports);
+    && Boolean(
+      matchPath(RoutePaths.portalAssessments, location.pathname)
+        || matchPath(RoutePaths.portalAgentAnalysis, location.pathname)
+        || matchPath(RoutePaths.portalReports, location.pathname),
+    );
 
   return (
     <PortalLayout

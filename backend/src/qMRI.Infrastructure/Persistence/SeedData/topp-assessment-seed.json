@@ -9546,8 +9546,8 @@
                   "questionId": "3bb87d2e-d664-5691-b39a-8c314f722748",
                   "subModuleId": "106102a7-3c39-5e09-8a63-16b210cbc181",
                   "text": "Do you lack a formal QA governance model across programs?",
-                  "guidance": "Scoring: Yes=Good, Partial=Partial, No=Zero. This follows the requested diagnostic scoring rule.",
-                  "expectedAnswer": 2,
+                  "guidance": "Scoring: Yes=Zero, Partial=Partial, No=Good. This follows the requested diagnostic scoring rule.",
+                  "expectedAnswer": 0,
                   "intensity": 0,
                   "weight": 1,
                   "sortOrder": 3

@@ -369,6 +369,15 @@ export function ReportDetailPage({
                       onSeeStrengths={() => setTab("strengths")}
                       onDrill={drillToCategory}
                     />
+                    <ExportCenter
+                      title="Export & share this report"
+                      scope="User"
+                      assessments={[summary]}
+                      details={detail ? [detail] : []}
+                      actor={actor ?? "User"}
+                      onPdfExport={printFullReport}
+                      isPdfExporting={isPrintExporting}
+                    />
                   </Stack>
                 </MotionReveal>
               ) : null}
@@ -692,17 +701,6 @@ export function ReportDetailPage({
               <EmptyState title="No detailed result" description="Detailed question-level results were not returned for this assessment." />
             </Card>
           )}
-
-          {/* ---------------------------------------------------------- Export & filter */}
-          <MotionReveal delay={0.05}>
-            <ExportCenter
-              title="Export & share this report"
-              scope="User"
-              assessments={[summary]}
-              details={detail ? [detail] : []}
-              actor={actor ?? "User"}
-            />
-          </MotionReveal>
 
           {/* ---------------------------------------------------------- Help */}
           <MotionReveal delay={0.05}>
