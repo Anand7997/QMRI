@@ -213,7 +213,9 @@ export function ReportDetailPage({
 
   function printFullReport() {
     setIsPrintExporting(true);
-    window.setTimeout(() => window.print(), 120);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.print());
+    });
   }
 
   useEffect(() => {
@@ -398,7 +400,7 @@ export function ReportDetailPage({
                         <PolarGrid stroke={neutralTokens.line200} />
                         <PolarAngleAxis dataKey="category" tick={{ fill: neutralTokens.ink500, fontSize: 11 }} />
                         <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Score" dataKey="score" stroke={brandTokens.blue600} fill={brandTokens.blue600} fillOpacity={0.22} isAnimationActive />
+                        <Radar name="Score" dataKey="score" stroke={brandTokens.blue600} fill={brandTokens.blue600} fillOpacity={0.22} isAnimationActive={!isPrintExporting} />
                         <Tooltip content={<PlainTooltip />} />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -421,7 +423,7 @@ export function ReportDetailPage({
                           dataKey="score"
                           radius={[0, 6, 6, 0]}
                           barSize={18}
-                          isAnimationActive
+                          isAnimationActive={!isPrintExporting}
                           onClick={(data: unknown) => {
                             const id = (data as { categoryId?: string })?.categoryId;
                             if (id) drillToCategory(id);
@@ -478,12 +480,12 @@ export function ReportDetailPage({
               <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
                 <MotionReveal delay={0.05}>
                   <ChartCard title="Maturity distribution" subtitle="Share of competencies at each maturity stage" interpretation={distributionInterpretation(categoryGroups)}>
-                    <DonutChart data={stageDist} />
+                    <DonutChart data={stageDist} isPrintExporting={isPrintExporting} />
                   </ChartCard>
                 </MotionReveal>
                 <MotionReveal delay={0.08}>
                   <ChartCard title="Response distribution" subtitle="How every answer was rated against the expected answer" interpretation='A high share of "Yes" means practices are broadly in place; large "No / Partial" shares point to concrete gaps to close.'>
-                    <DonutChart data={answerDist} unit="" />
+                    <DonutChart data={answerDist} unit="" isPrintExporting={isPrintExporting} />
                   </ChartCard>
                 </MotionReveal>
               </Box>
@@ -1021,13 +1023,21 @@ function MaturityJourney({ currentLevel }: { currentLevel: number }) {
   );
 }
 
-function DonutChart({ data, unit = "%" }: { data: Array<{ name: string; value: number; color: string; percent: number }>; unit?: string }) {
+function DonutChart({
+  data,
+  unit = "%",
+  isPrintExporting = false,
+}: {
+  data: Array<{ name: string; value: number; color: string; percent: number }>;
+  unit?: string;
+  isPrintExporting?: boolean;
+}) {
   if (data.length === 0) return <EmptyState title="No data" description="Nothing to plot yet." />;
   return (
     <Box>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={56} outerRadius={84} paddingAngle={2} isAnimationActive>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={56} outerRadius={84} paddingAngle={2} isAnimationActive={!isPrintExporting}>
             {data.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
           </Pie>
           <Tooltip content={<PlainTooltip unit={unit} />} />
