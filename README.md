@@ -1,6 +1,6 @@
-# qMRI
+# TestScan
 
-qMRI is a full-stack assessment platform for managing quality maturity reviews. It provides an administrator experience for configuring assessments, users, question banks, reporting, and settings, plus a user portal for completing assigned assessments and reviewing results.
+TestScan is a full-stack assessment platform for managing quality maturity reviews. It provides an administrator experience for configuring assessments, users, question banks, reporting, and settings, plus a user portal for completing assigned assessments and reviewing results.
 
 ## What Is Inside
 

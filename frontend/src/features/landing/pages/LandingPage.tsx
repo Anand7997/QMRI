@@ -117,7 +117,7 @@ export function LandingPage() {
         logoAlt="Everforth Quinnox"
         title="Accelerate Success"
         date="Measure . Recommend . Implement"
-        scrollToExpand="Scroll to explore QMRI"
+        scrollToExpand="Scroll to explore TestScan"
         textBlend
       >
         <Box sx={{ bgcolor: neutralTokens.surface0, color: neutralTokens.ink900, pt: { xs: 6, md: 8 } }}>
@@ -171,13 +171,13 @@ export function LandingPage() {
       <Container maxWidth="lg" sx={{ position: "relative", zIndex: 2, mt: { xs: 4, md: 6 } }}>
         <Stack spacing={1} sx={{ textAlign: "center", mb: { xs: 4, md: 5 } }}>
           <Typography variant="overline" sx={{ color: brandTokens.blue600, fontWeight: 800, letterSpacing: "0.08em" }}>
-            The QMRI method
+            The TestScan method
           </Typography>
           <Typography variant="h1" sx={{ fontSize: { xs: "1.6rem", md: "2.2rem" }, fontWeight: 800 }}>
             Measure. Recommend. Implement.
           </Typography>
           <Typography variant="body1" sx={{ mx: "auto", maxWidth: 680, color: neutralTokens.ink500, lineHeight: 1.75 }}>
-            The three moves behind QMRI - Quinnox Measures, Recommend and Implement - turning quality signals into
+            The three moves behind TestScan - Quinnox Measures, Recommend and Implement - turning quality signals into
             prioritised action.
           </Typography>
         </Stack>
@@ -213,7 +213,7 @@ export function LandingPage() {
               Built for repeatable quality decisions.
             </Typography>
             <Typography variant="body1" sx={{ mt: 2, color: neutralTokens.ink500, lineHeight: 1.75 }}>
-              QMRI gives administrators a controlled way to validate users, run assessments, score capability and turn
+              TestScan gives administrators a controlled way to validate users, run assessments, score capability and turn
               results into practical implementation work.
             </Typography>
             <Stack spacing={1.25} sx={{ mt: 3 }}>
@@ -257,7 +257,7 @@ export function LandingPage() {
           <Stack direction={{ xs: "column", md: "row" }} spacing={3} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }}>
             <Box>
               <Typography variant="h1" sx={{ fontSize: { xs: "1.6rem", md: "2.2rem" }, fontWeight: 800 }}>
-                Start the maturity journey with QMRI.
+                Start the maturity journey with TestScan.
               </Typography>
               <Typography variant="body1" sx={{ mt: 1, color: "rgba(255,255,255,0.72)" }}>
                 Sign up, wait for admin approval, and enter your user dashboard once validated.
@@ -275,7 +275,7 @@ export function LandingPage() {
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} sx={{ py: 3 }}>
             <QmriLogo size="md" />
             <Typography variant="body2" sx={{ color: neutralTokens.ink500 }}>
-              (c) {new Date().getFullYear()} QMRI - Quinnox. All rights reserved.
+              (c) {new Date().getFullYear()} TestScan - Quinnox. All rights reserved.
             </Typography>
           </Stack>
         </Container>

@@ -15,7 +15,7 @@ const keys = {
   list: (userId?: string) => ["assessments", "list", userId ?? "me"] as const,
   detail: (id: string) => ["assessments", "detail", id] as const,
   results: (id: string) => ["assessments", "results", id] as const,
-  agentAnalysis: (id: string) => ["assessments", "agent-analysis", "qascan-v1", id] as const,
+  agentAnalysis: (id: string) => ["assessments", "agent-analysis", "testscan-v1", id] as const,
   examTakers: (id: string) => ["assessments", "exam-takers", id] as const,
 };
 

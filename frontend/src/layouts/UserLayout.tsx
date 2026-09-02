@@ -16,12 +16,12 @@ export function UserLayout() {
 
   return (
     <PortalLayout
-      brandTitle="QAScan Portal"
+      brandTitle="TestScan Portal"
       items={userNavItems}
       homePath={RoutePaths.portalDashboard}
       profile={{
         name: displayName,
-        email: user?.email ?? "user@qmri.app",
+        email: user?.email ?? "user@testscan.app",
         initial: displayName.charAt(0).toUpperCase(),
         profilePath: RoutePaths.portalProfile,
         settingsPath: RoutePaths.portalSettings,

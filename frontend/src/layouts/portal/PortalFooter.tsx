@@ -18,7 +18,7 @@ export function PortalFooter() {
       }}
     >
       <Typography variant="caption" color="text.secondary">
-        © {new Date().getFullYear()} QMRI. All rights reserved.
+        © {new Date().getFullYear()} TestScan. All rights reserved.
       </Typography>
       <Typography variant="caption" color="text.secondary">
         <Link href="#" underline="hover" color="inherit">

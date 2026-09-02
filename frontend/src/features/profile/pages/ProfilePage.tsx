@@ -43,7 +43,7 @@ export function ProfilePage() {
               {displayName}
             </Typography>
             <Typography variant="body2" color="text.secondary" noWrap>
-              {user?.email ?? "user@qmri.app"}
+              {user?.email ?? "user@testscan.app"}
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
               {(user?.roles ?? ["USER"]).map((role) => (

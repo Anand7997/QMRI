@@ -915,7 +915,7 @@ function AssessmentResultDialog({
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Your assessment has been submitted and scored. QAscan Agent can now read your responses, identify patterns,
+            Your assessment has been submitted and scored. TestScan Agent can now read your responses, identify patterns,
             and prepare practical feedback for you.
           </Typography>
           <Box sx={{ p: 1.75, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
@@ -930,7 +930,7 @@ function AssessmentResultDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button variant="contained" onClick={onAnalyze} fullWidth>
-          Analyse your responses by QAscan Agent
+          Analyse your responses by TestScan Agent
         </Button>
       </DialogActions>
     </Dialog>

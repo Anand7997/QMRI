@@ -26,7 +26,7 @@ export function SettingsPage() {
   const { user } = useAuthContext();
   const [saved, setSaved] = useState(false);
   const [adminName, setAdminName] = useState(user?.fullName || user?.userName || "Admin User");
-  const [email, setEmail] = useState(user?.email || "admin@qmri.app");
+  const [email, setEmail] = useState(user?.email || "admin@testscan.app");
   const [approvalMode, setApprovalMode] = useState("manual");
   const [defaultRole, setDefaultRole] = useState("USER");
   const [sessionTimeout, setSessionTimeout] = useState("30");

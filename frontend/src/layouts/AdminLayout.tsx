@@ -9,12 +9,12 @@ export function AdminLayout() {
 
   return (
     <PortalLayout
-      brandTitle="QAScan Admin"
+      brandTitle="TestScan Admin"
       items={adminNavItems}
       homePath={RoutePaths.dashboard}
       profile={{
         name: displayName,
-        email: user?.email ?? "admin@qmri.app",
+        email: user?.email ?? "admin@testscan.app",
         initial: displayName.charAt(0).toUpperCase(),
         profilePath: RoutePaths.settings,
         settingsPath: RoutePaths.settings,
