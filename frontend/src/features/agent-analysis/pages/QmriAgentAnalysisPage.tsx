@@ -1,4 +1,5 @@
 ﻿import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect } from "react";
 import { isAxiosError } from "axios";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -49,6 +50,8 @@ import "./qmriAgentAnalysis.css";
 
 type AnalysisPhase = "active" | "complete" | "error";
 
+const AGENT_ANALYSIS_DISPLAY_TIME_MS = 4_000;
+
 interface CategoryMetric {
   category: string;
   score: number;
@@ -63,6 +66,22 @@ export function QmriAgentAnalysisPage() {
   const assessmentQuery = useAssessment(assessmentId);
   const isReady = (assessmentQuery.data?.summary.status ?? -1) >= AssessmentStatus.Scored;
   const analysisQuery = useQmriAgentAnalysis(assessmentId, Boolean(assessmentQuery.data && isReady));
+  const [analysisDisplayReady, setAnalysisDisplayReady] = useState(false);
+
+  useEffect(() => {
+    if (!isReady) {
+      setAnalysisDisplayReady(false);
+      return;
+    }
+
+    setAnalysisDisplayReady(false);
+    const timer = window.setTimeout(
+      () => setAnalysisDisplayReady(true),
+      AGENT_ANALYSIS_DISPLAY_TIME_MS,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [assessmentId, isReady]);
 
   const answeredResponses = useMemo(
     () => (assessmentQuery.data?.questionResults ?? []).filter((response) => response.answer != null),
@@ -120,10 +139,14 @@ export function QmriAgentAnalysisPage() {
     );
   }
 
-  const pending = isReady && (analysisQuery.isPending || analysisQuery.isFetching);
+  const pending = isReady && (
+    analysisQuery.isPending
+    || analysisQuery.isFetching
+    || Boolean(analysisQuery.data && !analysisDisplayReady)
+  );
   const phase: AnalysisPhase = !isReady || analysisQuery.isError
     ? "error"
-    : analysisQuery.data
+    : analysisQuery.data && analysisDisplayReady
       ? "complete"
       : "active";
   const summary = assessmentQuery.data.summary;
