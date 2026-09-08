@@ -16,7 +16,7 @@ const sizeMap = {
   lg: { width: 244, height: 64 },
 };
 
-export function QmriLogo({ label = "Everforth Quinnox", to, size = "md", light = false, showText = false, sx }: QmriLogoProps) {
+export function QmriLogo({ label = "QAScan", to, size = "md", light = false, showText = false, sx }: QmriLogoProps) {
   const imageSize = sizeMap[size];
   const rootSx: SxProps<Theme> = [
     {
@@ -34,7 +34,7 @@ export function QmriLogo({ label = "Everforth Quinnox", to, size = "md", light =
       <Box
         component="img"
         src="/everforth-quinnox-logo.svg"
-        alt="Everforth Quinnox logo"
+        alt="QAScan logo"
         sx={{
           width: imageSize.width,
           height: imageSize.height,

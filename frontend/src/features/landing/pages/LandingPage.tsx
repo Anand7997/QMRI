@@ -114,7 +114,7 @@ export function LandingPage() {
         mediaSrc={heroMediaImage}
         bgImageSrc={heroBgImage}
         logoSrc="/everforth-quinnox-logo.svg"
-        logoAlt="Everforth Quinnox"
+        logoAlt="QAScan logo"
         title="Accelerate Success"
         date="Measure . Recommend . Implement"
         scrollToExpand="Scroll to explore QAScan"

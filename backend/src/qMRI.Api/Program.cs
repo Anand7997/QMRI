@@ -9,8 +9,6 @@ LoadDotEnv();
 
 var builder = WebApplication.CreateBuilder(args);
 
-ApplyOpenAiEnvironmentFallbacks(builder.Configuration);
-
 builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 {
 	loggerConfiguration
@@ -87,15 +85,6 @@ static void LoadDotEnv()
 				{
 					Environment.SetEnvironmentVariable(key, value);
 
-					if (key.Equals("OPENAI_API_KEY", StringComparison.OrdinalIgnoreCase))
-					{
-						Environment.SetEnvironmentVariable("OpenAI__ApiKey", value);
-					}
-
-					if (key.Equals("OPENAI_MODEL", StringComparison.OrdinalIgnoreCase))
-					{
-						Environment.SetEnvironmentVariable("OpenAI__Model", value);
-					}
 				}
 			}
 
@@ -103,18 +92,5 @@ static void LoadDotEnv()
 		}
 
 		directory = directory.Parent;
-	}
-}
-
-static void ApplyOpenAiEnvironmentFallbacks(ConfigurationManager configuration)
-{
-	if (string.IsNullOrWhiteSpace(configuration["OpenAI:ApiKey"]))
-	{
-		configuration["OpenAI:ApiKey"] = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-	}
-
-	if (string.IsNullOrWhiteSpace(configuration["OpenAI:Model"]))
-	{
-		configuration["OpenAI:Model"] = Environment.GetEnvironmentVariable("OPENAI_MODEL");
 	}
 }

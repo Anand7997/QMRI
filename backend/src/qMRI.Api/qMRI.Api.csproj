@@ -24,4 +24,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Data\qascan-question-feedback.json" />
+  </ItemGroup>
+
 </Project>

@@ -18,13 +18,8 @@ public static class ApiDependencyInjection
     {
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
-        services.Configure<OpenAiOptions>(configuration.GetSection(OpenAiOptions.SectionName));
         services.AddMemoryCache();
-        services.AddHttpClient<IQmriAgentAnalysisService, OpenAiAssessmentAnalysisService>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.openai.com");
-            client.Timeout = TimeSpan.FromSeconds(90);
-        });
+        services.AddScoped<IQmriAgentAnalysisService, QascanAssessmentAnalysisService>();
 
         var jwtOptions = configuration
             .GetSection(JwtOptions.SectionName)
