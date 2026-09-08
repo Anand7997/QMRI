@@ -150,7 +150,7 @@ export function ScrollExpandMedia({
                   left: "50%",
                   transform: "translate(-50%, -50%)",
                   zIndex: 20,
-                  width: { xs: "min(64%, 320px)", sm: "min(68%, 400px)", md: "min(58%, 560px)", lg: "min(56%, 620px)" },
+                  width: { xs: "min(68%, 340px)", sm: "min(72%, 430px)", md: "min(64%, 610px)", lg: "min(62%, 680px)" },
                   maxHeight: "90%",
                   display: "flex",
                   flexDirection: "column",
