@@ -18,6 +18,23 @@ export function applyResponseInterceptor(client: AxiosInstance) {
           window.location.assign("/login");
         }
       }
+
+      // The admin user-management API requires an ADMIN role claim. A token
+      // issued before an account was promoted can remain in localStorage and
+      // make the already-rendered admin page look functional while every
+      // mutation returns 403. Force a fresh admin login so the claim is
+      // reissued instead of showing misleading operation-specific errors.
+      if (error.response?.status === 403) {
+        const requestUrl = error.config?.url ?? "";
+        const isUserManagementRequest = requestUrl.includes("/users");
+        const onAdminLoginPage = window.location.pathname.startsWith("/admin/login");
+
+        if (isUserManagementRequest && !onAdminLoginPage) {
+          authStorage.clear();
+          window.location.assign("/admin/login");
+        }
+      }
+
       return Promise.reject(error);
     },
   );

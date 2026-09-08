@@ -9,6 +9,7 @@ import {
   Checkbox,
   CircularProgress,
   FormControl,
+  IconButton,
   MenuItem,
   Select,
   Snackbar,
@@ -26,6 +27,7 @@ import {
 } from "@mui/material";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
@@ -74,6 +76,7 @@ const defaultApprovalCategory: ApprovalCategoryCode = "Fresher";
 const guestApprovalCategory: ApprovalCategoryCode = "Guest";
 const clientApprovalCategory: ApprovalCategoryCode = "Client";
 const defaultGeneratedLinkDays = 7;
+const maxGeneratedClientLinks = 10;
 
 const approvalCategories: ApprovalCategoryCode[] = ["Fresher", "Digital", "Ai", "QE", "Delevery", "Guest", "Client"];
 const standardApprovalRoles: ApprovalRoleCode[] = ["USER", "ADMIN"];
@@ -140,6 +143,14 @@ export function AuthenticationDashboardPage() {
   const activeUserCount = users.filter((user) => user.isActive).length;
   const approvalPending = approveUser.isPending || approveUserWithIdentityLink.isPending;
 
+  function rememberGeneratedClientLink(result: CreateIdentityLinkResponse) {
+    setApprovedClientLinks((current) => [result, ...current].slice(0, maxGeneratedClientLinks));
+  }
+
+  function closeGeneratedClientLink(link: string) {
+    setApprovedClientLinks((current) => current.filter((item) => item.link !== link));
+  }
+
   function approvalRoleFor(user: UserAccessRequest) {
     return roleByUserId[user.userId]
       ?? (user.roles.some((role) => role.toUpperCase() === guestApprovalRole) || user.requestedRoleCode.toUpperCase() === guestApprovalRole
@@ -200,7 +211,7 @@ export function AuthenticationDashboardPage() {
     try {
       if (user && shouldGenerateIdentityLinkForApproval(selectedRole, selectedCategory)) {
         const result = await approveUserWithIdentityLink.mutateAsync(buildApproveWithLinkInput(user.userId, selectedRole, selectedCategory));
-        setApprovedClientLinks((current) => [result, ...current.filter((item) => item.user.userId !== result.user.userId)]);
+        rememberGeneratedClientLink(result);
         setApprovalLinkFeedback({
           severity: "success",
           message: "Client approved and assessment link generated.",
@@ -248,10 +259,7 @@ export function AuthenticationDashboardPage() {
       }
 
       if (generatedLinks.length > 0) {
-        setApprovedClientLinks((current) => [
-          ...generatedLinks,
-          ...current.filter((item) => generatedLinks.every((generated) => generated.user.userId !== item.user.userId)),
-        ]);
+        setApprovedClientLinks((current) => [...generatedLinks, ...current].slice(0, maxGeneratedClientLinks));
         setApprovalLinkFeedback({
           severity: "success",
           message: `${generatedLinks.length} client assessment ${generatedLinks.length === 1 ? "link was" : "links were"} generated.`,
@@ -481,7 +489,7 @@ export function AuthenticationDashboardPage() {
         buildApproveWithLinkInput(user.userId, selectedRole, selectedCategory),
       );
 
-      setApprovedClientLinks((current) => [result, ...current.filter((item) => item.user.userId !== result.user.userId)]);
+      rememberGeneratedClientLink(result);
       setApprovalLinkFeedback({
         severity: "success",
         message: `Fresh assessment link generated for ${result.user.email}. Copy or email this new link.`,
@@ -625,8 +633,9 @@ export function AuthenticationDashboardPage() {
             {approvalLinkFeedback ? <Alert severity={approvalLinkFeedback.severity}>{approvalLinkFeedback.message}</Alert> : null}
             {approvedClientLinks.map((item) => (
               <Box
-                key={item.user.userId}
+                key={item.link}
                 sx={{
+                  position: "relative",
                   p: 2,
                   border: 1,
                   borderColor: "divider",
@@ -634,6 +643,14 @@ export function AuthenticationDashboardPage() {
                   bgcolor: "background.default",
                 }}
               >
+                <IconButton
+                  aria-label="Close generated assessment link"
+                  size="small"
+                  onClick={() => closeGeneratedClientLink(item.link)}
+                  sx={{ position: "absolute", top: 8, right: 8 }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
                 <Stack spacing={1.25}>
                   <Typography variant="body1" fontWeight={800}>
                     {item.user.fullName} / {item.user.email}
@@ -1246,6 +1263,7 @@ function getApiMessage(error: unknown) {
   }
 
   return error.response?.data?.message
+    ?? (error.response?.status === 403 ? "Your session no longer has Admin permission. Sign in again as an administrator." : null)
     ?? (error.code === "ECONNABORTED" ? "The API timed out while saving this change. Check the backend database connection." : null)
     ?? (error.code === "ERR_NETWORK" ? "The API could not be reached. Check that the backend service is running." : null)
     ?? error.message
