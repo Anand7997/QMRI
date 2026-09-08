@@ -1,8 +1,8 @@
-# QMRI Agent Analysis Experience
+# QAScan Agent Analysis Experience
 
 ## Design Intent
 
-After an assessment is submitted, the user is invited into a focused analysis mode where QMRI Agent visibly reads their responses, explains what it is noticing, and turns the result into practical feedback.
+After an assessment is submitted, the user is invited into a focused analysis mode where QAScan Agent visibly reads their responses, explains what it is noticing, and turns the result into practical feedback.
 
 The experience should feel like an AI robot is speaking directly to the user, while still feeling credible for an enterprise and healthcare-adjacent product. The visual energy comes from a controlled scan field around the robot, not from a dark sci-fi dashboard or an alarm-like radiation warning.
 
@@ -14,7 +14,7 @@ Replace the result dialog action label:
 
 with:
 
-`Analyse your responses by QMRI Agent`
+`Analyse your responses by QAScan Agent`
 
 The result dialog remains a short confirmation step. Its primary action opens a dedicated analysis page. The existing detailed report remains available after the analysis completes and from the normal Reports area.
 
@@ -23,13 +23,13 @@ Suggested dialog copy:
 ```text
 Your responses are ready
 
-Your assessment has been submitted and scored. QMRI Agent can now read your
+Your assessment has been submitted and scored. QAScan Agent can now read your
 responses, identify patterns, and prepare practical feedback for you.
 
 [assessment title]
 [score]/100
 
-[ Analyse your responses by QMRI Agent ]
+[ Analyse your responses by QAScan Agent ]
 ```
 
 ## Page Concept: "Analysis Chamber"
@@ -38,15 +38,15 @@ responses, identify patterns, and prepare practical feedback for you.
 
 ```text
 +--------------------------------------------------------------------------------+
-| QMRI                                      Assessment complete / QMRI Agent     |
+| QAScan                                    Assessment complete / QAScan Agent     |
 +--------------------------------------------------------------------------------+
 |                                                                                |
-|  QMRI AGENT ANALYSIS                         +-------------------------------+ |
-|  Reading your responses                      | QMRI AGENT                    | |
+|  QAScan AGENT ANALYSIS                         +-------------------------------+ |
+|  Reading your responses                      | QAScan AGENT                    | |
 |                                               |  ● Online                      | |
 |  +---------------------------------------+    |                               | |
 |  |                                       |    | "I am reading your responses | |
-|  |          controlled scan field        |    |  against the QMRI maturity    | |
+|  |          controlled scan field        |    |  against the QAScan maturity    | |
 |  |             [ Spline robot ]         |    |  framework. I will surface   | |
 |  |        ))  ))  ))  cyan scan rays    |    |  strengths and next actions  | |
 |  |                                       |    |  as I go."                    | |
@@ -82,7 +82,7 @@ The right panel is a conversation surface, not a generic log. It should look lik
 Header:
 
 ```text
-QMRI Agent
+QAScan Agent
 Online - analysing your assessment
 ```
 
@@ -151,7 +151,7 @@ The robot remains visible in a calmer idle state with a slow breathing light rat
 
 ## Visual System
 
-Use the existing QMRI foundation as the base:
+Use the existing QAScan foundation as the base:
 
 - background: `#F7F8FA`;
 - primary Azure: `#0F6CBD`;
@@ -199,7 +199,7 @@ Mobile (375px and above):
 
 ## Accessibility and Trust
 
-- Use a semantic page heading: `QMRI Agent analysis`.
+- Use a semantic page heading: `QAScan Agent analysis`.
 - Mark live agent updates with `aria-live="polite"`; never interrupt the user with assertive announcements for normal progress.
 - The progress bar includes a readable label such as `Analysing response 4 of 24`.
 - All icon-only controls need accessible labels and tooltips.
@@ -207,12 +207,12 @@ Mobile (375px and above):
 - Include a small trust note near the completion actions:
 
 ```text
-QMRI Agent feedback is generated from your assessment responses and is intended
+QAScan Agent feedback is generated from your assessment responses and is intended
 to support review and planning. Use the detailed report for the full evidence trail.
 ```
 
 ## Product Decisions To Confirm Before Implementation
 
 1. The page should use a real analysis request and show actual response progress; the UI should not claim that each response was analysed if the backend only returns one aggregate result.
-2. The detailed report remains the source of truth. QMRI Agent adds an approachable interpretation layer and next-action suggestions.
+2. The detailed report remains the source of truth. QAScan Agent adds an approachable interpretation layer and next-action suggestions.
 3. The first implementation should support the analysis/loading/completed/error states. Voice output, animated lip sync, and user follow-up chat can be added later without changing the core layout.

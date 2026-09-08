@@ -306,7 +306,7 @@ export function LoginPage() {
   const subheading =
     mode === "signin"
       ? isAdmin
-        ? "Use the secured console entrance for QMRI administrators."
+        ? "Use the secured console entrance for QAScan administrators."
         : signInMethod === "identity"
           ? "Guest users can sign in with the email and access code created in Authentication > Identity Access."
           : "Your workspace is ready. Sign in and continue your maturity journey."
@@ -690,7 +690,7 @@ function AuthVisualPanel({
         </Typography>
         <Typography variant="body1" sx={{ mt: 2, color: isAdmin ? "rgba(229,237,247,0.72)" : neutralTokens.ink500, maxWidth: 440, lineHeight: 1.65 }}>
           {isAdmin
-            ? "Separate access, clear role checks, and a focused route into the QMRI administration workspace."
+            ? "Separate access, clear role checks, and a focused route into the QAScan administration workspace."
             : isIdentityAccess
               ? "Guest accounts move through the same portal, but the session is capped by the expiry set by your administrator."
               : "The little guide follows your field activity while you sign in, then lets you get back to the work that matters."}

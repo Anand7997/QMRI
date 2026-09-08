@@ -99,7 +99,7 @@ public sealed class AuthenticationService(
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This identity link has expired. Please contact your TestScan administrator.");
+                "This identity link has expired. Please contact your QAScan administrator.");
         }
 
         var eligibilityFailure = ValidateLoginEligibility(user);
@@ -223,7 +223,7 @@ public sealed class AuthenticationService(
             Email = user.Email,
             RequestedRoleCode = user.RequestedRoleCode,
             ApprovalStatus = user.ApprovalStatus.ToString(),
-            Message = "Your request has been sent to the TestScan administrator for approval."
+            Message = "Your request has been sent to the QAScan administrator for approval."
         });
     }
 
@@ -298,7 +298,7 @@ public sealed class AuthenticationService(
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This account is not active. Please contact your TestScan administrator.");
+                "This account is not active. Please contact your QAScan administrator.");
         }
 
         if (string.Equals(user.RequestedRoleCode, GuestRoleCode, StringComparison.OrdinalIgnoreCase)
@@ -306,7 +306,7 @@ public sealed class AuthenticationService(
         {
             return LoginResultDto.Failure(
                 AuthenticationFailureReason.AccessDisabled,
-                "This identity access has expired. Please contact your TestScan administrator.");
+                "This identity access has expired. Please contact your QAScan administrator.");
         }
 
         return null;

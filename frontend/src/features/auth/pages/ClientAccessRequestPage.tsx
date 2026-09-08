@@ -59,7 +59,7 @@ export function ClientAccessRequestPage() {
       setFeedback({
         severity: "success",
         message:
-          "Your request has been submitted. The review and approval process may take some time. You will receive your TestScan assessment access link by email.",
+          "Your request has been submitted. The review and approval process may take some time. You will receive your QAScan assessment access link by email.",
       });
     } catch (error) {
       const apiError = getApiError(error);
@@ -95,7 +95,7 @@ export function ClientAccessRequestPage() {
                     Request assessment access
                   </Typography>
                   <Typography variant="body1" sx={{ mt: 1, color: neutralTokens.ink500, lineHeight: 1.65 }}>
-                    Please provide your name and email address where you would like to receive your TestScan assessment.
+                    Please provide your name and email address where you would like to receive your QAScan assessment.
                   </Typography>
                 </Box>
               ) : null}

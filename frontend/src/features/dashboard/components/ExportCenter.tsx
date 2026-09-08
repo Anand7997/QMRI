@@ -141,7 +141,7 @@ function exportPdf(
 ) {
   const doc = new jsPDF({ orientation: "landscape" });
   doc.setFontSize(18);
-  doc.text("TestScan", 14, 16);
+  doc.text("QAScan", 14, 16);
   doc.setFontSize(11);
   doc.text(`${title} - ${scope} export - ${formatDate(new Date().toISOString())}`, 14, 24);
   autoTable(doc, {
@@ -183,5 +183,5 @@ function formatDate(value: string) {
 }
 
 function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "testscan-export";
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "qascan-export";
 }

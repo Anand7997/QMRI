@@ -17,7 +17,7 @@ interface ParallaxSection {
   aside: string;
 }
 
-/** Quinnox / QMRI themed scroll-parallax sections. Logic ported 1:1 from a
+/** Quinnox / QAScan themed scroll-parallax sections. Logic ported 1:1 from a
  *  framer-motion/Tailwind original to this motion/react + MUI stack. */
 const sections: ParallaxSection[] = [
   {
@@ -26,7 +26,7 @@ const sections: ParallaxSection[] = [
     subheading: "Measure",
     heading: "Know where you stand.",
     aside: "Measure quality maturity with evidence, not opinion.",
-    lead: "TestScan captures capability across teams, practices, tools and governance through a structured, governed assessment - so every result is comparable and defensible.",
+    lead: "QAScan captures capability across teams, practices, tools and governance through a structured, governed assessment - so every result is comparable and defensible.",
     body: "Consistent categories, modules and sub-modules mean each assessment reads the same way. Scores map into Testing, QA, QE and Intelligent Quality bands, giving leaders a single, honest view of where the organisation really is.",
   },
   {
@@ -44,7 +44,7 @@ const sections: ParallaxSection[] = [
     subheading: "Implement",
     heading: "Turn insight into action.",
     aside: "Move from scorecards to measurable execution.",
-    lead: "TestScan closes the loop - approved access, dashboards and focused recommendation tracking take teams from assessment to delivered improvement.",
+    lead: "QAScan closes the loop - approved access, dashboards and focused recommendation tracking take teams from assessment to delivered improvement.",
     body: "Teams see resolution time improve by up to 95% and support efficiency by 30% once recommendations become tracked, owned work. Measure. Recommend. Implement - the full Quinnox maturity journey.",
   },
 ];

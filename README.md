@@ -1,11 +1,11 @@
-# TestScan
+# QAScan
 
-TestScan is a full-stack assessment platform for managing quality maturity reviews. It provides an administrator experience for configuring assessments, users, question banks, reporting, and settings, plus a user portal for completing assigned assessments and reviewing results.
+QAScan is a full-stack assessment platform for managing quality maturity reviews. It provides an administrator experience for configuring assessments, users, question banks, reporting, and settings, plus a user portal for completing assigned assessments and reviewing results.
 
 ## What Is Inside
 
 ```text
-QMRI
+QAScan
 |-- backend      ASP.NET Core 8 API, EF Core, SQL Server, layered architecture
 |-- frontend     React 18 + Vite + TypeScript application
 |-- tools        Local development and data helper scripts

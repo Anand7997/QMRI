@@ -183,7 +183,7 @@ public sealed class AssessmentsController(
 
         if (assessment.Summary.Status < AssessmentStatus.Scored || assessment.Scores.Count == 0)
         {
-            return Problem(detail: "Submit and score the assessment before asking QMRI Agent to analyse it.", statusCode: StatusCodes.Status409Conflict);
+            return Problem(detail: "Submit and score the assessment before asking QAScan Agent to analyse it.", statusCode: StatusCodes.Status409Conflict);
         }
 
         var currentUserId = TryGetCurrentUserId();

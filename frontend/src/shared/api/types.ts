@@ -1,4 +1,4 @@
-// Mirrors backend DTOs (QMRI.Application.Assessments.DTOs).
+// Mirrors backend DTOs (QAScan.Application.Assessments.DTOs).
 // Enums serialize as NUMBERS (System.Text.Json default).
 
 export const AnswerOption = { No: 0, Partial: 1, Yes: 2 } as const;

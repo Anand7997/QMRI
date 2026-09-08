@@ -56,7 +56,7 @@ The supplied component assumes shadcn + Tailwind + `@/`. Integration must supply
 
 ### 5. Wire into admin login
 - In `LoginPage.tsx`, `AuthVisualPanel` admin branch, replace `<AdminConsoleIllustration/>`
-  with the Spline card block (demo split-card layout, QMRI admin copy).
+  with the Spline card block (demo split-card layout, QAScan admin copy).
 - Keep the MUI form column unchanged.
 
 ## Responsive / perf
