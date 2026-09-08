@@ -253,6 +253,20 @@ export function ReportDetailPage({
               breakInside: "avoid",
               pageBreakInside: "avoid",
             },
+            // The complete report is mounted immediately before print. Disable
+            // entrance/collapse transitions so the browser captures content,
+            // rather than the initial hidden state of those components.
+            "& .report-motion-reveal": {
+              opacity: "1 !important",
+              transform: "none !important",
+              transition: "none !important",
+            },
+            "& .MuiCollapse-root, & .MuiCollapse-wrapper, & .MuiCollapse-wrapperInner": {
+              height: "auto !important",
+              maxHeight: "none !important",
+              visibility: "visible !important",
+              overflow: "visible !important",
+            },
           },
         }}
       >
@@ -400,8 +414,10 @@ export function ReportDetailPage({
                         <PolarGrid stroke={neutralTokens.line200} />
                         <PolarAngleAxis dataKey="category" tick={{ fill: neutralTokens.ink500, fontSize: 11 }} />
                         <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Score" dataKey="score" stroke={brandTokens.blue600} fill={brandTokens.blue600} fillOpacity={0.22} isAnimationActive={!isPrintExporting} />
-                        <Tooltip content={<PlainTooltip />} />
+                        <Radar name="Score" dataKey="score" stroke={brandTokens.blue600} fill={brandTokens.blue600} fillOpacity={0.22} isAnimationActive={!isPrintExporting}>
+                          {isPrintExporting ? <LabelList dataKey="score" position="top" style={{ fontSize: 11, fontWeight: 700, fill: neutralTokens.ink700 }} /> : null}
+                        </Radar>
+                        {!isPrintExporting ? <Tooltip content={<PlainTooltip />} /> : null}
                       </RadarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -418,7 +434,7 @@ export function ReportDetailPage({
                         <CartesianGrid horizontal={false} stroke={neutralTokens.line200} strokeDasharray="3 3" />
                         <XAxis type="number" domain={[0, 100]} tick={{ fill: neutralTokens.ink500, fontSize: 12 }} />
                         <YAxis type="category" dataKey="category" width={140} tick={{ fill: neutralTokens.ink700, fontSize: 11 }} />
-                        <Tooltip content={<PlainTooltip />} cursor={{ fill: alpha(brandTokens.blue600, 0.06) }} />
+                        {!isPrintExporting ? <Tooltip content={<PlainTooltip />} cursor={{ fill: alpha(brandTokens.blue600, 0.06) }} /> : null}
                         <Bar
                           dataKey="score"
                           radius={[0, 6, 6, 0]}
@@ -465,10 +481,12 @@ export function ReportDetailPage({
                         <CartesianGrid vertical={false} stroke={neutralTokens.line200} strokeDasharray="3 3" />
                         <XAxis dataKey="category" tick={{ fill: neutralTokens.ink500, fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
                         <YAxis allowDecimals={false} tick={{ fill: neutralTokens.ink500, fontSize: 12 }} />
-                        <Tooltip content={<PlainTooltip unit="" />} cursor={{ fill: alpha(brandTokens.blue600, 0.06) }} />
+                        {!isPrintExporting ? <Tooltip content={<PlainTooltip unit="" />} cursor={{ fill: alpha(brandTokens.blue600, 0.06) }} /> : null}
                         <Legend wrapperStyle={{ fontSize: 12 }} />
                         {Object.keys(alignmentColors).map((key) => (
-                          <Bar key={key} dataKey={key} stackId="a" fill={alignmentColors[key]} radius={key === "Not answered" ? [4, 4, 0, 0] : undefined} />
+                          <Bar key={key} dataKey={key} stackId="a" fill={alignmentColors[key]} radius={key === "Not answered" ? [4, 4, 0, 0] : undefined}>
+                            {isPrintExporting ? <LabelList dataKey={key} position="center" fill="#ffffff" style={{ fontSize: 10, fontWeight: 700 }} /> : null}
+                          </Bar>
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
@@ -1040,7 +1058,7 @@ function DonutChart({
           <Pie data={data} dataKey="value" nameKey="name" innerRadius={56} outerRadius={84} paddingAngle={2} isAnimationActive={!isPrintExporting}>
             {data.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
           </Pie>
-          <Tooltip content={<PlainTooltip unit={unit} />} />
+          {!isPrintExporting ? <Tooltip content={<PlainTooltip unit={unit} />} /> : null}
         </PieChart>
       </ResponsiveContainer>
       <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1.5} justifyContent="center" sx={{ mt: 1 }}>

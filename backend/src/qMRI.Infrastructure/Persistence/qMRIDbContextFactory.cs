@@ -27,6 +27,10 @@ public sealed class qMRIDbContextFactory : IDesignTimeDbContextFactory<qMRIDbCon
         {
             sqlOptions.MigrationsAssembly(typeof(qMRIDbContext).Assembly.FullName);
             sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "dbo");
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorNumbersToAdd: null);
         });
 
         return new qMRIDbContext(optionsBuilder.Options);

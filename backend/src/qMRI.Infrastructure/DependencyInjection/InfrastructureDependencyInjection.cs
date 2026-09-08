@@ -30,6 +30,10 @@ public static class InfrastructureDependencyInjection
             {
                 sqlOptions.MigrationsAssembly(typeof(qMRIDbContext).Assembly.FullName);
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "dbo");
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null);
 
                 if (commandTimeoutSeconds.HasValue)
                 {

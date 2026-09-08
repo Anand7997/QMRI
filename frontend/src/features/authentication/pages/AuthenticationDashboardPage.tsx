@@ -1245,6 +1245,10 @@ function getApiMessage(error: unknown) {
     return null;
   }
 
-  return error.response?.data?.message ?? null;
+  return error.response?.data?.message
+    ?? (error.code === "ECONNABORTED" ? "The API timed out while saving this change. Check the backend database connection." : null)
+    ?? (error.code === "ERR_NETWORK" ? "The API could not be reached. Check that the backend service is running." : null)
+    ?? error.message
+    ?? null;
 }
 
