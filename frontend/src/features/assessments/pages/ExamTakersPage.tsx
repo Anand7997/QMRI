@@ -6,6 +6,11 @@ import {
   Button,
   Card,
   Chip,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
   LinearProgress,
   MenuItem,
   Stack,
@@ -23,8 +28,8 @@ import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import { EmptyState, LoadingState, PageHeader } from "shared/components";
-import { useAssessments, useCreateAssessment, useExamTakers } from "shared/api/assessments";
-import type { AssessmentSummaryDto, ExamTakerProgressDto, ExamTakerProgressStatus } from "shared/api/types";
+import { useAssessment, useAssessments, useCreateAssessment, useExamTakers } from "shared/api/assessments";
+import { answerLabel, type AssessmentSummaryDto, type ExamTakerProgressDto, type ExamTakerProgressStatus } from "shared/api/types";
 import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 
 const unknownAssignedByValue = "__unknown_assigned_by__";
@@ -59,6 +64,7 @@ export function ExamTakersPage() {
   const [assessmentId, setAssessmentId] = useState<string | undefined>();
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
   const [reassigningAssessmentId, setReassigningAssessmentId] = useState<string | null>(null);
+  const [resultAssessmentId, setResultAssessmentId] = useState<string | undefined>();
 
   const assignedByOptions = useMemo(() => {
     const options = new Map<string, { label: string; count: number }>();
@@ -125,6 +131,8 @@ export function ExamTakersPage() {
 
   const examTakersQuery = useExamTakers(assessmentId);
   const examTakers = examTakersQuery.data ?? [];
+  const resultQuery = useAssessment(resultAssessmentId);
+  const resultExamTaker = examTakers.find((examTaker) => examTaker.assessmentId === resultAssessmentId);
 
   const notStartedCount = examTakers.filter((item) => item.progressStatus === "NotStarted").length;
   const inProgressCount = examTakers.filter((item) => item.progressStatus === "InProgress").length;
@@ -337,20 +345,29 @@ export function ExamTakersPage() {
                               <ExamResultChip examTaker={examTaker} />
                             </TableCell>
                             <TableCell align="right">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                disabled={
-                                  examTaker.progressStatus !== "Finished" ||
-                                  reassigningAssessmentId === examTaker.assessmentId ||
-                                  createAssessment.isPending
-                                }
-                                onClick={() => {
-                                  void handleReassign(examTaker);
-                                }}
-                              >
-                                {reassigningAssessmentId === examTaker.assessmentId ? "Reassigning..." : "Reassign"}
-                              </Button>
+                              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => setResultAssessmentId(examTaker.assessmentId)}
+                                >
+                                  Result
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  disabled={
+                                    examTaker.progressStatus !== "Finished" ||
+                                    reassigningAssessmentId === examTaker.assessmentId ||
+                                    createAssessment.isPending
+                                  }
+                                  onClick={() => {
+                                    void handleReassign(examTaker);
+                                  }}
+                                >
+                                  {reassigningAssessmentId === examTaker.assessmentId ? "Reassigning..." : "Reassign"}
+                                </Button>
+                              </Stack>
                             </TableCell>
                           </TableRow>
                         ))
@@ -363,6 +380,57 @@ export function ExamTakersPage() {
           ) : null}
         </Stack>
       ) : null}
+
+      <Dialog
+        open={Boolean(resultAssessmentId)}
+        onClose={() => setResultAssessmentId(undefined)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          Result{resultExamTaker ? ` - ${resultExamTaker.fullName || resultExamTaker.userName}` : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          {resultQuery.isLoading ? (
+            <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
+              <CircularProgress size={28} />
+              <Typography color="text.secondary">Loading detailed answers...</Typography>
+            </Stack>
+          ) : resultQuery.isError ? (
+            <Alert severity="error">Could not load this user&apos;s detailed result.</Alert>
+          ) : resultQuery.data?.questionResults.length ? (
+            <Stack spacing={2}>
+              {resultQuery.data.questionResults
+                .slice()
+                .sort((left, right) => left.sortOrder - right.sortOrder)
+                .map((question, index) => (
+                  <Box key={question.questionId}>
+                    <Typography variant="overline" color="text.secondary">
+                      Question {index + 1} · {question.categoryName}
+                    </Typography>
+                    <Typography variant="body1" fontWeight={700} sx={{ mt: 0.25 }}>
+                      {question.questionText}
+                    </Typography>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+                      <Chip
+                        size="small"
+                        color={question.answer == null ? "default" : "primary"}
+                        label={`User answer: ${question.answer == null ? "Not answered" : answerLabel[question.answer]}`}
+                      />
+                      <Chip size="small" variant="outlined" label={`Expected: ${answerLabel[question.expectedAnswer]}`} />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Note: {question.findings?.trim() || "No note written"}
+                    </Typography>
+                    {index < resultQuery.data.questionResults.length - 1 ? <Divider sx={{ mt: 2 }} /> : null}
+                  </Box>
+                ))}
+            </Stack>
+          ) : (
+            <Typography color="text.secondary">No questions are available for this result.</Typography>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
