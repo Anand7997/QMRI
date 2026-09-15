@@ -484,7 +484,7 @@ export function MyAssessmentsPage() {
     return (
       <>
         <Box>
-          <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
+          <PageHeader title="My Assessments" subtitle="Review and complete your assigned QA maturity assessments." />
           <Card sx={{ p: 4 }}>
             <EmptyState
               title="Could not load assessments"
@@ -501,7 +501,7 @@ export function MyAssessmentsPage() {
     return (
       <>
         <Box>
-          <PageHeader title="My Assessments" subtitle="Review your assigned TOPP QA maturity assessments." />
+          <PageHeader title="My Assessments" subtitle="Review and complete your assigned QA maturity assessments." />
           <Card sx={{ p: 4 }}>
             <EmptyState
               title="No assessment is assigned to you"
