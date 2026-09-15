@@ -83,7 +83,7 @@ export function LandingPage() {
       >
         <Container maxWidth="lg">
           <Toolbar disableGutters sx={{ justifyContent: "space-between", minHeight: 68 }}>
-            <QmriLogo size="md" />
+            <QmriLogo label="Everforth Quinnox" size="md" />
             <Button
               component={RouterLink}
               to={RoutePaths.adminLogin}
@@ -113,8 +113,8 @@ export function LandingPage() {
         mediaType="image"
         mediaSrc={heroMediaImage}
         bgImageSrc={heroBgImage}
-        logoSrc="/everforth-quinnox-hero.svg"
-        logoAlt="Everforth Quinnox logo"
+        logoSrc="/qascan-logo.svg"
+        logoAlt="QAScan logo"
         title="Accelerate Success"
         date="Measure . Recommend . Implement"
         scrollToExpand="Scroll to explore QAScan"

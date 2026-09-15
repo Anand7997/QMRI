@@ -33,8 +33,8 @@ export function QmriLogo({ label = "Everforth Quinnox", to, size = "md", light =
     <>
       <Box
         component="img"
-        src="/everforth-quinnox-logo.svg"
-        alt="QAScan logo"
+        src="/everforth-quinnox-hero.svg"
+        alt={label}
         sx={{
           width: imageSize.width,
           height: imageSize.height,
