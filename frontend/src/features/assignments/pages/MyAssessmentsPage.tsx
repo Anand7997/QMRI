@@ -542,7 +542,6 @@ export function MyAssessmentsPage() {
     <Box sx={{ pb: 9 }}>
       <PageHeader
         title={summary?.title ?? "My Assessment"}
-        subtitle={selectedCategoryGroup ? selectedCategoryGroup.category : "Select a category to begin"}
         titleLeading={
           <Box
             component="img"

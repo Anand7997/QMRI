@@ -5,12 +5,10 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Toolbar,
 } from "@mui/material";
 import { NavLink } from "react-router-dom";
 import { alpha } from "@mui/material/styles";
 import { PORTAL_SIDEBAR_WIDTH, type PortalNavItem } from "./types";
-import { QmriLogo } from "shared/components";
 import { brandTokens } from "app/theme/tokens/palette";
 
 const SIDEBAR_BACKGROUND = `linear-gradient(180deg, ${brandTokens.blue700} 0%, #0A2F55 100%)`;
@@ -23,19 +21,14 @@ interface PortalSidebarProps {
 }
 
 function SidebarContent({
-  brandTitle,
   items,
   onNavigate,
 }: {
-  brandTitle: string;
   items: PortalNavItem[];
   onNavigate: () => void;
 }) {
   return (
     <Box role="navigation" aria-label="Primary" sx={{ height: "100%", background: SIDEBAR_BACKGROUND }}>
-      <Toolbar sx={{ px: 2.25 }}>
-        <QmriLogo label={brandTitle} size="sm" light />
-      </Toolbar>
       <List sx={{ px: 1.5 }}>
         {items.map((item) => {
           const Icon = item.icon;
@@ -71,7 +64,7 @@ function SidebarContent({
   );
 }
 
-export function PortalSidebar({ brandTitle, items, mobileOpen, onClose }: PortalSidebarProps) {
+export function PortalSidebar({ items, mobileOpen, onClose }: PortalSidebarProps) {
   return (
     <Box
       component="nav"
@@ -93,7 +86,7 @@ export function PortalSidebar({ brandTitle, items, mobileOpen, onClose }: Portal
           },
         }}
       >
-        <SidebarContent brandTitle={brandTitle} items={items} onNavigate={onClose} />
+        <SidebarContent items={items} onNavigate={onClose} />
       </Drawer>
 
       {/* Desktop: permanent drawer */}
@@ -110,7 +103,7 @@ export function PortalSidebar({ brandTitle, items, mobileOpen, onClose }: Portal
           },
         }}
       >
-        <SidebarContent brandTitle={brandTitle} items={items} onNavigate={() => undefined} />
+        <SidebarContent items={items} onNavigate={() => undefined} />
       </Drawer>
     </Box>
   );
