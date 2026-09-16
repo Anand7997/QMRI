@@ -744,19 +744,19 @@ export function MyAssessmentsPage() {
                                   minWidth: 92,
                                   minHeight: 40,
                                   px: 2.25,
-                                  borderColor: alpha("#0F6CBD", selected ? 0.8 : 0.22),
-                                  bgcolor: selected ? alpha("#0F6CBD", 0.08) : "background.paper",
-                                  color: selected ? "primary.dark" : "primary.main",
+                                  borderColor: selected ? "primary.main" : alpha("#0F6CBD", 0.22),
+                                  bgcolor: selected ? "primary.main" : "background.paper",
+                                  color: selected ? "common.white" : "primary.main",
                                   fontWeight: 800,
                                   cursor: isSubmitted ? "default" : "pointer",
                                   "&:hover": {
-                                    bgcolor: alpha("#0F6CBD", 0.08),
-                                    borderColor: alpha("#0F6CBD", 0.6),
+                                    bgcolor: selected ? "primary.dark" : alpha("#0F6CBD", 0.08),
+                                    borderColor: selected ? "primary.dark" : alpha("#0F6CBD", 0.6),
                                   },
                                   "&.Mui-disabled": {
-                                    bgcolor: selected ? alpha("#0F6CBD", 0.08) : "action.disabledBackground",
-                                    borderColor: selected ? alpha("#0F6CBD", 0.32) : "action.disabled",
-                                    color: selected ? "primary.main" : "text.disabled",
+                                    bgcolor: selected ? "primary.main" : "action.disabledBackground",
+                                    borderColor: selected ? "primary.main" : "action.disabled",
+                                    color: selected ? "common.white" : "text.disabled",
                                   },
                                 }}
                               >
