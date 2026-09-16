@@ -24,6 +24,10 @@ import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import KeyboardArrowLeftIcon from "@mui/icons-material/KeyboardArrowLeft";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import LaptopMacOutlinedIcon from "@mui/icons-material/LaptopMacOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { alpha } from "@mui/material/styles";
 import { EmptyState, LoadingState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import { useHierarchy } from "shared/api/catalog";
@@ -35,7 +39,6 @@ import {
   assessmentStatusLabel,
   type AssessmentSummaryDto,
 } from "shared/api/types";
-import { answerColor } from "shared/domain/maturity";
 import { useAuthContext } from "contexts/AuthContext";
 import {
   useClearResumePointer,
@@ -51,6 +54,7 @@ import { portalAgentAnalysisPath } from "shared/constants/routePaths";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 const MIN_SUBMIT_COMPLETION_PERCENT = 50;
+const CATEGORY_ICONS = [LaptopMacOutlinedIcon, SettingsOutlinedIcon, AccountTreeOutlinedIcon, GroupsOutlinedIcon];
 type AssessmentDetailQuery = ReturnType<typeof useAssessment>;
 type SubmittedAssessmentPrompt = {
   assessmentId: string;
@@ -540,31 +544,48 @@ export function MyAssessmentsPage() {
 
   return (
     <Box sx={{ pb: 9 }}>
-      <PageHeader
-        title={summary?.title ?? "My Assessment"}
-        titleLeading={
-          <Box
-            component="img"
-            src="/qascan-logo.svg"
-            alt="QAScan"
-            sx={{
-              width: { xs: 112, sm: 138 },
-              height: "auto",
-              maxWidth: "34vw",
-              flex: "0 0 auto",
-              display: "block",
-            }}
-          />
-        }
-        actions={!isAssessmentLinkNavigation ? (
-          <Button variant="outlined" startIcon={<KeyboardArrowLeftIcon />} onClick={() => setQuestionMode(false)}>
-            Assessment details
-          </Button>
-        ) : undefined}
-      />
+      <Box
+        sx={{
+          mb: 3,
+          px: { xs: 1, sm: 2, md: 3 },
+          py: { xs: 1.5, sm: 2 },
+          borderBottom: "1px solid #DCE8F5",
+          backgroundColor: "common.white",
+          boxShadow: "0 4px 14px rgba(16,24,40,0.06)",
+        }}
+      >
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={2}>
+          <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} alignItems="center" sx={{ minWidth: 0 }}>
+            <Box component="img" src="/qascan-logo.svg" alt="QAScan" sx={{ width: { xs: 112, sm: 148 }, height: "auto", display: "block", flexShrink: 0 }} />
+            <Box sx={{ width: "1px", height: 38, bgcolor: "#B8CDE3", display: { xs: "none", sm: "block" } }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h1" sx={{ color: "#12366D", fontWeight: 700 }} noWrap>
+                QA Maturity Assessment
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#49678F", mt: 0.25, letterSpacing: "0.02em" }}>
+                Measure&nbsp; | &nbsp;Recommend&nbsp; | &nbsp;Implement
+              </Typography>
+            </Box>
+          </Stack>
+          {!isAssessmentLinkNavigation ? (
+            <Button
+              variant="outlined"
+              startIcon={<KeyboardArrowLeftIcon />}
+              onClick={() => setQuestionMode(false)}
+              sx={{ color: "primary.dark", borderColor: "#B8CDE3", "&:hover": { color: "primary.dark", borderColor: "primary.main", bgcolor: "#F5F9FE" } }}
+            >
+              Assessment details
+            </Button>
+          ) : null}
+        </Stack>
+      </Box>
 
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "320px 1fr" } }}>
-        <Card sx={{ p: 1, alignSelf: "start", maxHeight: "70vh", overflowY: "auto" }}>
+      <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "300px 1fr" } }}>
+        <Card sx={{ p: 1, alignSelf: "start", maxHeight: "70vh", overflowY: "auto", borderColor: "#C9DDF1" }}>
+          <Box sx={{ px: 1.25, pt: 1, pb: 0.75 }}>
+            <Typography variant="h3" sx={{ color: "primary.dark" }}>Assessment sections</Typography>
+            <Typography variant="caption" color="text.secondary">Select a section to begin</Typography>
+          </Box>
           {treeQuery.isLoading ? (
             <LoadingState label="Loading questions..." />
           ) : (
@@ -596,21 +617,26 @@ export function MyAssessmentsPage() {
                       py: 1,
                       borderRadius: 2,
                       cursor: "pointer",
-                      bgcolor: activeCategory ? "action.selected" : "transparent",
+                      bgcolor: activeCategory ? "primary.main" : "transparent",
+                      color: activeCategory ? "common.white" : "text.primary",
                       transition: "background-color 180ms",
-                      "&:hover": { bgcolor: activeCategory ? "action.selected" : "action.hover" },
+                      "&:hover": { bgcolor: activeCategory ? "primary.dark" : "action.hover" },
                       "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
                     }}
                   >
+                    {(() => {
+                      const CategoryIcon = CATEGORY_ICONS[categoryQuestionGroups.indexOf(category)] ?? LaptopMacOutlinedIcon;
+                      return <CategoryIcon fontSize="small" sx={{ color: activeCategory ? "common.white" : "primary.main" }} />;
+                    })()}
                     <KeyboardArrowRightIcon
                       fontSize="small"
                       sx={{
-                        color: "text.secondary",
+                        color: activeCategory ? "common.white" : "text.secondary",
                         transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
                         transition: "transform 180ms",
                       }}
                     />
-                    <Typography variant="overline" color="text.secondary" noWrap sx={{ flexGrow: 1 }}>
+                    <Typography variant="body2" fontWeight={700} color="inherit" noWrap sx={{ flexGrow: 1 }}>
                       {category.category}
                     </Typography>
                     <Chip
@@ -661,7 +687,7 @@ export function MyAssessmentsPage() {
           )}
         </Card>
 
-        <Card sx={{ p: { xs: 2, md: 3 } }}>
+        <Card sx={{ p: { xs: 2, md: 3.5 }, borderColor: "#C9DDF1", boxShadow: "0 4px 18px rgba(16,24,40,0.07)" }}>
           {!selectedCategoryGroup ? (
             <EmptyState title="Select a category" description="Pick a category from the left to continue the assessment." />
           ) : (
@@ -669,7 +695,7 @@ export function MyAssessmentsPage() {
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }} sx={{ mb: 2 }}>
                 <Box sx={{ flexGrow: 1 }}>
                   <Typography variant="h2">{selectedCategoryGroup.category}</Typography>
-                  <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                     {selectedCategoryAnsweredCount} / {selectedCategoryGroup.questions.length} questions answered
                   </Typography>
                 </Box>
@@ -704,7 +730,6 @@ export function MyAssessmentsPage() {
                           {OPTIONS.map((opt) => {
                             const label = answerLabel[opt];
                             const selected = value === opt;
-                            const color = answerColor[label];
                             return (
                               <Button
                                 key={opt}
@@ -719,19 +744,19 @@ export function MyAssessmentsPage() {
                                   minWidth: 92,
                                   minHeight: 40,
                                   px: 2.25,
-                                  borderColor: alpha(color, selected ? 0.55 : 0.32),
-                                  bgcolor: selected ? alpha(color, 0.16) : "background.paper",
-                                  color: selected ? color : "text.primary",
+                                  borderColor: alpha("#0F6CBD", selected ? 0.8 : 0.22),
+                                  bgcolor: selected ? alpha("#0F6CBD", 0.08) : "background.paper",
+                                  color: selected ? "primary.dark" : "primary.main",
                                   fontWeight: 800,
                                   cursor: isSubmitted ? "default" : "pointer",
                                   "&:hover": {
-                                    bgcolor: selected ? alpha(color, 0.22) : alpha(color, 0.08),
-                                    borderColor: alpha(color, 0.6),
+                                    bgcolor: alpha("#0F6CBD", 0.08),
+                                    borderColor: alpha("#0F6CBD", 0.6),
                                   },
                                   "&.Mui-disabled": {
-                                    bgcolor: selected ? alpha(color, 0.12) : "action.disabledBackground",
-                                    borderColor: selected ? alpha(color, 0.32) : "action.disabled",
-                                    color: selected ? color : "text.disabled",
+                                    bgcolor: selected ? alpha("#0F6CBD", 0.08) : "action.disabledBackground",
+                                    borderColor: selected ? alpha("#0F6CBD", 0.32) : "action.disabled",
+                                    color: selected ? "primary.main" : "text.disabled",
                                   },
                                 }}
                               >
