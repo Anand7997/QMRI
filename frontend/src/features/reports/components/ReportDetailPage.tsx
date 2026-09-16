@@ -424,7 +424,7 @@ export function ReportDetailPage({
                     </Stack>
                     <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 34 }, lineHeight: 1.08 }}>{summary.title}</Typography>
                     <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 680, lineHeight: 1.6 }}>{badge.meaning}</Typography>
-                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, mt: 2 }}>
+                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, mt: 2 }}>
                       <ReportFact label="Report ID" value={reportId} />
                       <ReportFact label="Date taken" value={dateTaken} />
                       <ReportFact label="Evidence" value={`${summary.answeredCount}/${summary.questionCount} responses`} />
