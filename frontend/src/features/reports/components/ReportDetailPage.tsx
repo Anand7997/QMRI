@@ -271,7 +271,6 @@ export function ReportDetailPage({
   const managedCount = categoryGroups.filter((group) => group.stage.level >= 4).length;
   const reportId = summary.assessmentId.slice(0, 8).toUpperCase();
   const dateTaken = formatDate(resolveDate(summary));
-  const departmentLabel = summary.departments.length > 0 ? summary.departments.join(", ") : "No department tagged";
 
   return (
     <MotionConfig reducedMotion="user">
@@ -428,7 +427,6 @@ export function ReportDetailPage({
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, mt: 2 }}>
                       <ReportFact label="Report ID" value={reportId} />
                       <ReportFact label="Date taken" value={dateTaken} />
-                      <ReportFact label="Scope" value={departmentLabel} />
                       <ReportFact label="Evidence" value={`${summary.answeredCount}/${summary.questionCount} responses`} />
                     </Box>
                   </Box>
