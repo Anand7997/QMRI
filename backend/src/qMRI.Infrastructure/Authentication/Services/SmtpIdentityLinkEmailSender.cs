@@ -88,12 +88,14 @@ public sealed class SmtpIdentityLinkEmailSender(
             <html>
             <body style="font-family: Arial, sans-serif; color: #172033; line-height: 1.5;">
               <p>Hello {recipientName},</p>
-              <p>Your qMRI assessment access has been approved. Use the link below to open My Assessments and begin or continue your assigned TOPP QA maturity assessment.</p>
+              <p>Your request for access to the qMRI assessment has been approved.</p>
+              <p>Use the secure link below to open My Assessments and begin or continue your assigned TOPP QA maturity assessment. Your link is personal to you and will remain available until the expiry date shown below.</p>
               <p>
                 <a href="{link}" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 700;">
                   Open assessment
                 </a>
               </p>
+              <p>When you are ready, open the assessment and answer each question based on your organisation's current practices. You can return to the assessment using the same link before it expires.</p>
               <table style="border-collapse: collapse; margin-top: 16px;">
                 <tbody>
                   <tr><td style="padding: 6px 12px; color: #5f6b7a;">Recipient</td><td style="padding: 6px 12px;">{recipientName}</td></tr>
@@ -109,6 +111,7 @@ public sealed class SmtpIdentityLinkEmailSender(
               {assessmentSection}
               <p>If the button does not work, copy and paste this URL into your browser:</p>
               <p style="word-break: break-all;">{link}</p>
+              <p>If you did not request this assessment access, please contact the person who invited you or your QAScan administrator.</p>
             </body>
             </html>
             """;

@@ -28,6 +28,7 @@ import { AssessmentStatus } from "shared/api/types";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
 import { useAuthContext } from "contexts/AuthContext";
+import { portalAgentAnalysisPath } from "shared/constants/routePaths";
 import { ReportDetailPage } from "../components/ReportDetailPage";
 import { formatDate, resolveDate, stageForScore, stageLabelForAverage, type StageInfo } from "../components/reportAnalytics";
 
@@ -93,9 +94,11 @@ export function UserReportsPage() {
         history={reports}
         focusSteps={focusSteps}
         actor={user?.userId}
+        isIdentityLinkSession={shouldPreserveRouteState}
         onBack={() => {
-          setSelectedId(undefined);
-          setFocusSteps(false);
+          navigate(portalAgentAnalysisPath(selectedSummary.assessmentId), {
+            state: shouldPreserveRouteState ? { resume: true, source: routeState?.source } : undefined,
+          });
         }}
       />
     );

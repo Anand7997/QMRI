@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Authentication.Abstractions;
+using qMRI.Application.Reports.Abstractions;
 using qMRI.Infrastructure.Assessments.Services;
 using qMRI.Infrastructure.Authentication.Options;
 using qMRI.Infrastructure.Authentication.Repositories;
@@ -55,6 +56,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IUserAdministrationService, UserAdministrationService>();
         services.AddScoped<IIdentityLinkEmailSender, SmtpIdentityLinkEmailSender>();
+        services.AddScoped<IReportEmailSender, SmtpReportEmailSender>();
         services.AddScoped<IAssessmentCatalogService, AssessmentCatalogService>();
         services.AddScoped<IScoringConfigurationService, ScoringConfigurationService>();
         services.AddScoped<IDashboardGovernanceService, DashboardGovernanceService>();

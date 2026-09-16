@@ -63,6 +63,7 @@ export function QmriAgentAnalysisPage() {
   const { assessmentId } = useParams<{ assessmentId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const isAssessmentLinkNavigation = isAssessmentLinkNavigationState(location.state);
   const assessmentQuery = useAssessment(assessmentId);
   const isReady = (assessmentQuery.data?.summary.status ?? -1) >= AssessmentStatus.Scored;
   const analysisQuery = useQmriAgentAnalysis(assessmentId, Boolean(assessmentQuery.data && isReady));
@@ -127,14 +128,16 @@ export function QmriAgentAnalysisPage() {
         <Alert severity="error" sx={{ mt: 2 }}>
           This assessment could not be loaded. Return to your assessments and try again.
         </Alert>
-        <Button
-          variant="outlined"
-          startIcon={<ArrowBackOutlinedIcon />}
-          onClick={() => navigate(RoutePaths.portalAssessments)}
-          sx={{ mt: 2 }}
-        >
-          Return to assessments
-        </Button>
+        {!isAssessmentLinkNavigation ? (
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackOutlinedIcon />}
+            onClick={() => navigate(RoutePaths.portalAssessments)}
+            sx={{ mt: 2 }}
+          >
+            Return to assessments
+          </Button>
+        ) : null}
       </Box>
     );
   }
@@ -153,7 +156,7 @@ export function QmriAgentAnalysisPage() {
   const analysis = analysisQuery.data;
   const responseCount = answeredResponses.length || summary.answeredCount;
   const reportAction = () => navigate(RoutePaths.portalReports, {
-    state: isAssessmentLinkNavigationState(location.state)
+    state: isAssessmentLinkNavigation
       ? { assessmentId, resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE }
       : { assessmentId },
   });
@@ -239,13 +242,15 @@ export function QmriAgentAnalysisPage() {
             </>
           ) : null}
 
-          <Button
-            variant={phase === "complete" ? "outlined" : "text"}
-            startIcon={<ArrowBackOutlinedIcon />}
-            onClick={() => navigate(RoutePaths.portalAssessments)}
-          >
-            Return to assessments
-          </Button>
+          {!isAssessmentLinkNavigation ? (
+            <Button
+              variant={phase === "complete" ? "outlined" : "text"}
+              startIcon={<ArrowBackOutlinedIcon />}
+              onClick={() => navigate(RoutePaths.portalAssessments)}
+            >
+              Return to assessments
+            </Button>
+          ) : null}
         </Stack>
 
         <Stack direction="row" spacing={0.8} alignItems="flex-start" className="qmri-agent-trust-note">

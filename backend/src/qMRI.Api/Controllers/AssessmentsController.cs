@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
+using qMRI.Application.Reports.Abstractions;
+using qMRI.Application.Reports.DTOs;
 using qMRI.Domain.Assessments.Enums;
 
 namespace qMRI.Api.Controllers;
@@ -14,7 +16,8 @@ namespace qMRI.Api.Controllers;
 [Authorize]
 public sealed class AssessmentsController(
     IAssessmentExecutionService assessmentService,
-    IQmriAgentAnalysisService agentAnalysisService) : ControllerBase
+    IQmriAgentAnalysisService agentAnalysisService,
+    IReportEmailSender reportEmailSender) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAssessments([FromQuery] Guid? userId, CancellationToken cancellationToken)
@@ -205,6 +208,67 @@ public sealed class AssessmentsController(
         {
             return Problem(detail: exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
+    }
+
+    [HttpPost("{assessmentId:guid}/email-report")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> EmailReport(
+        Guid assessmentId,
+        [FromForm] IFormFile? report,
+        [FromForm] string? reportTitle,
+        [FromForm] string? reportDescription,
+        CancellationToken cancellationToken)
+    {
+        var accessResult = await EnsureAssessmentAccessAsync(assessmentId, cancellationToken);
+        if (accessResult is not null)
+        {
+            return accessResult;
+        }
+
+        if (report is null || report.Length == 0 || report.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "A PDF report attachment up to 10 MB is required." });
+        }
+
+        if (!string.Equals(report.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "The report attachment must be a PDF." });
+        }
+
+        var recipientEmail = User.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            return BadRequest(new { message = "Your signed-in account does not have an email address." });
+        }
+
+        var assessment = await assessmentService.GetAssessmentAsync(assessmentId, cancellationToken);
+        if (assessment is null)
+        {
+            return NotFound();
+        }
+
+        await using var stream = new MemoryStream();
+        await report.CopyToAsync(stream, cancellationToken);
+
+        var fileName = Path.GetFileName(report.FileName);
+        if (string.IsNullOrWhiteSpace(fileName) || !fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = "qascan-detailed-report.pdf";
+        }
+
+        await reportEmailSender.SendAsync(new ReportEmailMessageDto
+        {
+            RecipientEmail = recipientEmail,
+            RecipientName = User.Identity?.Name,
+            AssessmentTitle = string.IsNullOrWhiteSpace(reportTitle) ? assessment.Summary.Title : reportTitle.Trim(),
+            AssessmentDescription = string.IsNullOrWhiteSpace(reportDescription)
+                ? assessment.Summary.Description
+                : reportDescription.Trim(),
+            FileName = fileName,
+            PdfContent = stream.ToArray()
+        }, cancellationToken);
+
+        return Ok(new { message = "The report was sent to your signed-in email address." });
     }
 
     private IActionResult? EnsureOwnerAccess(Guid ownerUserId)

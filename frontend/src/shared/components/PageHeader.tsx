@@ -5,9 +5,10 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  titleLeading?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, titleLeading }: PageHeaderProps) {
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
@@ -16,8 +17,11 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
       spacing={1.5}
       sx={{ mb: 3 }}
     >
-      <Box>
-        <Typography variant="h1">{title}</Typography>
+      <Box sx={{ minWidth: 0 }}>
+        <Stack direction="row" spacing={{ xs: 1.25, sm: 1.75 }} alignItems="center" sx={{ minWidth: 0 }}>
+          {titleLeading}
+          <Typography variant="h1" sx={{ minWidth: 0 }}>{title}</Typography>
+        </Stack>
         {subtitle && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {subtitle}

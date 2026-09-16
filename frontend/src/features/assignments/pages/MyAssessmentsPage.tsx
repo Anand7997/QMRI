@@ -543,6 +543,20 @@ export function MyAssessmentsPage() {
       <PageHeader
         title={summary?.title ?? "My Assessment"}
         subtitle={selectedCategoryGroup ? selectedCategoryGroup.category : "Select a category to begin"}
+        titleLeading={
+          <Box
+            component="img"
+            src="/qascan-logo.svg"
+            alt="QAScan"
+            sx={{
+              width: { xs: 112, sm: 138 },
+              height: "auto",
+              maxWidth: "34vw",
+              flex: "0 0 auto",
+              display: "block",
+            }}
+          />
+        }
         actions={!isAssessmentLinkNavigation ? (
           <Button variant="outlined" startIcon={<KeyboardArrowLeftIcon />} onClick={() => setQuestionMode(false)}>
             Assessment details
@@ -815,7 +829,7 @@ export function MyAssessmentsPage() {
       </Box>
 
       <Dialog open={reviewOpen} onClose={() => setReviewOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Review assessment before submit</DialogTitle>
+        <DialogTitle>Review assessment before submission</DialogTitle>
         <DialogContent>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">

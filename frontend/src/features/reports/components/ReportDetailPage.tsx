@@ -58,13 +58,17 @@ import {
   YAxis,
 } from "recharts";
 import { MotionConfig } from "motion/react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import {
   AssessmentStatus,
   answerLabel,
+  type AssessmentDetailDto,
   type AssessmentSummaryDto,
 } from "shared/api/types";
 import type { useAssessment } from "shared/api/assessments";
+import { emailAssessmentReport } from "shared/api/reports";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
 import { ExportCenter } from "features/dashboard/components/ExportCenter";
@@ -121,6 +125,7 @@ export function ReportDetailPage({
   focusSteps,
   actor,
   onBack,
+  isIdentityLinkSession,
 }: {
   assessment: AssessmentSummaryDto;
   detailQuery: ReturnType<typeof useAssessment>;
@@ -128,6 +133,7 @@ export function ReportDetailPage({
   focusSteps: boolean;
   actor?: string;
   onBack: () => void;
+  isIdentityLinkSession?: boolean;
 }) {
   const detail = detailQuery.data;
   const summary = detail?.summary ?? assessment;
@@ -164,8 +170,9 @@ export function ReportDetailPage({
   const [tab, setTab] = useState<TabKey>("overview");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [shared, setShared] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
   const [isPrintExporting, setIsPrintExporting] = useState(false);
+  const [isMailingReport, setIsMailingReport] = useState(false);
   const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([]);
   const detailedStepsRef = useRef<HTMLDivElement | null>(null);
 
@@ -205,9 +212,34 @@ export function ReportDetailPage({
   async function shareReport() {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setShared(true);
+      setNotification("Report link copied to clipboard");
     } catch {
-      setShared(true);
+      setNotification("Report link copied to clipboard");
+    }
+  }
+
+  async function mailReport() {
+    if (!detail || isMailingReport) return;
+
+    const fileName = `${slug(summary.title)}-detailed-report.pdf`;
+    const pdf = buildDetailedReportPdf(summary, detail);
+    const pdfBlob = pdf.output("blob");
+    setIsMailingReport(true);
+
+    try {
+      pdf.save(fileName);
+      await emailAssessmentReport(
+        summary.assessmentId,
+        pdfBlob,
+        fileName,
+        summary.title,
+        summary.description ?? "",
+      );
+      setNotification("Report has been sent to your mail");
+    } catch {
+      setNotification("The report was downloaded, but we could not send the email. Please check your email settings and try again.");
+    } finally {
+      setIsMailingReport(false);
     }
   }
 
@@ -273,13 +305,41 @@ export function ReportDetailPage({
         <PageHeader
           title="Detailed report"
           subtitle="A visual, plain-language read-out of your quality-maturity assessment - with the actions to take next."
+          titleLeading={
+            <Box
+              component="img"
+              src="/qascan-logo.svg"
+              alt="QAScan"
+              sx={{
+                width: { xs: 112, sm: 138 },
+                height: "auto",
+                maxWidth: "34vw",
+                flex: "0 0 auto",
+                display: "block",
+              }}
+            />
+          }
           actions={
             <Stack direction="row" spacing={1} sx={{ "@media print": { display: "none" } }}>
-              <Button variant="text" startIcon={<PrintOutlinedIcon />} disabled={isPrintExporting} onClick={printFullReport}>
-                {isPrintExporting ? "Preparing PDF..." : "Print / PDF"}
-              </Button>
-              <Button variant="text" startIcon={<ShareOutlinedIcon />} onClick={shareReport}>Share</Button>
-              <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={onBack}>Back to reports</Button>
+              {!isIdentityLinkSession ? (
+                <>
+                  <Button variant="text" startIcon={<PrintOutlinedIcon />} disabled={isPrintExporting} onClick={printFullReport}>
+                    {isPrintExporting ? "Preparing PDF..." : "Print / PDF"}
+                  </Button>
+                  <Button variant="text" startIcon={<ShareOutlinedIcon />} onClick={shareReport}>Share</Button>
+                </>
+              ) : null}
+              {isIdentityLinkSession ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<MailOutlineIcon />}
+                  onClick={() => void mailReport()}
+                  disabled={!detail || isMailingReport}
+                >
+                  {isMailingReport ? "Sending report..." : "Mail the Reports"}
+                </Button>
+              ) : null}
+              <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={onBack}>Back to analysis</Button>
             </Stack>
           }
         />
@@ -385,15 +445,17 @@ export function ReportDetailPage({
                       onSeeStrengths={() => setTab("strengths")}
                       onDrill={drillToCategory}
                     />
-                    <ExportCenter
-                      title="Export & share this report"
-                      scope="User"
-                      assessments={[summary]}
-                      details={detail ? [detail] : []}
-                      actor={actor ?? "User"}
-                      onPdfExport={printFullReport}
-                      isPdfExporting={isPrintExporting}
-                    />
+                    {!isIdentityLinkSession ? (
+                      <ExportCenter
+                        title="Export & share this report"
+                        scope="User"
+                        assessments={[summary]}
+                        details={detail ? [detail] : []}
+                        actor={actor ?? "User"}
+                        onPdfExport={printFullReport}
+                        isPdfExporting={isPrintExporting}
+                      />
+                    ) : null}
                   </Stack>
                 </MotionReveal>
               ) : null}
@@ -729,22 +791,112 @@ export function ReportDetailPage({
                 <Box>
                   <Typography variant="h3">Need help?</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    For support in understanding the report or planning the next improvement steps, contact BighneswarP@quinnox.com.
+                    For support in understanding the report or planning the next improvement steps, contact marketing@quinnox.com.
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ color: brandTokens.blue600 }}>
                   <MailOutlineIcon fontSize="small" />
-                  <Typography variant="body2" fontWeight={700}>BighneswarP@quinnox.com</Typography>
+                  <Typography variant="body2" fontWeight={700}>marketing@quinnox.com</Typography>
                 </Stack>
               </Stack>
             </Card>
           </MotionReveal>
         </Stack>
 
-        <Snackbar open={shared} autoHideDuration={3000} onClose={() => setShared(false)} message="Report link copied to clipboard" />
+        <Snackbar open={Boolean(notification)} autoHideDuration={5000} onClose={() => setNotification(null)} message={notification ?? ""} />
       </Box>
     </MotionConfig>
   );
+}
+
+function buildDetailedReportPdf(summary: AssessmentSummaryDto, detail: AssessmentDetailDto) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const left = 40;
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setTextColor(29, 78, 216);
+  doc.setFontSize(22);
+  doc.setFont("helvetica", "bold");
+  doc.text("QAScan", left, 44);
+  doc.setTextColor(23, 32, 51);
+  doc.setFontSize(16);
+  doc.text("Detailed assessment report", left, 70);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(95, 107, 122);
+  doc.text(summary.title, left, 88, { maxWidth: pageWidth - left * 2 });
+
+  autoTable(doc, {
+    startY: 108,
+    head: [["Report ID", "Date taken", "Overall score", "Maturity stage", "Evidence"]],
+    body: [[
+      summary.assessmentId.slice(0, 8).toUpperCase(),
+      formatDate(resolveDate(summary)),
+      `${Math.round(summary.overallScore ?? 0)}%`,
+      summary.overallMaturityLevel ?? "Pending",
+      `${summary.answeredCount}/${summary.questionCount} responses`,
+    ]],
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 7 },
+    headStyles: { fillColor: [29, 78, 216] },
+  });
+
+  const scoreStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 150) + 20;
+  autoTable(doc, {
+    startY: scoreStart,
+    head: [["Category", "Score", "Maturity", "Answered"]],
+    body: detail.scores
+      .filter((score) => score.scope === 1 && score.categoryName)
+      .map((score) => [score.categoryName ?? "", `${Math.round(score.score)}%`, score.maturityLevel ?? "-", `${score.answeredCount}/${score.questionCount}`]),
+    theme: "striped",
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [15, 118, 110] },
+  });
+
+  const recommendationStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? scoreStart) + 20;
+  autoTable(doc, {
+    startY: recommendationStart,
+    head: [["Priority recommendations", "Category", "Description"]],
+    body: detail.recommendations.map((recommendation) => [
+      recommendation.title,
+      recommendation.categoryName ?? recommendation.moduleName ?? "Assessment",
+      recommendation.description,
+    ]),
+    theme: "striped",
+    styles: { fontSize: 8, cellWidth: "wrap" },
+    headStyles: { fillColor: [180, 83, 9] },
+  });
+
+  const questionStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? recommendationStart) + 20;
+  autoTable(doc, {
+    startY: questionStart,
+    head: [["Question", "Category", "Answer", "Expected answer", "Findings"]],
+    body: detail.questionResults.map((question, index) => [
+      `Q${index + 1}. ${question.questionText}`,
+      question.categoryName,
+      question.answer == null ? "Not answered" : answerLabel[question.answer],
+      answerLabel[question.expectedAnswer],
+      question.findings ?? "-",
+    ]),
+    theme: "grid",
+    styles: { fontSize: 7, cellPadding: 5, overflow: "linebreak" },
+    headStyles: { fillColor: [71, 85, 105] },
+  });
+
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setFontSize(8);
+    doc.setTextColor(95, 107, 122);
+    doc.text(`QAScan | ${summary.title}`, left, doc.internal.pageSize.getHeight() - 20, { maxWidth: pageWidth - 120 });
+    doc.text(`${page} / ${pageCount}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, { align: "right" });
+  }
+
+  return doc;
+}
+
+function slug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "qascan-report";
 }
 
 /* ------------------------------------------------------------------ *
