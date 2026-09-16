@@ -21,6 +21,7 @@ import {
   Tabs,
   TextField,
   Typography,
+  GlobalStyles,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -259,6 +260,11 @@ export function ReportDetailPage({
     return () => window.removeEventListener("afterprint", finishPrintExport);
   }, []);
 
+  useEffect(() => {
+    document.body.classList.toggle("report-printing", isPrintExporting);
+    return () => document.body.classList.remove("report-printing");
+  }, [isPrintExporting]);
+
   const highestName = kpis.find((k) => k.key === "best")?.sub ?? "";
   const lowestName = kpis.find((k) => k.key === "worst")?.sub ?? "";
   const readinessValue = kpis.find((k) => k.key === "readiness")?.value ?? "--";
@@ -269,7 +275,44 @@ export function ReportDetailPage({
 
   return (
     <MotionConfig reducedMotion="user">
+      <GlobalStyles
+        styles={{
+          "@media print": {
+            "body.report-printing": {
+              margin: 0,
+              backgroundColor: "#ffffff",
+            },
+            "body.report-printing .MuiAppBar-root, body.report-printing .MuiDrawer-root, body.report-printing footer, body.report-printing main > .MuiToolbar-root": {
+              display: "none !important",
+            },
+            "body.report-printing main": {
+              width: "100% !important",
+              maxWidth: "100% !important",
+            },
+            "body.report-printing main > .MuiBox-root": {
+              padding: "0 !important",
+            },
+            "body.report-printing .report-print-root": {
+              width: "100%",
+              maxWidth: "none",
+              margin: 0,
+              padding: "20px 28px 24px !important",
+              boxSizing: "border-box",
+            },
+            "body.report-printing .report-print-root .MuiCard-root": {
+              boxShadow: "none !important",
+            },
+            "body.report-printing .report-print-root .report-print-hero": {
+              breakInside: "avoid",
+              pageBreakInside: "avoid",
+              breakAfter: "avoid",
+              pageBreakAfter: "avoid",
+            },
+          },
+        }}
+      />
       <Box
+        className="report-print-root"
         sx={{
           "@media print": {
             bgcolor: "#ffffff",
@@ -351,6 +394,7 @@ export function ReportDetailPage({
           {/* ---------------------------------------------------------- Hero */}
           <MotionReveal>
             <Card
+              className="report-print-hero"
               sx={{
                 overflow: "hidden",
                 border: `1px solid ${alpha(brandTokens.blue600, 0.16)}`,
