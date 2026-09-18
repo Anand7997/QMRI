@@ -900,10 +900,12 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
 
   await new Promise<void>((resolve) => setTimeout(resolve, 300));
 
+  const captureScale = 1.5;
+  let exportCardBounds: Array<{ top: number; bottom: number }> = [];
   const canvas = await html2canvas(reportRoot, {
     backgroundColor: "#ffffff",
     logging: false,
-    scale: 1.5,
+    scale: captureScale,
     useCORS: true,
     windowWidth: reportRoot.scrollWidth,
     windowHeight: reportRoot.scrollHeight,
@@ -965,6 +967,17 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
           element.style.maxWidth = "100%";
           element.style.boxSizing = "border-box";
         });
+
+        const clonedRootRect = clonedRoot.getBoundingClientRect();
+        exportCardBounds = Array.from(clonedRoot.querySelectorAll<HTMLElement>(".MuiCard-root"))
+          .map((card) => {
+            const rect = card.getBoundingClientRect();
+            return {
+              top: Math.max(0, (rect.top - clonedRootRect.top) * captureScale),
+              bottom: Math.max(0, (rect.bottom - clonedRootRect.top) * captureScale),
+            };
+          })
+          .filter((card) => card.bottom > card.top);
       }
     },
   });
@@ -981,10 +994,31 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   const scaledCanvasHeight = canvas.height * scaleFactor;
   const pixelsPerPage = Math.max(1, Math.floor((contentHeight / scaledCanvasHeight) * canvas.height));
 
-  for (let offset = 0; offset < canvas.height; offset += pixelsPerPage) {
+  // The report is captured as one canvas, so CSS page-break rules cannot stop
+  // html2canvas from cutting a chart in half. Move a card that crosses the
+  // calculated page boundary to the next page instead.
+  const cardBounds = exportCardBounds;
+
+  const pageOffsets = [0];
+  let pageOffset = 0;
+  while (pageOffset < canvas.height) {
+    const targetOffset = Math.min(canvas.height, pageOffset + pixelsPerPage);
+    const crossingCard = cardBounds
+      .filter((card) => card.top > pageOffset + 2 && card.top < targetOffset - 2 && card.bottom > targetOffset)
+      .sort((a, b) => a.top - b.top)[0];
+    const nextOffset = crossingCard?.top ?? targetOffset;
+
+    if (nextOffset <= pageOffset + 1) break;
+    pageOffsets.push(nextOffset);
+    pageOffset = nextOffset;
+  }
+
+  for (let pageIndex = 0; pageIndex < pageOffsets.length - 1; pageIndex += 1) {
+    const offset = pageOffsets[pageIndex];
+    const nextOffset = pageOffsets[pageIndex + 1];
     if (offset > 0) doc.addPage();
 
-    const sliceHeight = Math.min(pixelsPerPage, canvas.height - offset);
+    const sliceHeight = Math.min(nextOffset - offset, canvas.height - offset);
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = canvas.width;
     pageCanvas.height = sliceHeight;
