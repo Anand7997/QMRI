@@ -62,12 +62,10 @@ import {
 } from "recharts";
 import { MotionConfig } from "motion/react";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import {
   AssessmentStatus,
   answerLabel,
-  type AssessmentDetailDto,
   type AssessmentSummaryDto,
 } from "shared/api/types";
 import type { useAssessment } from "shared/api/assessments";
@@ -180,6 +178,7 @@ export function ReportDetailPage({
   const [isMailingReport, setIsMailingReport] = useState(false);
   const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([]);
   const detailedStepsRef = useRef<HTMLDivElement | null>(null);
+  const reportRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setExpandedDetailIds([]);
@@ -227,11 +226,13 @@ export function ReportDetailPage({
     if (!detail || isMailingReport) return;
 
     const fileName = `${slug(summary.title)}-detailed-report.pdf`;
-    const pdf = buildDetailedReportPdf(summary, detail, trend);
-    const pdfBlob = pdf.output("blob");
     setIsMailingReport(true);
+    setIsPrintExporting(true);
 
     try {
+      await waitForReportRender();
+      const pdf = await buildRenderedReportPdf(reportRootRef.current);
+      const pdfBlob = pdf.output("blob");
       pdf.save(fileName);
       await emailAssessmentReport(
         summary.assessmentId,
@@ -242,9 +243,10 @@ export function ReportDetailPage({
       );
       setNotification("Report has been sent to your mail");
     } catch {
-      setNotification("The report was downloaded, but we could not send the email. Please check your email settings and try again.");
+      setNotification("We could not prepare or send the detailed report. Please check your email settings and try again.");
     } finally {
       setIsMailingReport(false);
+      setIsPrintExporting(false);
     }
   }
 
@@ -315,6 +317,7 @@ export function ReportDetailPage({
         }}
       />
       <Box
+        ref={reportRootRef}
         className="report-print-root"
         sx={{
           "@media print": {
@@ -366,7 +369,7 @@ export function ReportDetailPage({
             />
           }
           actions={
-            <Stack direction="row" spacing={1} sx={{ "@media print": { display: "none" } }}>
+            <Stack className="report-email-exclude" direction="row" spacing={1} sx={{ "@media print": { display: "none" } }}>
               {!isIdentityLinkSession ? (
                 <>
                   <Button variant="text" startIcon={<PrintOutlinedIcon />} disabled={isPrintExporting} onClick={printFullReport}>
@@ -856,102 +859,37 @@ export function ReportDetailPage({
   );
 }
 
-function buildDetailedReportPdf(
-  summary: AssessmentSummaryDto,
-  detail: AssessmentDetailDto,
-  trend: Array<{ label: string; score: number; completion: number }>,
-) {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const left = 40;
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  doc.setTextColor(29, 78, 216);
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.text("QAScan", left, 44);
-  doc.setTextColor(23, 32, 51);
-  doc.setFontSize(16);
-  doc.text("Detailed assessment report", left, 70);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(95, 107, 122);
-  doc.text(summary.title, left, 88, { maxWidth: pageWidth - left * 2 });
-
-  autoTable(doc, {
-    startY: 108,
-    head: [["Report ID", "Date taken", "Overall score", "Maturity stage", "Evidence"]],
-    body: [[
-      summary.assessmentId.slice(0, 8).toUpperCase(),
-      formatDate(resolveDate(summary)),
-      `${Math.round(summary.overallScore ?? 0)}%`,
-      summary.overallMaturityLevel ?? "Pending",
-      `${summary.answeredCount}/${summary.questionCount} responses`,
-    ]],
-    theme: "grid",
-    styles: { fontSize: 9, cellPadding: 7 },
-    headStyles: { fillColor: [29, 78, 216] },
+function waitForReportRender() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
   });
+}
 
-  const trendStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 150) + 20;
-  autoTable(doc, {
-    startY: trendStart,
-    head: [["Assessment trend", "Score", "Completion"]],
-    body: trend.length ? trend.map((point) => [point.label, `${point.score}%`, `${point.completion}%`]) : [["No previous assessment trend", "-", "-"]],
-    theme: "striped",
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [29, 78, 216] },
-  });
-
-  const scoreStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? trendStart) + 20;
-  autoTable(doc, {
-    startY: scoreStart,
-    head: [["Category", "Score", "Maturity", "Answered"]],
-    body: detail.scores
-      .filter((score) => score.scope === 1 && score.categoryName)
-      .map((score) => [score.categoryName ?? "", `${Math.round(score.score)}%`, score.maturityLevel ?? "-", `${score.answeredCount}/${score.questionCount}`]),
-    theme: "striped",
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [15, 118, 110] },
-  });
-
-  const recommendationStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? scoreStart) + 20;
-  autoTable(doc, {
-    startY: recommendationStart,
-    head: [["Priority recommendations", "Category", "Description"]],
-    body: detail.recommendations.map((recommendation) => [
-      recommendation.title,
-      recommendation.categoryName ?? recommendation.moduleName ?? "Assessment",
-      recommendation.description,
-    ]),
-    theme: "striped",
-    styles: { fontSize: 8, cellWidth: "wrap" },
-    headStyles: { fillColor: [180, 83, 9] },
-  });
-
-  const questionStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? recommendationStart) + 20;
-  autoTable(doc, {
-    startY: questionStart,
-    head: [["Question", "Category", "Answer", "Expected answer", "Findings"]],
-    body: detail.questionResults.map((question, index) => [
-      `Q${index + 1}. ${question.questionText}`,
-      question.categoryName,
-      question.answer == null ? "Not answered" : answerLabel[question.answer],
-      answerLabel[question.expectedAnswer],
-      question.findings ?? "-",
-    ]),
-    theme: "grid",
-    styles: { fontSize: 7, cellPadding: 5, overflow: "linebreak" },
-    headStyles: { fillColor: [71, 85, 105] },
-  });
-
-  const pageCount = doc.getNumberOfPages();
-  for (let page = 1; page <= pageCount; page += 1) {
-    doc.setPage(page);
-    doc.setFontSize(8);
-    doc.setTextColor(95, 107, 122);
-    doc.text(`QAScan | ${summary.title}`, left, doc.internal.pageSize.getHeight() - 20, { maxWidth: pageWidth - 120 });
-    doc.text(`${page} / ${pageCount}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, { align: "right" });
+async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
+  if (!reportRoot) {
+    throw new Error("The detailed report is not available for export.");
   }
+
+  const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 24;
+
+  await doc.html(reportRoot, {
+    autoPaging: "slice",
+    margin,
+    x: margin,
+    y: margin,
+    width: pageWidth - margin * 2,
+    windowWidth: reportRoot.scrollWidth,
+    image: { type: "jpeg", quality: 0.95 },
+    html2canvas: {
+      backgroundColor: "#ffffff",
+      logging: false,
+      scale: Math.min(window.devicePixelRatio || 1, 2),
+      useCORS: true,
+      ignoreElements: (element) => element.classList.contains("report-email-exclude"),
+    },
+  });
 
   return doc;
 }
