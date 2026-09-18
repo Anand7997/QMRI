@@ -384,12 +384,26 @@ async function mailReport() {
                 src="/qascan-logo.svg"
                 alt="QAScan"
                 sx={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
+                  width: 34,
+                  height: 30,
+                  objectFit: "cover",
+                  objectPosition: "left center",
+                  borderRadius: 1,
                   display: "block",
+                  flex: "0 0 auto",
                 }}
               />
+              <Typography
+                sx={{
+                  color: brandTokens.blue700,
+                  fontSize: { xs: 17, sm: 20 },
+                  fontWeight: 900,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1,
+                }}
+              >
+                QAScan
+              </Typography>
             </Box>
           }
           actions={
