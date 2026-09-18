@@ -45,6 +45,8 @@ import {
   CartesianGrid,
   Cell,
   LabelList,
+  Line,
+  LineChart,
   Legend,
   Pie,
   PieChart,
@@ -95,6 +97,7 @@ import {
   stageForScore,
   statusBadgeFor,
   STAGES,
+  trendData,
   type CategoryGroup,
   type Insight,
   type Kpi,
@@ -151,6 +154,7 @@ export function ReportDetailPage({
   const previousScore = useMemo(() => previousScoreFor(history, summary), [history, summary]);
   const overallDelta = previousScore == null ? null : overallScore - previousScore;
   const spark = useMemo(() => historyScores(history, summary), [history, summary]);
+  const trend = useMemo(() => trendData(history, summary), [history, summary]);
 
   const kpis = useMemo(
     () => buildKpis(overallScore, summary.completionPercentage ?? 0, categoryGroups, previousScore, spark),
@@ -223,7 +227,7 @@ export function ReportDetailPage({
     if (!detail || isMailingReport) return;
 
     const fileName = `${slug(summary.title)}-detailed-report.pdf`;
-    const pdf = buildDetailedReportPdf(summary, detail);
+    const pdf = buildDetailedReportPdf(summary, detail, trend);
     const pdfBlob = pdf.output("blob");
     setIsMailingReport(true);
 
@@ -487,6 +491,7 @@ export function ReportDetailPage({
                       onSeeStrengths={() => setTab("strengths")}
                       onDrill={drillToCategory}
                     />
+                    <TrendReport data={trend} isPrintExporting={isPrintExporting} />
                     {!isIdentityLinkSession ? (
                       <ExportCenter
                         title="Export & share this report"
@@ -851,7 +856,11 @@ export function ReportDetailPage({
   );
 }
 
-function buildDetailedReportPdf(summary: AssessmentSummaryDto, detail: AssessmentDetailDto) {
+function buildDetailedReportPdf(
+  summary: AssessmentSummaryDto,
+  detail: AssessmentDetailDto,
+  trend: Array<{ label: string; score: number; completion: number }>,
+) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const left = 40;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -883,7 +892,17 @@ function buildDetailedReportPdf(summary: AssessmentSummaryDto, detail: Assessmen
     headStyles: { fillColor: [29, 78, 216] },
   });
 
-  const scoreStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 150) + 20;
+  const trendStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 150) + 20;
+  autoTable(doc, {
+    startY: trendStart,
+    head: [["Assessment trend", "Score", "Completion"]],
+    body: trend.length ? trend.map((point) => [point.label, `${point.score}%`, `${point.completion}%`]) : [["No previous assessment trend", "-", "-"]],
+    theme: "striped",
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [29, 78, 216] },
+  });
+
+  const scoreStart = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? trendStart) + 20;
   autoTable(doc, {
     startY: scoreStart,
     head: [["Category", "Score", "Maturity", "Answered"]],
@@ -1189,6 +1208,68 @@ function SummaryReadCard({ highest, lowest, readiness }: { highest: string; lowe
       <Box sx={{ mt: 1.4, height: 7, borderRadius: 999, bgcolor: alpha(brandTokens.blue600, 0.12), overflow: "hidden" }}>
         <Box sx={{ width: readiness, maxWidth: "100%", height: "100%", bgcolor: semanticTokens.successMain }} />
       </Box>
+    </Card>
+  );
+}
+
+function TrendReport({
+  data,
+  isPrintExporting,
+}: {
+  data: Array<{ label: string; score: number; completion: number }>;
+  isPrintExporting: boolean;
+}) {
+  return (
+    <Card sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1} alignItems={{ sm: "center" }}>
+        <Box>
+          <Typography variant="h3" sx={{ fontSize: 18 }}>Assessment trend</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Overall score and completion across assessments of this type. Hover over a point to see the exact result.
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ fontSize: 12, fontWeight: 700 }}>
+          <Stack direction="row" spacing={0.75} alignItems="center"><Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: brandTokens.blue600 }} />Score</Stack>
+          <Stack direction="row" spacing={0.75} alignItems="center"><Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: semanticTokens.successMain }} />Completion</Stack>
+        </Stack>
+      </Stack>
+
+      {data.length === 0 ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>No previous assessment trend is available.</Typography>
+      ) : (
+        <>
+          <Box sx={{ mt: 2, width: "100%", height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data} margin={{ top: 18, right: 16, left: 0, bottom: 4 }}>
+                <CartesianGrid vertical={false} stroke={neutralTokens.line200} strokeDasharray="3 3" />
+                <XAxis dataKey="label" tick={{ fill: neutralTokens.ink500, fontSize: 11 }} />
+                <YAxis domain={[0, 100]} tick={{ fill: neutralTokens.ink500, fontSize: 11 }} />
+                {!isPrintExporting ? <Tooltip content={<PlainTooltip unit="%" />} /> : null}
+                <Line type="monotone" dataKey="score" name="Score" stroke={brandTokens.blue600} strokeWidth={3} dot={{ r: 4, fill: brandTokens.blue600 }} isAnimationActive={!isPrintExporting}>
+                  {isPrintExporting ? <LabelList dataKey="score" position="top" style={{ fontSize: 10, fontWeight: 700, fill: neutralTokens.ink700 }} /> : null}
+                </Line>
+                <Line type="monotone" dataKey="completion" name="Completion" stroke={semanticTokens.successMain} strokeWidth={2} dot={{ r: 3, fill: semanticTokens.successMain }} isAnimationActive={!isPrintExporting}>
+                  {isPrintExporting ? <LabelList dataKey="completion" position="bottom" style={{ fontSize: 10, fontWeight: 700, fill: neutralTokens.ink700 }} /> : null}
+                </Line>
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+          <TableContainer sx={{ mt: 1 }}>
+            <Table size="small" aria-label="Assessment trend data">
+              <TableHead><TableRow><TableCell>Date</TableCell><TableCell align="right">Score</TableCell><TableCell align="right">Completion</TableCell></TableRow></TableHead>
+              <TableBody>
+                {data.map((point) => (
+                  <TableRow key={`${point.label}-${point.score}-${point.completion}`}>
+                    <TableCell>{point.label}</TableCell>
+                    <TableCell align="right">{point.score}%</TableCell>
+                    <TableCell align="right">{point.completion}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
+      )}
     </Card>
   );
 }
