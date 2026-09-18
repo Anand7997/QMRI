@@ -365,17 +365,32 @@ async function mailReport() {
           subtitle="A visual, plain-language read-out of your quality-maturity assessment - with the actions to take next."
           titleLeading={
             <Box
-              component="img"
-              src="/qascan-logo.svg"
-              alt="QAScan"
               sx={{
-                width: { xs: 112, sm: 138 },
-                height: "auto",
-                maxWidth: "34vw",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: { xs: 148, sm: 188 },
+                height: { xs: 38, sm: 46 },
+                px: { xs: 1, sm: 1.5 },
+                borderRadius: 2,
+                bgcolor: "#ffffff",
+                border: `1px solid ${alpha(brandTokens.blue600, 0.24)}`,
+                boxShadow: `0 8px 22px ${alpha(brandTokens.blue600, 0.12)}`,
                 flex: "0 0 auto",
-                display: "block",
               }}
-            />
+            >
+              <Box
+                component="img"
+                src="/qascan-logo.svg"
+                alt="QAScan"
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </Box>
           }
           actions={
             <Stack className="report-email-exclude" direction="row" spacing={1} sx={{ "@media print": { display: "none" } }}>
@@ -424,7 +439,7 @@ async function mailReport() {
                   borderBottom: 1,
                   borderColor: alpha(brandTokens.blue600, 0.12),
                   bgcolor: brandTokens.blue50,
-                  backgroundImage: `linear-gradient(135deg, ${brandTokens.blue50} 0%, #ffffff 48%, ${alpha(overallStage.color, 0.1)} 100%)`,
+                  backgroundImage: `linear-gradient(135deg, ${brandTokens.blue50} 0%, #ffffff 56%, ${alpha(brandTokens.blue600, 0.08)} 100%)`,
                 }}
               >
                 <Stack direction={{ xs: "column", lg: "row" }} spacing={3} justifyContent="space-between" alignItems={{ lg: "center" }}>
