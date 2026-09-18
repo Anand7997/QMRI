@@ -298,9 +298,11 @@ async function mailReport() {
             "body.report-printing .report-print-root": {
               width: "100%",
               maxWidth: "none",
+              minWidth: 0,
               margin: 0,
               padding: "20px 28px 24px !important",
               boxSizing: "border-box",
+              overflowX: "hidden",
             },
             "body.report-printing .report-print-root .MuiCard-root": {
               boxShadow: "none !important",
@@ -318,6 +320,15 @@ async function mailReport() {
         ref={reportRootRef}
         className="report-print-root"
         sx={{
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
+          overflowX: "hidden",
+          "& .report-motion-reveal": {
+            minWidth: 0,
+            maxWidth: "100%",
+          },
           "@media print": {
             bgcolor: "#ffffff",
             color: neutralTokens.ink900,
@@ -925,18 +936,35 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
         const style = clonedDoc.createElement("style");
         style.textContent = `
           .report-print-root [style*="gridTemplateColumns"],
+          .report-print-root [style*="grid-template-columns"],
           .report-print-root [style*="display: grid"],
           .report-print-root .MuiGrid-root {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            min-width: 0 !important;
+            width: 100% !important;
           }
-          .report-print-root [style*="grid-template-columns"] {
-            grid-template-columns: 1fr !important;
+          .report-print-root,
+          .report-print-root * {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
           }
-          .report-print-root .MuiBox-root[style*="gridTemplateColumns"] {
-            grid-template-columns: 1fr !important;
+          .report-print-root .recharts-responsive-container,
+          .report-print-root .recharts-wrapper,
+          .report-print-root .recharts-surface {
+            max-width: 100% !important;
+            overflow: hidden !important;
           }
         `;
         clonedDoc.head.appendChild(style);
+
+        clonedRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
+          if (clonedDoc.defaultView?.getComputedStyle(element).display === "grid") {
+            element.style.gridTemplateColumns = "minmax(0, 1fr)";
+            element.style.minWidth = "0";
+          }
+          element.style.maxWidth = "100%";
+          element.style.boxSizing = "border-box";
+        });
       }
     },
   });

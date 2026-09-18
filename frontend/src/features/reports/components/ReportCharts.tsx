@@ -27,6 +27,9 @@ export function ChartCard({
       sx={{
         p: { xs: 2, md: 2.5 },
         height: "100%",
+        minWidth: 0,
+        maxWidth: "100%",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         border: `1px solid ${neutralTokens.line200}`,
