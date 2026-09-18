@@ -384,26 +384,13 @@ async function mailReport() {
                 src="/qascan-logo.svg"
                 alt="QAScan"
                 sx={{
-                  width: 34,
-                  height: 30,
-                  objectFit: "cover",
-                  objectPosition: "left center",
-                  borderRadius: 1,
+                  width: { xs: 126, sm: 154 },
+                  height: { xs: 25, sm: 30 },
+                  objectFit: "contain",
                   display: "block",
                   flex: "0 0 auto",
                 }}
               />
-              <Typography
-                sx={{
-                  color: brandTokens.blue700,
-                  fontSize: { xs: 17, sm: 20 },
-                  fontWeight: 900,
-                  letterSpacing: "-0.03em",
-                  lineHeight: 1,
-                }}
-              >
-                QAScan
-              </Typography>
             </Box>
           }
           actions={
@@ -1388,8 +1375,8 @@ function TrendReport({
 function ReportFact({ label, value }: { label: string; value: string }) {
   return (
     <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: alpha("#ffffff", 0.78), border: `1px solid ${alpha(brandTokens.blue600, 0.14)}`, minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 700 }}>{label}</Typography>
-      <Typography variant="body2" fontWeight={850} noWrap title={value}>{value}</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 700, lineHeight: 1.25 }}>{label}</Typography>
+      <Typography variant="body2" fontWeight={850} noWrap title={value} sx={{ lineHeight: 1.35 }}>{value}</Typography>
     </Box>
   );
 }
@@ -1399,8 +1386,8 @@ function HeroStat({ icon, label, value, tone }: { icon: React.ReactNode; label: 
     <Box sx={{ display: "flex", gap: 1.25, alignItems: "center", p: 1.5, borderRadius: 2, bgcolor: alpha(tone, 0.06), border: `1px solid ${alpha(tone, 0.18)}`, minWidth: 0 }}>
       <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: alpha(tone, 0.14), color: tone, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{label}</Typography>
-        <Typography variant="body2" fontWeight={900} noWrap title={value}>{value}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.25 }}>{label}</Typography>
+        <Typography variant="body2" fontWeight={900} noWrap title={value} sx={{ lineHeight: 1.35 }}>{value}</Typography>
       </Box>
     </Box>
   );
@@ -1409,14 +1396,14 @@ function HeroStat({ icon, label, value, tone }: { icon: React.ReactNode; label: 
 function MaturityJourney({ currentLevel }: { currentLevel: number }) {
   return (
     <Box sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${neutralTokens.line200}`, bgcolor: "background.default" }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>Maturity journey</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, lineHeight: 1.25 }}>Maturity journey</Typography>
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 0.75 }}>
         {STAGES.map((stage) => {
           const active = stage.level <= currentLevel;
           return (
             <Box key={stage.level} sx={{ minWidth: 0 }}>
               <Box sx={{ height: 8, borderRadius: 999, bgcolor: active ? stage.color : neutralTokens.line200 }} />
-              <Typography variant="caption" color={active ? "text.primary" : "text.secondary"} sx={{ display: "block", mt: 0.6, fontWeight: active ? 800 : 600 }} noWrap>
+              <Typography variant="caption" color={active ? "text.primary" : "text.secondary"} sx={{ display: "block", mt: 0.6, fontWeight: active ? 800 : 600, lineHeight: 1.25 }} noWrap>
                 {stage.level}. {stage.label}
               </Typography>
             </Box>
