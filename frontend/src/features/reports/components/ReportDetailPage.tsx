@@ -223,7 +223,7 @@ export function ReportDetailPage({
     }
   }
 
-  async function mailReport() {
+async function mailReport() {
     if (!detail || isMailingReport) return;
 
     const fileName = `${slug(summary.title)}-detailed-report.pdf`;
@@ -231,7 +231,6 @@ export function ReportDetailPage({
     setIsPrintExporting(true);
 
     try {
-      await waitForReportRender();
       const pdf = await buildRenderedReportPdf(reportRootRef.current);
       const pdfBlob = pdf.output("blob");
       await emailAssessmentReport(
@@ -256,7 +255,6 @@ export function ReportDetailPage({
     const fileName = `${slug(summary.title)}-detailed-report.pdf`;
     setIsPrintExporting(true);
     try {
-      await waitForReportRender();
       const pdf = await buildRenderedReportPdf(reportRootRef.current);
       pdf.save(fileName);
     } catch {
@@ -859,9 +857,26 @@ export function ReportDetailPage({
   );
 }
 
-function waitForReportRender() {
+function waitForReportRender(reportRoot: HTMLDivElement | null) {
   return new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    const checkReady = () => {
+      const collapses = reportRoot?.querySelectorAll(".MuiCollapse-root") ?? [];
+      let allReady = true;
+      collapses.forEach((c: Element) => {
+        const style = c.getAttribute("style") ?? "";
+        const height = style.includes("height: auto") || style.includes("max-height: none");
+        const inner = c.querySelector(".MuiCollapse-wrapperInner");
+        if (inner && (inner as HTMLElement).scrollHeight > (inner as HTMLElement).clientHeight) {
+          allReady = false;
+        }
+      });
+      if (allReady) {
+        resolve();
+      } else {
+        window.requestAnimationFrame(checkReady);
+      }
+    };
+    window.requestAnimationFrame(checkReady);
   });
 }
 
@@ -870,13 +885,43 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     throw new Error("The detailed report is not available for export.");
   }
 
+  await waitForReportRender(reportRoot);
+
+  await new Promise<void>((resolve) => setTimeout(resolve, 300));
+
   const canvas = await html2canvas(reportRoot, {
     backgroundColor: "#ffffff",
     logging: false,
-    scale: Math.min(window.devicePixelRatio || 1, 2),
+    scale: 2,
     useCORS: true,
     windowWidth: reportRoot.scrollWidth,
+    windowHeight: reportRoot.scrollHeight,
     ignoreElements: (element) => element.classList.contains("report-email-exclude"),
+    onclone: (clonedDoc) => {
+      const clonedRoot = clonedDoc.querySelector(".report-print-root");
+      if (clonedRoot) {
+        clonedRoot.querySelectorAll(".MuiCollapse-root").forEach((el) => {
+          (el as HTMLElement).style.height = "auto";
+          (el as HTMLElement).style.maxHeight = "none";
+          (el as HTMLElement).style.visibility = "visible";
+          (el as HTMLElement).style.overflow = "visible";
+        });
+        clonedRoot.querySelectorAll(".MuiCollapse-wrapper, .MuiCollapse-wrapperInner").forEach((el) => {
+          (el as HTMLElement).style.height = "auto";
+          (el as HTMLElement).style.maxHeight = "none";
+          (el as HTMLElement).style.visibility = "visible";
+          (el as HTMLElement).style.overflow = "visible";
+        });
+        clonedRoot.querySelectorAll(".report-motion-reveal").forEach((el) => {
+          (el as HTMLElement).style.opacity = "1";
+          (el as HTMLElement).style.transform = "none";
+          (el as HTMLElement).style.transition = "none";
+        });
+        clonedRoot.querySelectorAll(".recharts-responsive-container").forEach((el) => {
+          (el as HTMLElement).style.height = "auto";
+        });
+      }
+    },
   });
 
   const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
@@ -902,7 +947,9 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     context.drawImage(canvas, 0, offset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
 
     const renderedHeight = (sliceHeight / canvas.width) * contentWidth;
-    doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, contentWidth, renderedHeight);
+    if (renderedHeight > 1) {
+      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, contentWidth, renderedHeight);
+    }
   }
 
   return doc;
