@@ -892,7 +892,7 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   const canvas = await html2canvas(reportRoot, {
     backgroundColor: "#ffffff",
     logging: false,
-    scale: 2,
+    scale: 1.5,
     useCORS: true,
     windowWidth: reportRoot.scrollWidth,
     windowHeight: reportRoot.scrollHeight,
@@ -930,7 +930,11 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   const margin = 24;
   const contentWidth = pageWidth - margin * 2;
   const contentHeight = pageHeight - margin * 2;
-  const pixelsPerPage = Math.max(1, Math.floor((contentHeight / contentWidth) * canvas.width));
+
+  const scaleFactor = contentWidth / canvas.width;
+  const scaledCanvasWidth = canvas.width * scaleFactor;
+  const scaledCanvasHeight = canvas.height * scaleFactor;
+  const pixelsPerPage = Math.max(1, Math.floor((contentHeight / scaledCanvasHeight) * canvas.height));
 
   for (let offset = 0; offset < canvas.height; offset += pixelsPerPage) {
     if (offset > 0) doc.addPage();
@@ -946,7 +950,7 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
     context.drawImage(canvas, 0, offset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
 
-    const renderedHeight = (sliceHeight / canvas.width) * contentWidth;
+    const renderedHeight = (sliceHeight / canvas.width) * scaledCanvasWidth;
     if (renderedHeight > 1) {
       doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, contentWidth, renderedHeight);
     }
