@@ -62,6 +62,7 @@ import {
 } from "recharts";
 import { MotionConfig } from "motion/react";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import {
   AssessmentStatus,
@@ -869,26 +870,40 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     throw new Error("The detailed report is not available for export.");
   }
 
+  const canvas = await html2canvas(reportRoot, {
+    backgroundColor: "#ffffff",
+    logging: false,
+    scale: Math.min(window.devicePixelRatio || 1, 2),
+    useCORS: true,
+    windowWidth: reportRoot.scrollWidth,
+    ignoreElements: (element) => element.classList.contains("report-email-exclude"),
+  });
+
   const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 24;
+  const contentWidth = pageWidth - margin * 2;
+  const contentHeight = pageHeight - margin * 2;
+  const pixelsPerPage = Math.max(1, Math.floor((contentHeight / contentWidth) * canvas.width));
 
-  await doc.html(reportRoot, {
-    autoPaging: "slice",
-    margin,
-    x: margin,
-    y: margin,
-    width: pageWidth - margin * 2,
-    windowWidth: reportRoot.scrollWidth,
-    image: { type: "jpeg", quality: 0.95 },
-    html2canvas: {
-      backgroundColor: "#ffffff",
-      logging: false,
-      scale: Math.min(window.devicePixelRatio || 1, 2),
-      useCORS: true,
-      ignoreElements: (element) => element.classList.contains("report-email-exclude"),
-    },
-  });
+  for (let offset = 0; offset < canvas.height; offset += pixelsPerPage) {
+    if (offset > 0) doc.addPage();
+
+    const sliceHeight = Math.min(pixelsPerPage, canvas.height - offset);
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = sliceHeight;
+    const context = pageCanvas.getContext("2d");
+    if (!context) throw new Error("Unable to prepare the report PDF canvas.");
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    context.drawImage(canvas, 0, offset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+    const renderedHeight = (sliceHeight / canvas.width) * contentWidth;
+    doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, contentWidth, renderedHeight);
+  }
 
   return doc;
 }
