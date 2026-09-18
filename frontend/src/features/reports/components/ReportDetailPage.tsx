@@ -920,6 +920,23 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
         clonedRoot.querySelectorAll(".recharts-responsive-container").forEach((el) => {
           (el as HTMLElement).style.height = "auto";
         });
+
+        // Force single-column layout for PDF: stack all grid/flex items vertically
+        const style = clonedDoc.createElement("style");
+        style.textContent = `
+          .report-print-root [style*="gridTemplateColumns"],
+          .report-print-root [style*="display: grid"],
+          .report-print-root .MuiGrid-root {
+            grid-template-columns: 1fr !important;
+          }
+          .report-print-root [style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+          .report-print-root .MuiBox-root[style*="gridTemplateColumns"] {
+            grid-template-columns: 1fr !important;
+          }
+        `;
+        clonedDoc.head.appendChild(style);
       }
     },
   });
