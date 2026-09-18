@@ -233,7 +233,6 @@ export function ReportDetailPage({
       await waitForReportRender();
       const pdf = await buildRenderedReportPdf(reportRootRef.current);
       const pdfBlob = pdf.output("blob");
-      pdf.save(fileName);
       await emailAssessmentReport(
         summary.assessmentId,
         pdfBlob,
@@ -250,21 +249,21 @@ export function ReportDetailPage({
     }
   }
 
-  function printFullReport() {
-    setIsPrintExporting(true);
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => window.print());
-    });
-  }
+  async function printFullReport() {
+    if (!detail || isPrintExporting) return;
 
-  useEffect(() => {
-    function finishPrintExport() {
+    const fileName = `${slug(summary.title)}-detailed-report.pdf`;
+    setIsPrintExporting(true);
+    try {
+      await waitForReportRender();
+      const pdf = await buildRenderedReportPdf(reportRootRef.current);
+      pdf.save(fileName);
+    } catch {
+      setNotification("We could not prepare the detailed report PDF. Please try again.");
+    } finally {
       setIsPrintExporting(false);
     }
-
-    window.addEventListener("afterprint", finishPrintExport);
-    return () => window.removeEventListener("afterprint", finishPrintExport);
-  }, []);
+  }
 
   useEffect(() => {
     document.body.classList.toggle("report-printing", isPrintExporting);
