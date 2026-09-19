@@ -61,7 +61,6 @@ import {
   YAxis,
 } from "recharts";
 import { MotionConfig } from "motion/react";
-import jsPDF from "jspdf";
 import html2pdf from "html2pdf.js";
 import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import {
@@ -917,8 +916,12 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   await new Promise<void>((resolve) => setTimeout(resolve, 500));
 
   const clonedRoot = reportRoot.cloneNode(true) as HTMLDivElement;
-  clonedRoot.style.width = "100%";
-  clonedRoot.style.maxWidth = "100%";
+  const renderWidth = Math.max(reportRoot.getBoundingClientRect().width, reportRoot.clientWidth, 1);
+  clonedRoot.style.position = "absolute";
+  clonedRoot.style.left = "-100000px";
+  clonedRoot.style.top = "0";
+  clonedRoot.style.width = `${renderWidth}px`;
+  clonedRoot.style.maxWidth = `${renderWidth}px`;
   clonedRoot.style.boxSizing = "border-box";
 
   clonedRoot.querySelectorAll(".MuiCollapse-root").forEach((el) => {
@@ -982,37 +985,53 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   `;
   clonedRoot.appendChild(style);
 
-  clonedRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
-    if (getComputedStyle(element).display === "grid") {
-      element.style.gridTemplateColumns = "minmax(0, 1fr)";
-      element.style.minWidth = "0";
-    }
-    element.style.maxWidth = "100%";
-    element.style.boxSizing = "border-box";
-  });
+  // html2canvas needs a live layout tree. A detached clone reports zero
+  // dimensions and can result in an invalid canvas during PDF generation.
+  document.body.appendChild(clonedRoot);
 
-  const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
+  try {
+    clonedRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
+      if (getComputedStyle(element).display === "grid") {
+        element.style.gridTemplateColumns = "minmax(0, 1fr)";
+        element.style.minWidth = "0";
+      }
+      element.style.maxWidth = "100%";
+      element.style.boxSizing = "border-box";
+    });
 
-  const pdf = await html2pdf().set({
-    margin: [36, 36, 36, 36],
-    filename: "report.pdf",
-    image: { type: "jpeg", quality: 0.95 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-      windowWidth: clonedRoot.scrollWidth,
-      windowHeight: clonedRoot.scrollHeight,
-    },
-    jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
-    pagebreak: {
-      mode: ["avoid-all", "css", "legacy"],
-      avoid: [".MuiCard-root", ".report-print-hero", ".MuiTableContainer-root", ".recharts-responsive-container"],
-    },
-  } as any).from(clonedRoot).toPdf();
+    await document.fonts?.ready;
+    await Promise.all(Array.from(clonedRoot.querySelectorAll("img")).map(async (image) => {
+      if (image.complete) return;
+      try {
+        await image.decode();
+      } catch {
+        // A failed decorative image must not prevent the report from exporting.
+      }
+    }));
 
-  return pdf.get("jsPDF");
+    const pdf = await html2pdf().set({
+      margin: [36, 36, 36, 36],
+      filename: "report.pdf",
+      image: { type: "jpeg", quality: 0.95 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: renderWidth,
+        windowHeight: clonedRoot.scrollHeight,
+      },
+      jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+      pagebreak: {
+        mode: ["avoid-all", "css", "legacy"],
+        avoid: [".MuiCard-root", ".report-print-hero", ".MuiTableContainer-root", ".recharts-responsive-container"],
+      },
+    } as any).from(clonedRoot).toPdf();
+
+    return pdf.get("jsPDF");
+  } finally {
+    clonedRoot.remove();
+  }
 }
 
 function slug(value: string) {
