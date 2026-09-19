@@ -61,7 +61,8 @@ import {
   YAxis,
 } from "recharts";
 import { MotionConfig } from "motion/react";
-import html2pdf from "html2pdf.js";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import {
   AssessmentStatus,
@@ -1009,26 +1010,69 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
       }
     }));
 
-    const pdf = await (html2pdf().set({
-      margin: [36, 36, 36, 36],
-      filename: "report.pdf",
-      image: { type: "jpeg", quality: 0.95 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        windowWidth: renderWidth,
-        windowHeight: clonedRoot.scrollHeight,
-      },
-      jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
-      pagebreak: {
-        mode: ["avoid-all", "css", "legacy"],
-        avoid: [".MuiCard-root", ".report-print-hero", ".MuiTableContainer-root", ".recharts-responsive-container"],
-      },
-    } as any).from(clonedRoot).toPdf() as any).get("jsPDF").thenExternal((value: unknown) => value);
+    const canvas = await html2canvas(clonedRoot, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      windowWidth: renderWidth,
+      windowHeight: clonedRoot.scrollHeight,
+    });
 
-    return pdf as { output: (type: "blob") => Blob; save: (fileName: string) => void };
+    if (canvas.width < 1 || canvas.height < 1) {
+      throw new Error("The detailed report rendered to an empty canvas.");
+    }
+
+    const margins = { top: 36, right: 36, bottom: 36, left: 36 };
+    const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const contentWidth = pageWidth - margins.left - margins.right;
+    const contentHeight = pageHeight - margins.top - margins.bottom;
+    const pixelsPerPoint = canvas.width / contentWidth;
+    const sliceHeight = Math.max(1, Math.floor(contentHeight * pixelsPerPoint));
+    const pageCount = Math.ceil(canvas.height / sliceHeight);
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = canvas.width;
+    const pageContext = pageCanvas.getContext("2d");
+
+    if (!pageContext) {
+      throw new Error("The detailed report page canvas could not be created.");
+    }
+
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+      const sourceY = pageIndex * sliceHeight;
+      const currentSliceHeight = Math.min(sliceHeight, canvas.height - sourceY);
+      pageCanvas.height = currentSliceHeight;
+      pageContext.fillStyle = "#ffffff";
+      pageContext.fillRect(0, 0, pageCanvas.width, currentSliceHeight);
+      pageContext.drawImage(
+        canvas,
+        0,
+        sourceY,
+        canvas.width,
+        currentSliceHeight,
+        0,
+        0,
+        pageCanvas.width,
+        currentSliceHeight,
+      );
+
+      if (pageIndex > 0) {
+        pdf.addPage();
+      }
+
+      pdf.addImage(
+        pageCanvas.toDataURL("image/jpeg", 0.95),
+        "JPEG",
+        margins.left,
+        margins.top,
+        contentWidth,
+        currentSliceHeight / pixelsPerPoint,
+      );
+    }
+
+    return pdf;
   } finally {
     clonedRoot.remove();
   }
