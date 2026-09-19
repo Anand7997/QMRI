@@ -62,7 +62,7 @@ import {
 } from "recharts";
 import { MotionConfig } from "motion/react";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import html2pdf from "html2pdf.js";
 import { EmptyState, PageHeader, StatusChip, type EntityStatus } from "shared/components";
 import {
   AssessmentStatus,
@@ -916,178 +916,103 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
 
   await new Promise<void>((resolve) => setTimeout(resolve, 500));
 
-  const captureScale = 2;
-  let exportCardBounds: Array<{ top: number; bottom: number; height: number }> = [];
-  const canvas = await html2canvas(reportRoot, {
-    backgroundColor: "#ffffff",
-    logging: false,
-    scale: captureScale,
-    useCORS: true,
-    windowWidth: reportRoot.scrollWidth,
-    windowHeight: reportRoot.scrollHeight,
-    ignoreElements: (element) => element.classList.contains("report-email-exclude"),
-    onclone: (clonedDoc) => {
-      const clonedRoot = clonedDoc.querySelector(".report-print-root");
-      if (clonedRoot) {
-        clonedRoot.querySelectorAll(".MuiCollapse-root").forEach((el) => {
-          (el as HTMLElement).style.height = "auto";
-          (el as HTMLElement).style.maxHeight = "none";
-          (el as HTMLElement).style.visibility = "visible";
-          (el as HTMLElement).style.overflow = "visible";
-        });
-        clonedRoot.querySelectorAll(".MuiCollapse-wrapper, .MuiCollapse-wrapperInner").forEach((el) => {
-          (el as HTMLElement).style.height = "auto";
-          (el as HTMLElement).style.maxHeight = "none";
-          (el as HTMLElement).style.visibility = "visible";
-          (el as HTMLElement).style.overflow = "visible";
-        });
-        clonedRoot.querySelectorAll(".report-motion-reveal").forEach((el) => {
-          (el as HTMLElement).style.opacity = "1";
-          (el as HTMLElement).style.transform = "none";
-          (el as HTMLElement).style.transition = "none";
-        });
-        clonedRoot.querySelectorAll(".recharts-responsive-container").forEach((el) => {
-          (el as HTMLElement).style.height = "auto";
-        });
+  const clonedRoot = reportRoot.cloneNode(true) as HTMLDivElement;
+  clonedRoot.style.width = "100%";
+  clonedRoot.style.maxWidth = "100%";
+  clonedRoot.style.boxSizing = "border-box";
 
-        const style = clonedDoc.createElement("style");
-        style.textContent = `
-          .report-print-root [style*="gridTemplateColumns"],
-          .report-print-root [style*="grid-template-columns"],
-          .report-print-root [style*="display: grid"],
-          .report-print-root .MuiGrid-root {
-            grid-template-columns: minmax(0, 1fr) !important;
-            min-width: 0 !important;
-            width: 100% !important;
-          }
-          .report-print-root,
-          .report-print-root * {
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-          }
-          .report-print-root .recharts-responsive-container,
-          .report-print-root .recharts-wrapper,
-          .report-print-root .recharts-surface {
-            max-width: 100% !important;
-            overflow: hidden !important;
-          }
-        `;
-        clonedDoc.head.appendChild(style);
+  clonedRoot.querySelectorAll(".MuiCollapse-root").forEach((el) => {
+    (el as HTMLElement).style.height = "auto";
+    (el as HTMLElement).style.maxHeight = "none";
+    (el as HTMLElement).style.visibility = "visible";
+    (el as HTMLElement).style.overflow = "visible";
+  });
+  clonedRoot.querySelectorAll(".MuiCollapse-wrapper, .MuiCollapse-wrapperInner").forEach((el) => {
+    (el as HTMLElement).style.height = "auto";
+    (el as HTMLElement).style.maxHeight = "none";
+    (el as HTMLElement).style.visibility = "visible";
+    (el as HTMLElement).style.overflow = "visible";
+  });
+  clonedRoot.querySelectorAll(".report-motion-reveal").forEach((el) => {
+    (el as HTMLElement).style.opacity = "1";
+    (el as HTMLElement).style.transform = "none";
+    (el as HTMLElement).style.transition = "none";
+  });
+  clonedRoot.querySelectorAll(".recharts-responsive-container").forEach((el) => {
+    (el as HTMLElement).style.height = "auto";
+  });
 
-        clonedRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
-          if (clonedDoc.defaultView?.getComputedStyle(element).display === "grid") {
-            element.style.gridTemplateColumns = "minmax(0, 1fr)";
-            element.style.minWidth = "0";
-          }
-          element.style.maxWidth = "100%";
-          element.style.boxSizing = "border-box";
-        });
+  clonedRoot.querySelectorAll(".report-email-exclude").forEach((el) => {
+    el.remove();
+  });
 
-        const clonedRootRect = clonedRoot.getBoundingClientRect();
-        exportCardBounds = Array.from(clonedRoot.querySelectorAll<HTMLElement>(".MuiCard-root"))
-          .map((card) => {
-            const rect = card.getBoundingClientRect();
-            const top = Math.max(0, (rect.top - clonedRootRect.top) * captureScale);
-            const bottom = Math.max(0, (rect.bottom - clonedRootRect.top) * captureScale);
-            return { top, bottom, height: bottom - top };
-          })
-          .filter((card) => card.height > 10);
-      }
-    },
+  const style = document.createElement("style");
+  style.textContent = `
+    .report-print-root [style*="gridTemplateColumns"],
+    .report-print-root [style*="grid-template-columns"],
+    .report-print-root [style*="display: grid"],
+    .report-print-root .MuiGrid-root {
+      grid-template-columns: minmax(0, 1fr) !important;
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+    .report-print-root,
+    .report-print-root * {
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .report-print-root .recharts-responsive-container,
+    .report-print-root .recharts-wrapper,
+    .report-print-root .recharts-surface {
+      max-width: 100% !important;
+      overflow: hidden !important;
+    }
+    .report-print-root .MuiCard-root {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .report-print-root .report-print-hero {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .report-print-root .MuiTableContainer-root {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+  `;
+  clonedRoot.appendChild(style);
+
+  clonedRoot.querySelectorAll<HTMLElement>("*").forEach((element) => {
+    if (getComputedStyle(element).display === "grid") {
+      element.style.gridTemplateColumns = "minmax(0, 1fr)";
+      element.style.minWidth = "0";
+    }
+    element.style.maxWidth = "100%";
+    element.style.boxSizing = "border-box";
   });
 
   const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 36;
-  const contentWidth = pageWidth - margin * 2;
-  const contentHeight = pageHeight - margin * 2;
 
-  const scaleFactor = contentWidth / canvas.width;
-  const scaledCanvasHeight = canvas.height * scaleFactor;
-  const canvasPixelsPerPage = Math.max(1, Math.floor((contentHeight / scaledCanvasHeight) * canvas.height));
+  const pdf = await html2pdf().set({
+    margin: [36, 36, 36, 36],
+    filename: "report.pdf",
+    image: { type: "jpeg", quality: 0.95 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      windowWidth: clonedRoot.scrollWidth,
+      windowHeight: clonedRoot.scrollHeight,
+    },
+    jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+    pagebreak: {
+      mode: ["avoid-all", "css", "legacy"],
+      avoid: [".MuiCard-root", ".report-print-hero", ".MuiTableContainer-root", ".recharts-responsive-container"],
+    },
+  } as any).from(clonedRoot).toPdf();
 
-  const cardBounds = exportCardBounds.sort((a, b) => a.top - b.top);
-
-  const pageOffsets = [0];
-  let pageOffset = 0;
-  const maxIterations = 100;
-  let iteration = 0;
-
-  while (pageOffset < canvas.height && iteration < maxIterations) {
-    iteration++;
-    const targetOffset = Math.min(canvas.height, pageOffset + canvasPixelsPerPage);
-
-    let nextOffset = targetOffset;
-
-    const cardsInRange = cardBounds.filter(
-      (card) => card.bottom > pageOffset && card.top < targetOffset
-    );
-
-    if (cardsInRange.length > 0) {
-      const crossingCards = cardsInRange.filter(
-        (card) => card.top >= pageOffset && card.bottom > targetOffset
-      );
-
-      if (crossingCards.length > 0) {
-        const firstCrossing = crossingCards.sort((a, b) => a.top - b.top)[0];
-        if (firstCrossing.top > pageOffset + 20) {
-          nextOffset = firstCrossing.top;
-        } else {
-          const previousCard = cardBounds
-            .filter((c) => c.bottom <= pageOffset)
-            .sort((a, b) => b.bottom - a.bottom)[0];
-          if (previousCard) {
-            nextOffset = Math.min(targetOffset, previousCard.bottom + 40);
-          }
-        }
-      } else {
-        const lastCardInPage = cardsInRange.sort((a, b) => b.bottom - a.bottom)[0];
-        if (lastCardInPage.bottom < targetOffset - 20 && lastCardInPage.bottom > pageOffset) {
-          nextOffset = Math.min(targetOffset, lastCardInPage.bottom + 20);
-        }
-      }
-    }
-
-    if (nextOffset <= pageOffset + 10) {
-      nextOffset = Math.min(canvas.height, pageOffset + canvasPixelsPerPage);
-    }
-
-    if (nextOffset <= pageOffset + 10) break;
-
-    pageOffsets.push(nextOffset);
-    pageOffset = nextOffset;
-  }
-
-  if (pageOffsets[pageOffsets.length - 1] < canvas.height - 10) {
-    pageOffsets.push(canvas.height);
-  }
-
-  for (let pageIndex = 0; pageIndex < pageOffsets.length - 1; pageIndex += 1) {
-    const offset = pageOffsets[pageIndex];
-    const nextOffset = pageOffsets[pageIndex + 1];
-    if (pageIndex > 0) doc.addPage();
-
-    const sliceHeight = Math.min(nextOffset - offset, canvas.height - offset);
-    if (sliceHeight < 10) continue;
-
-    const pageCanvas = document.createElement("canvas");
-    pageCanvas.width = canvas.width;
-    pageCanvas.height = sliceHeight;
-    const context = pageCanvas.getContext("2d");
-    if (!context) throw new Error("Unable to prepare the report PDF canvas.");
-
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-    context.drawImage(canvas, 0, offset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
-
-    const renderedHeight = (sliceHeight / canvas.width) * contentWidth;
-    if (renderedHeight > 1) {
-      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, contentWidth, renderedHeight);
-    }
-  }
-
-  return doc;
+  return pdf.get("jsPDF");
 }
 
 function slug(value: string) {
