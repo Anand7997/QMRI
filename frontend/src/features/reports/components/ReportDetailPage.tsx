@@ -914,10 +914,10 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
 
   await waitForReportRender(reportRoot);
 
-  await new Promise<void>((resolve) => setTimeout(resolve, 300));
+  await new Promise<void>((resolve) => setTimeout(resolve, 500));
 
-  const captureScale = 1.5;
-  let exportCardBounds: Array<{ top: number; bottom: number }> = [];
+  const captureScale = 2;
+  let exportCardBounds: Array<{ top: number; bottom: number; height: number }> = [];
   const canvas = await html2canvas(reportRoot, {
     backgroundColor: "#ffffff",
     logging: false,
@@ -950,7 +950,6 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
           (el as HTMLElement).style.height = "auto";
         });
 
-        // Force single-column layout for PDF: stack all grid/flex items vertically
         const style = clonedDoc.createElement("style");
         style.textContent = `
           .report-print-root [style*="gridTemplateColumns"],
@@ -988,12 +987,11 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
         exportCardBounds = Array.from(clonedRoot.querySelectorAll<HTMLElement>(".MuiCard-root"))
           .map((card) => {
             const rect = card.getBoundingClientRect();
-            return {
-              top: Math.max(0, (rect.top - clonedRootRect.top) * captureScale),
-              bottom: Math.max(0, (rect.bottom - clonedRootRect.top) * captureScale),
-            };
+            const top = Math.max(0, (rect.top - clonedRootRect.top) * captureScale);
+            const bottom = Math.max(0, (rect.bottom - clonedRootRect.top) * captureScale);
+            return { top, bottom, height: bottom - top };
           })
-          .filter((card) => card.bottom > card.top);
+          .filter((card) => card.height > 10);
       }
     },
   });
@@ -1001,40 +999,78 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 24;
+  const margin = 36;
   const contentWidth = pageWidth - margin * 2;
   const contentHeight = pageHeight - margin * 2;
 
   const scaleFactor = contentWidth / canvas.width;
-  const scaledCanvasWidth = canvas.width * scaleFactor;
   const scaledCanvasHeight = canvas.height * scaleFactor;
-  const pixelsPerPage = Math.max(1, Math.floor((contentHeight / scaledCanvasHeight) * canvas.height));
+  const canvasPixelsPerPage = Math.max(1, Math.floor((contentHeight / scaledCanvasHeight) * canvas.height));
 
-  // The report is captured as one canvas, so CSS page-break rules cannot stop
-  // html2canvas from cutting a chart in half. Move a card that crosses the
-  // calculated page boundary to the next page instead.
-  const cardBounds = exportCardBounds;
+  const cardBounds = exportCardBounds.sort((a, b) => a.top - b.top);
 
   const pageOffsets = [0];
   let pageOffset = 0;
-  while (pageOffset < canvas.height) {
-    const targetOffset = Math.min(canvas.height, pageOffset + pixelsPerPage);
-    const crossingCard = cardBounds
-      .filter((card) => card.top > pageOffset + 2 && card.top < targetOffset - 2 && card.bottom > targetOffset)
-      .sort((a, b) => a.top - b.top)[0];
-    const nextOffset = crossingCard?.top ?? targetOffset;
+  const maxIterations = 100;
+  let iteration = 0;
 
-    if (nextOffset <= pageOffset + 1) break;
+  while (pageOffset < canvas.height && iteration < maxIterations) {
+    iteration++;
+    const targetOffset = Math.min(canvas.height, pageOffset + canvasPixelsPerPage);
+
+    let nextOffset = targetOffset;
+
+    const cardsInRange = cardBounds.filter(
+      (card) => card.bottom > pageOffset && card.top < targetOffset
+    );
+
+    if (cardsInRange.length > 0) {
+      const crossingCards = cardsInRange.filter(
+        (card) => card.top >= pageOffset && card.bottom > targetOffset
+      );
+
+      if (crossingCards.length > 0) {
+        const firstCrossing = crossingCards.sort((a, b) => a.top - b.top)[0];
+        if (firstCrossing.top > pageOffset + 20) {
+          nextOffset = firstCrossing.top;
+        } else {
+          const previousCard = cardBounds
+            .filter((c) => c.bottom <= pageOffset)
+            .sort((a, b) => b.bottom - a.bottom)[0];
+          if (previousCard) {
+            nextOffset = Math.min(targetOffset, previousCard.bottom + 40);
+          }
+        }
+      } else {
+        const lastCardInPage = cardsInRange.sort((a, b) => b.bottom - a.bottom)[0];
+        if (lastCardInPage.bottom < targetOffset - 20 && lastCardInPage.bottom > pageOffset) {
+          nextOffset = Math.min(targetOffset, lastCardInPage.bottom + 20);
+        }
+      }
+    }
+
+    if (nextOffset <= pageOffset + 10) {
+      nextOffset = Math.min(canvas.height, pageOffset + canvasPixelsPerPage);
+    }
+
+    if (nextOffset <= pageOffset + 10) break;
+
     pageOffsets.push(nextOffset);
     pageOffset = nextOffset;
+  }
+
+  if (pageOffsets[pageOffsets.length - 1] < canvas.height - 10) {
+    pageOffsets.push(canvas.height);
   }
 
   for (let pageIndex = 0; pageIndex < pageOffsets.length - 1; pageIndex += 1) {
     const offset = pageOffsets[pageIndex];
     const nextOffset = pageOffsets[pageIndex + 1];
-    if (offset > 0) doc.addPage();
+    if (pageIndex > 0) doc.addPage();
 
     const sliceHeight = Math.min(nextOffset - offset, canvas.height - offset);
+    if (sliceHeight < 10) continue;
+
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = canvas.width;
     pageCanvas.height = sliceHeight;
@@ -1045,7 +1081,7 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
     context.drawImage(canvas, 0, offset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
 
-    const renderedHeight = (sliceHeight / canvas.width) * scaledCanvasWidth;
+    const renderedHeight = (sliceHeight / canvas.width) * contentWidth;
     if (renderedHeight > 1) {
       doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, contentWidth, renderedHeight);
     }
