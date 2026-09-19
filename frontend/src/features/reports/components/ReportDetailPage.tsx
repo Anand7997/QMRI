@@ -1009,7 +1009,7 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
       }
     }));
 
-    const pdf = await html2pdf().set({
+    const pdf = await (html2pdf().set({
       margin: [36, 36, 36, 36],
       filename: "report.pdf",
       image: { type: "jpeg", quality: 0.95 },
@@ -1026,9 +1026,9 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
         mode: ["avoid-all", "css", "legacy"],
         avoid: [".MuiCard-root", ".report-print-hero", ".MuiTableContainer-root", ".recharts-responsive-container"],
       },
-    } as any).from(clonedRoot).toPdf();
+    } as any).from(clonedRoot).toPdf() as any).get("jsPDF").thenExternal((value: unknown) => value);
 
-    return pdf.get("jsPDF");
+    return pdf as { output: (type: "blob") => Blob; save: (fileName: string) => void };
   } finally {
     clonedRoot.remove();
   }
