@@ -998,9 +998,24 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
       }
       element.style.maxWidth = "100%";
       element.style.boxSizing = "border-box";
+
+      if (element.matches(".MuiTypography-root, .MuiChip-label")) {
+        const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
+        if (Number.isFinite(fontSize)) {
+          element.style.lineHeight = `${Math.max(fontSize * 1.35, 16)}px`;
+        }
+        element.style.overflow = "visible";
+      }
+    });
+
+    clonedRoot.querySelectorAll<HTMLElement>(".MuiChip-root").forEach((chip) => {
+      chip.style.height = "auto";
+      chip.style.minHeight = "24px";
+      chip.style.overflow = "visible";
     });
 
     await document.fonts?.ready;
+    await inlineQascanLogos(clonedRoot);
     await Promise.all(Array.from(clonedRoot.querySelectorAll("img")).map(async (image) => {
       if (image.complete) return;
       try {
@@ -1030,8 +1045,13 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     const contentWidth = pageWidth - margins.left - margins.right;
     const contentHeight = pageHeight - margins.top - margins.bottom;
     const pixelsPerPoint = canvas.width / contentWidth;
-    const sliceHeight = Math.max(1, Math.floor(contentHeight * pixelsPerPoint));
-    const pageCount = Math.ceil(canvas.height / sliceHeight);
+    const rootRect = clonedRoot.getBoundingClientRect();
+    const rootWidth = Math.max(rootRect.width, 1);
+    const rootHeight = Math.max(clonedRoot.scrollHeight, rootRect.height, 1);
+    const canvasScale = canvas.width / rootWidth;
+    const pointsPerCssPixel = contentWidth / rootWidth;
+    const maxPageCssHeight = contentHeight / pointsPerCssPixel;
+    const pageBreaks = findReportPageBreaks(clonedRoot, rootRect.top, rootHeight);
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = canvas.width;
     const pageContext = pageCanvas.getContext("2d");
@@ -1040,9 +1060,16 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
       throw new Error("The detailed report page canvas could not be created.");
     }
 
-    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-      const sourceY = pageIndex * sliceHeight;
-      const currentSliceHeight = Math.min(sliceHeight, canvas.height - sourceY);
+    let pageIndex = 0;
+    let sourceCssY = 0;
+    while (sourceCssY < rootHeight - 0.5) {
+      const pageLimitCssY = Math.min(rootHeight, sourceCssY + maxPageCssHeight);
+      const safeBreak = pageBreaks
+        .filter((breakY) => breakY > sourceCssY + 1 && breakY <= pageLimitCssY + 0.5)
+        .pop() ?? pageLimitCssY;
+      const sourceY = Math.round(sourceCssY * canvasScale);
+      const endY = Math.min(canvas.height, Math.round(safeBreak * canvasScale));
+      const currentSliceHeight = Math.max(1, endY - sourceY);
       pageCanvas.height = currentSliceHeight;
       pageContext.fillStyle = "#ffffff";
       pageContext.fillRect(0, 0, pageCanvas.width, currentSliceHeight);
@@ -1070,12 +1097,73 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
         contentWidth,
         currentSliceHeight / pixelsPerPoint,
       );
+
+      sourceCssY = safeBreak;
+      pageIndex += 1;
     }
 
     return pdf;
   } finally {
     clonedRoot.remove();
   }
+}
+
+async function inlineQascanLogos(root: HTMLElement) {
+  const logoImages = Array.from(root.querySelectorAll<HTMLImageElement>('img[src*="qascan-logo.svg"]'));
+
+  await Promise.all(logoImages.map(async (image) => {
+    const source = image.getAttribute("src");
+    if (!source) return;
+
+    try {
+      const response = await fetch(new URL(source, document.baseURI));
+      if (!response.ok) return;
+
+      const svgMarkup = await response.text();
+      const svgDocument = new DOMParser().parseFromString(svgMarkup, "image/svg+xml");
+      const parsedSvg = svgDocument.documentElement;
+      if (parsedSvg.nodeName.toLowerCase() !== "svg") return;
+
+      const bounds = image.getBoundingClientRect();
+      const svg = document.importNode(parsedSvg, true) as unknown as SVGSVGElement;
+      const width = Math.max(bounds.width, 1);
+      const height = Math.max(bounds.height, 1);
+      svg.setAttribute("class", image.getAttribute("class") ?? "");
+      svg.setAttribute("width", `${width}px`);
+      svg.setAttribute("height", `${height}px`);
+      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      svg.style.display = "block";
+      svg.style.width = `${width}px`;
+      svg.style.height = `${height}px`;
+      svg.style.maxWidth = "none";
+      svg.style.flex = "0 0 auto";
+      image.replaceWith(svg);
+    } catch {
+      // Keep the original image as a fallback if the inline SVG cannot be read.
+    }
+  }));
+}
+
+function findReportPageBreaks(root: HTMLElement, rootTop: number, rootHeight: number) {
+  const breakpoints = new Set<number>([rootHeight]);
+  const selectors = [
+    ".report-print-root > *",
+    ".report-print-hero",
+    ".MuiCard-root",
+    ".MuiTableContainer-root",
+    ".MuiAccordion-root",
+    "tr",
+  ];
+
+  root.querySelectorAll<HTMLElement>(selectors.join(",")).forEach((element) => {
+    if (element.tagName === "STYLE") return;
+    const bottom = element.getBoundingClientRect().bottom - rootTop;
+    if (bottom > 1 && bottom < rootHeight - 1) {
+      breakpoints.add(bottom);
+    }
+  });
+
+  return Array.from(breakpoints).sort((a, b) => a - b);
 }
 
 function slug(value: string) {
