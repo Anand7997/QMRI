@@ -171,6 +171,8 @@ export interface AssessmentSummaryDto {
   submittedAtUtc?: string | null;
   scoredAtUtc?: string | null;
   createdAtUtc: string;
+  assignedAtUtc?: string | null;
+  dueAtUtc?: string | null;
   answeredCount: number;
   questionCount: number;
   completionPercentage: number;

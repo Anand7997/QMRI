@@ -35,6 +35,7 @@ import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/them
 import { MotionConfig } from "motion/react";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
 import { useAuthContext } from "contexts/AuthContext";
+import { isAssessmentExpired } from "features/dashboard/governance/dashboardGovernanceState";
 
 type Filter = "all" | "notStarted" | "active" | "completed";
 
@@ -300,6 +301,10 @@ function HistoryStatusChip({ assessment }: { assessment: AssessmentSummaryDto })
 }
 
 function toHistoryStatus(assessment: AssessmentSummaryDto) {
+  if (isAssessmentExpired(assessment)) {
+    return { label: "Expired", color: semanticTokens.errorMain };
+  }
+
   if (assessment.status >= AssessmentStatus.Submitted) {
     return { label: "Completed", color: semanticTokens.successMain };
   }

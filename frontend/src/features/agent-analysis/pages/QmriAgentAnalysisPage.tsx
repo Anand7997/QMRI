@@ -279,7 +279,9 @@ function ExecutiveAnalysisOverview({
   const overallBand = maturityDisplayForScore(overallScore);
   const leader = categoryMetrics[0];
   const focus = categoryMetrics[categoryMetrics.length - 1];
-  const categorySpread = leader && focus ? Math.max(0, leader.score - focus.score) : 0;
+  const categorySpread = leader && focus
+    ? Math.max(0, Math.round(leader.score) - Math.round(focus.score))
+    : 0;
   const scoreStyle = {
     "--score": overallScore,
     "--score-color": overallBand.color,
@@ -444,12 +446,10 @@ function ExecutiveAnalysisOverview({
       </Box>
 
       <Box className="qmri-agent-next-move">
-        <Box className="qmri-agent-next-move-index">01</Box>
         <Box>
           <Typography variant="overline">Recommended first move</Typography>
           <Typography component="p" variant="h3">{analysis.nextStep}</Typography>
         </Box>
-        <ArrowForwardOutlinedIcon aria-hidden="true" />
       </Box>
 
       <Box className="qmri-agent-feedback-heading">

@@ -51,6 +51,7 @@ import {
   type AssessmentNavigationState,
 } from "shared/constants/assessmentNavigation";
 import { portalAgentAnalysisPath } from "shared/constants/routePaths";
+import { isAssessmentExpired, resolveDueDate } from "features/dashboard/governance/dashboardGovernanceState";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 const MIN_SUBMIT_COMPLETION_PERCENT = 50;
@@ -96,6 +97,7 @@ export function MyAssessmentsPage() {
       (assessmentsQuery.data ?? []).filter(
         (assessment) =>
           assessment.status <= AssessmentStatus.InProgress &&
+          !isAssessmentExpired(assessment) &&
           !completedAssessmentIds.has(assessment.assessmentId),
       ),
     [assessmentsQuery.data, completedAssessmentIds],
@@ -1042,7 +1044,7 @@ function AssessmentDetailView({
                 >
                   <Typography variant="body2" fontWeight={700} noWrap>{assessment.title}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Assigned {formatDate(assessment.createdAtUtc)}
+                    Assigned {formatDate(assessment.assignedAtUtc ?? assessment.createdAtUtc)} · Due {formatDate(resolveDueDate(assessment))}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mt: 1 }}>
                     <StatusChip status={toEntityStatus(assessment.status)} />
@@ -1072,7 +1074,8 @@ function AssessmentDetailView({
                   ) : null}
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
                     <StatusChip status={toEntityStatus(summary.status)} />
-                    <Chip size="small" variant="outlined" label={`Assigned ${formatDate(summary.createdAtUtc)}`} />
+                    <Chip size="small" variant="outlined" label={`Assigned ${formatDate(summary.assignedAtUtc ?? summary.createdAtUtc)}`} />
+                    <Chip size="small" variant="outlined" label={`Due ${formatDate(resolveDueDate(summary))}`} />
                     {summary.startedAtUtc ? (
                       <Chip size="small" variant="outlined" label={`Started ${formatDate(summary.startedAtUtc)}`} />
                     ) : null}

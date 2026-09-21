@@ -7,6 +7,15 @@ namespace qMRI.Infrastructure.Authentication.Repositories;
 
 public sealed class UserRepository(qMRIDbContext dbContext) : IUserRepository
 {
+    public Task<User?> GetByIdWithRolesAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return dbContext.Users
+            .Include(user => user.UserRoles)
+                .ThenInclude(userRole => userRole.Role)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(user => user.UserId == userId, cancellationToken);
+    }
+
     public Task<User?> GetByUserNameOrEmailWithRolesAsync(string userNameOrEmail, CancellationToken cancellationToken = default)
     {
         var identifier = userNameOrEmail.Trim();

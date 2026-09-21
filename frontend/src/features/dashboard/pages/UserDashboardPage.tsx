@@ -15,6 +15,7 @@ import { MotionReveal } from "../components/dashboardMotion";
 import { useAssessmentDashboardData } from "../assessmentData";
 import { DueDateReminderWidget } from "../components/DueDateReminderWidget";
 import { useResumePointer } from "shared/api/dashboardGovernance";
+import { isAssessmentExpired } from "features/dashboard/governance/dashboardGovernanceState";
 
 export function UserDashboardPage() {
   const navigate = useNavigate();
@@ -31,7 +32,8 @@ export function UserDashboardPage() {
       [...dashboard.assessments]
         .filter(
           (assessment) =>
-            assessment.status === AssessmentStatus.InProgress || assessment.status === AssessmentStatus.Draft,
+            (assessment.status === AssessmentStatus.InProgress || assessment.status === AssessmentStatus.Draft) &&
+            !isAssessmentExpired(assessment),
         )
         .sort((a, b) => {
           if (resumePointer?.assessmentId === a.assessmentId) return -1;
@@ -44,7 +46,11 @@ export function UserDashboardPage() {
   const activeAssessment = activeAssessments[0];
   const isPendingActiveAssessment = activeAssessment?.status === AssessmentStatus.Draft;
   const newlyAssignedCount = useMemo(
-    () => dashboard.assessments.filter((assessment) => assessment.status === AssessmentStatus.Draft).length,
+    () => dashboard.assessments.filter((assessment) => assessment.status === AssessmentStatus.Draft && !isAssessmentExpired(assessment)).length,
+    [dashboard.assessments],
+  );
+  const hasDueDateReminders = useMemo(
+    () => dashboard.assessments.some((assessment) => assessment.status === AssessmentStatus.Draft || assessment.status === AssessmentStatus.InProgress),
     [dashboard.assessments],
   );
 
@@ -171,9 +177,11 @@ export function UserDashboardPage() {
             gridAutoRows: { lg: "168px" },
           }}
         >
-          <MotionReveal sx={{ gridColumn: { xs: "1 / -1", lg: "span 1" }, gridRow: { lg: "span 2" } }}>
-            <DueDateReminderWidget assessments={dashboard.assessments} onOpenAssessment={openAssessment} />
-          </MotionReveal>
+          {hasDueDateReminders ? (
+            <MotionReveal sx={{ gridColumn: { xs: "1 / -1", lg: "span 1" }, gridRow: { lg: "span 2" } }}>
+              <DueDateReminderWidget assessments={dashboard.assessments} onOpenAssessment={openAssessment} />
+            </MotionReveal>
+          ) : null}
 
           {userDashboardBlocks.map((block) => (
             <Card3DBlock
@@ -200,8 +208,5 @@ function resolveDate(assessment: {
 }) {
   return assessment.scoredAtUtc ?? assessment.submittedAtUtc ?? assessment.startedAtUtc ?? assessment.createdAtUtc;
 }
-
-
-
 
 

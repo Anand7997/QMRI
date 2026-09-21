@@ -72,7 +72,7 @@ public sealed class DashboardGovernanceService(qMRIDbContext dbContext) : IDashb
     {
         Enabled = true,
         RemindBeforeDays = 3,
-        DefaultDueInDays = 14,
+        DefaultDueInDays = 7,
     };
 
     public Task<DashboardScoringPolicyDto> GetScoringPolicyAsync(CancellationToken cancellationToken = default) =>
@@ -168,7 +168,7 @@ public sealed class DashboardGovernanceService(qMRIDbContext dbContext) : IDashb
         {
             Enabled = request.Enabled,
             RemindBeforeDays = Math.Clamp(request.RemindBeforeDays, 1, 30),
-            DefaultDueInDays = Math.Clamp(request.DefaultDueInDays, 1, 60),
+            DefaultDueInDays = 7,
         };
 
         await SaveSettingAsync(ReminderPreferencesKey, normalized, userId, cancellationToken);

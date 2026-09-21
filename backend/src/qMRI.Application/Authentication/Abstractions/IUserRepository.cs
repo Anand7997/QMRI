@@ -4,6 +4,8 @@ namespace qMRI.Application.Authentication.Abstractions;
 
 public interface IUserRepository
 {
+    Task<User?> GetByIdWithRolesAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<User?> GetByUserNameOrEmailWithRolesAsync(string userNameOrEmail, CancellationToken cancellationToken = default);
 
     Task<User?> GetByEmailWithRolesAsync(string email, CancellationToken cancellationToken = default);

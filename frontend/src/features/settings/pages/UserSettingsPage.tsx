@@ -95,14 +95,6 @@ export function UserSettingsPage() {
               inputProps={{ min: 1, max: 30 }}
               helperText="Days before due date to mark an assessment as due soon."
             />
-            <TextField
-              label="Default due window"
-              type="number"
-              value={reminderPreferences.defaultDueInDays}
-              onChange={(event) => setReminderPreferences((current) => ({ ...current, defaultDueInDays: Number(event.target.value) }))}
-              inputProps={{ min: 1, max: 60 }}
-              helperText="Days after assignment/start used by the dashboard due-date widget."
-            />
             <FormControlLabel
               control={<Switch checked={submissionUpdates} onChange={(event) => setSubmissionUpdates(event.target.checked)} />}
               label="Submission and scoring updates"

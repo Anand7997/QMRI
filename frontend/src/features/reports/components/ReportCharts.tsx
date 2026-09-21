@@ -24,6 +24,7 @@ export function ChartCard({
 }) {
   return (
     <Card
+      className="report-pdf-keep-together"
       sx={{
         p: { xs: 2, md: 2.5 },
         height: "100%",

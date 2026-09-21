@@ -36,7 +36,6 @@ import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import SearchIcon from "@mui/icons-material/Search";
-import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
 import {
@@ -73,7 +72,6 @@ import type { useAssessment } from "shared/api/assessments";
 import { emailAssessmentReport } from "shared/api/reports";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
-import { ExportCenter } from "features/dashboard/components/ExportCenter";
 import {
   alignmentColors,
   alignmentData,
@@ -126,7 +124,6 @@ export function ReportDetailPage({
   detailQuery,
   history,
   focusSteps,
-  actor,
   onBack,
   isIdentityLinkSession,
 }: {
@@ -134,7 +131,6 @@ export function ReportDetailPage({
   detailQuery: ReturnType<typeof useAssessment>;
   history: AssessmentSummaryDto[];
   focusSteps: boolean;
-  actor?: string;
   onBack: () => void;
   isIdentityLinkSession?: boolean;
 }) {
@@ -214,15 +210,6 @@ export function ReportDetailPage({
     ));
   }
 
-  async function shareReport() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setNotification("Report link copied to clipboard");
-    } catch {
-      setNotification("Report link copied to clipboard");
-    }
-  }
-
 async function mailReport() {
     if (!detail || isMailingReport) return;
 
@@ -231,6 +218,7 @@ async function mailReport() {
     setIsPrintExporting(true);
 
     try {
+      await waitForPrintExportMount();
       const pdf = await buildRenderedReportPdf(reportRootRef.current);
       const pdfBlob = pdf.output("blob");
       await emailAssessmentReport(
@@ -255,6 +243,7 @@ async function mailReport() {
     const fileName = `${slug(summary.title)}-detailed-report.pdf`;
     setIsPrintExporting(true);
     try {
+      await waitForPrintExportMount();
       const pdf = await buildRenderedReportPdf(reportRootRef.current);
       pdf.save(fileName);
     } catch {
@@ -307,6 +296,13 @@ async function mailReport() {
             "body.report-printing .report-print-root .MuiCard-root": {
               boxShadow: "none !important",
             },
+            "body.report-printing .report-print-root .report-pdf-keep-together": {
+              breakInside: "avoid",
+              pageBreakInside: "avoid",
+              height: "auto !important",
+              minHeight: "0 !important",
+              overflow: "visible !important",
+            },
             "body.report-printing .report-print-root .report-print-hero": {
               breakInside: "avoid",
               pageBreakInside: "avoid",
@@ -342,6 +338,7 @@ async function mailReport() {
             "& .recharts-responsive-container": {
               breakInside: "avoid",
               pageBreakInside: "avoid",
+              overflow: "visible",
             },
             // The complete report is mounted immediately before print. Disable
             // entrance/collapse transitions so the browser captures content,
@@ -400,7 +397,6 @@ async function mailReport() {
                   <Button variant="text" startIcon={<PrintOutlinedIcon />} disabled={isPrintExporting} onClick={printFullReport}>
                     {isPrintExporting ? "Preparing PDF..." : "Print / PDF"}
                   </Button>
-                  <Button variant="text" startIcon={<ShareOutlinedIcon />} onClick={shareReport}>Share</Button>
                 </>
               ) : null}
               {isIdentityLinkSession ? (
@@ -520,17 +516,6 @@ async function mailReport() {
                       onDrill={drillToCategory}
                     />
                     <TrendReport data={trend} isPrintExporting={isPrintExporting} />
-                    {!isIdentityLinkSession ? (
-                      <ExportCenter
-                        title="Export & share this report"
-                        scope="User"
-                        assessments={[summary]}
-                        details={detail ? [detail] : []}
-                        actor={actor ?? "User"}
-                        onPdfExport={printFullReport}
-                        isPdfExporting={isPrintExporting}
-                      />
-                    ) : null}
                   </Stack>
                 </MotionReveal>
               ) : null}
@@ -907,6 +892,17 @@ function waitForReportRender(reportRoot: HTMLDivElement | null) {
   });
 }
 
+function waitForPrintExportMount() {
+  return new Promise<void>((resolve) => {
+    // setIsPrintExporting mounts the hidden tabs and expands their details on
+    // the next React commit. Two frames allow that commit and Recharts layout
+    // measurement to finish before html2canvas reads the DOM.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
   if (!reportRoot) {
     throw new Error("The detailed report is not available for export.");
@@ -942,10 +938,6 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     (el as HTMLElement).style.transform = "none";
     (el as HTMLElement).style.transition = "none";
   });
-  clonedRoot.querySelectorAll(".recharts-responsive-container").forEach((el) => {
-    (el as HTMLElement).style.height = "auto";
-  });
-
   clonedRoot.querySelectorAll(".report-email-exclude").forEach((el) => {
     el.remove();
   });
@@ -969,7 +961,14 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     .report-print-root .recharts-wrapper,
     .report-print-root .recharts-surface {
       max-width: 100% !important;
-      overflow: hidden !important;
+      overflow: visible !important;
+    }
+    .report-print-root .report-pdf-keep-together {
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .report-print-root .MuiCard-root {
       break-inside: avoid;
@@ -1052,6 +1051,27 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     const pointsPerCssPixel = contentWidth / rootWidth;
     const maxPageCssHeight = contentHeight / pointsPerCssPixel;
     const pageBreaks = findReportPageBreaks(clonedRoot, rootRect.top, rootHeight);
+    const protectedBlockBottomSafety = 600;
+    const protectedBlocks = Array.from(
+      clonedRoot.querySelectorAll<HTMLElement>(".report-pdf-keep-together, .report-print-hero"),
+    )
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          top: rect.top - rootRect.top,
+          bottom: rect.bottom - rootRect.top,
+        };
+      })
+      .filter((block) => block.bottom > block.top + 1);
+    const chartBlocks = Array.from(clonedRoot.querySelectorAll<HTMLElement>(".report-pdf-keep-together"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          top: rect.top - rootRect.top,
+          bottom: rect.bottom - rootRect.top,
+        };
+      })
+      .filter((block) => block.bottom > block.top + 1);
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = canvas.width;
     const pageContext = pageCanvas.getContext("2d");
@@ -1064,9 +1084,37 @@ async function buildRenderedReportPdf(reportRoot: HTMLDivElement | null) {
     let sourceCssY = 0;
     while (sourceCssY < rootHeight - 0.5) {
       const pageLimitCssY = Math.min(rootHeight, sourceCssY + maxPageCssHeight);
-      const safeBreak = pageBreaks
+      // If the page limit lands inside a chart/trend card, move the whole
+      // protected block to the next page. Otherwise the canvas slice cuts the
+      // SVG in half even though CSS says page-break-inside: avoid.
+      const blockCrossingPageLimit = protectedBlocks
+        .filter((block) => (
+          block.top > sourceCssY + 1
+          && block.top < pageLimitCssY - 1
+          // Leave a little room at the bottom of the raster slice. The
+          // measured card box can differ from its SVG/text paint bounds by a
+          // few pixels, which otherwise leaves the last chart rows on the
+          // following PDF page.
+          && block.bottom > pageLimitCssY - protectedBlockBottomSafety
+          && block.bottom - block.top <= maxPageCssHeight + 1
+        ))
+        .sort((a, b) => b.top - a.top)[0];
+      const candidateBreak = pageBreaks
         .filter((breakY) => breakY > sourceCssY + 1 && breakY <= pageLimitCssY + 0.5)
-        .pop() ?? pageLimitCssY;
+        .pop();
+      const blockContainingCandidate = candidateBreak == null
+        ? undefined
+        : protectedBlocks.find((block) => block.top < candidateBreak - 1 && block.bottom > candidateBreak + 1);
+      const activeChartBlock = chartBlocks.find((block) => block.top <= sourceCssY + 1 && block.bottom > sourceCssY + 1);
+      const nextChartBlock = chartBlocks.find((block) => block.top > sourceCssY + 1 && block.top < pageLimitCssY - 1);
+      const safeBreak = activeChartBlock && activeChartBlock.bottom <= pageLimitCssY + 0.5
+        ? activeChartBlock.bottom
+        : !activeChartBlock && nextChartBlock
+          ? nextChartBlock.top
+          : blockCrossingPageLimit?.top
+        ?? (blockContainingCandidate && blockContainingCandidate.top > sourceCssY + 1
+          ? blockContainingCandidate.top
+          : candidateBreak ?? pageLimitCssY);
       const sourceY = Math.round(sourceCssY * canvasScale);
       const endY = Math.min(canvas.height, Math.round(safeBreak * canvasScale));
       const currentSliceHeight = Math.max(1, endY - sourceY);
@@ -1161,6 +1209,14 @@ function findReportPageBreaks(root: HTMLElement, rootTop: number, rootHeight: nu
     if (bottom > 1 && bottom < rootHeight - 1) {
       breakpoints.add(bottom);
     }
+  });
+
+  root.querySelectorAll<HTMLElement>(".report-pdf-keep-together, .report-print-hero").forEach((element) => {
+    const rect = element.getBoundingClientRect();
+    const top = rect.top - rootTop;
+    const bottom = rect.bottom - rootTop;
+    if (top > 1 && top < rootHeight - 1) breakpoints.add(top);
+    if (bottom > 1 && bottom < rootHeight - 1) breakpoints.add(bottom);
   });
 
   return Array.from(breakpoints).sort((a, b) => a - b);
@@ -1430,7 +1486,7 @@ function TrendReport({
   isPrintExporting: boolean;
 }) {
   return (
-    <Card sx={{ p: { xs: 2, md: 2.5 } }}>
+    <Card className="report-pdf-keep-together" sx={{ p: { xs: 2, md: 2.5 } }}>
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1} alignItems={{ sm: "center" }}>
         <Box>
           <Typography variant="h3" sx={{ fontSize: 18 }}>Assessment trend</Typography>

@@ -6,6 +6,8 @@ public interface IAuthenticationService
 {
     Task<LoginResultDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default);
 
+    Task<LoginResultDto> RefreshAsync(string? refreshToken, CancellationToken cancellationToken = default);
+
     Task<LoginResultDto> LoginWithIdentityAccessAsync(IdentityAccessLoginRequestDto request, CancellationToken cancellationToken = default);
 
 

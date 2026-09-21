@@ -126,7 +126,7 @@ const DEFAULT_INTENSITY_TEMPLATES: DashboardIntensityTemplateSettingsDto = {
 const DEFAULT_REMINDER_PREFERENCES: DashboardReminderPreferencesDto = {
   enabled: true,
   remindBeforeDays: 3,
-  defaultDueInDays: 14,
+  defaultDueInDays: 7,
   updatedAtUtc: null,
 };
 

@@ -257,13 +257,4 @@ export const userDashboardBlocks: DashboardBlockDef[] = [
     gradient: GRADIENTS.amber,
     route: RoutePaths.portalProfile,
   },
-  {
-    id: "settings",
-    title: "Settings",
-    description: "Manage your preferences and account settings.",
-    icon: <SettingsOutlinedIcon fontSize="inherit" />,
-    gradient: GRADIENTS.cyan,
-    route: RoutePaths.portalSettings,
-  },
 ];
-

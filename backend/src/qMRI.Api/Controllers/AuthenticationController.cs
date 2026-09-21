@@ -10,6 +10,8 @@ namespace qMRI.Api.Controllers;
 [Route("api/v1/auth")]
 public sealed class AuthenticationController(IAuthenticationService authenticationService) : ControllerBase
 {
+    private const string RefreshCookieName = "qmri.refreshToken";
+
     [AllowAnonymous]
     [HttpPost("login")]
     [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
@@ -50,6 +52,19 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
 
         return ToActionResult(result);
 
+    }
+
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
+    {
+        var result = await authenticationService.RefreshAsync(
+            Request.Cookies[RefreshCookieName],
+            cancellationToken);
+
+        return ToActionResult(result);
     }
 
 
@@ -120,6 +135,8 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
     {
         if (result.Response is not null)
         {
+            SetRefreshCookie(result.Response.RefreshToken);
+            result.Response.RefreshToken.Token = string.Empty;
             return Ok(result.Response);
         }
 
@@ -141,5 +158,17 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
                 message = result.Message
             })
         };
+    }
+
+    private void SetRefreshCookie(RefreshTokenDto refreshToken)
+    {
+        Response.Cookies.Append(RefreshCookieName, refreshToken.Token, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api/v1/auth",
+            Expires = new DateTimeOffset(refreshToken.ExpiresAtUtc.ToUniversalTime())
+        });
     }
 }

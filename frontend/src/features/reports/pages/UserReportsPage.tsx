@@ -93,7 +93,6 @@ export function UserReportsPage() {
         detailQuery={detailQuery}
         history={reports}
         focusSteps={focusSteps}
-        actor={user?.userId}
         isIdentityLinkSession={shouldPreserveRouteState}
         onBack={() => {
           navigate(portalAgentAnalysisPath(selectedSummary.assessmentId), {

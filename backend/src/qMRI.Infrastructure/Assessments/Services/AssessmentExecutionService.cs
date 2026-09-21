@@ -15,6 +15,7 @@ public sealed class AssessmentExecutionService(
     IScoringConfigurationService scoringConfigurationService) : IAssessmentExecutionService
 {
     private const string ExpectedAnswerScoredSubModuleCode = "MANDATORY_OPERATIONAL_QUESTIONS";
+    private const int AssessmentAvailabilityDays = 7;
 
     public async Task<AssessmentSummaryDto> CreateAssessmentAsync(
         CreateAssessmentRequest request,
@@ -127,7 +128,8 @@ public sealed class AssessmentExecutionService(
         var assignedByMetadata = new AssessmentAssignedByMetadata(
             assignedBy.UserId,
             assignedBy.UserName,
-            string.IsNullOrWhiteSpace(assignedBy.FullName) ? assignedBy.UserName : assignedBy.FullName);
+            string.IsNullOrWhiteSpace(assignedBy.FullName) ? assignedBy.UserName : assignedBy.FullName,
+            now);
 
         return MapSummary(assessments[0], questionCount, assignedByMetadata);
     }
@@ -341,6 +343,7 @@ public sealed class AssessmentExecutionService(
 
         if (assessment.Status == AssessmentStatus.Draft)
         {
+            await EnsureAssessmentIsAvailableAsync(assessment, cancellationToken);
             var startedAtUtc = DateTime.UtcNow;
             assessment.Status = AssessmentStatus.InProgress;
             assessment.StartedAtUtc ??= startedAtUtc;
@@ -437,6 +440,8 @@ public sealed class AssessmentExecutionService(
         {
             throw new InvalidOperationException("Responses are locked after an assessment is submitted.");
         }
+
+        await EnsureAssessmentIsAvailableAsync(assessment, cancellationToken);
 
         var question = await dbContext.Questions
             .Include(entity => entity.SubModule)
@@ -852,7 +857,8 @@ public sealed class AssessmentExecutionService(
                     return new AssessmentAssignedByMetadata(
                         record.AssignedByUserId,
                         record.AssignedByUserName,
-                        record.AssignedByFullName);
+                        record.AssignedByFullName,
+                        record.AssignedAtUtc);
                 });
     }
 
@@ -1051,6 +1057,8 @@ public sealed class AssessmentExecutionService(
             SubmittedAtUtc = assessment.SubmittedAtUtc,
             ScoredAtUtc = assessment.ScoredAtUtc,
             CreatedAtUtc = assessment.CreatedAtUtc,
+            AssignedAtUtc = assignedByMetadata?.AssignedAtUtc,
+            DueAtUtc = assignedByMetadata?.AssignedAtUtc.AddDays(AssessmentAvailabilityDays),
             AnsweredCount = answeredCount,
             QuestionCount = questionCount,
             CompletionPercentage = questionCount == 0
@@ -1213,5 +1221,26 @@ public sealed class AssessmentExecutionService(
     private sealed record AssessmentAssignedByMetadata(
         Guid AssignedByUserId,
         string AssignedByUserName,
-        string AssignedByFullName);
+        string AssignedByFullName,
+        DateTime AssignedAtUtc);
+
+    private async Task EnsureAssessmentIsAvailableAsync(Assessment assessment, CancellationToken cancellationToken)
+    {
+        if (assessment.Status != AssessmentStatus.Draft || assessment.StartedAtUtc.HasValue)
+        {
+            return;
+        }
+
+        var assignedAtUtc = await dbContext.AdminRecords
+            .AsNoTracking()
+            .Where(record => record.AssessmentId == assessment.AssessmentId)
+            .OrderByDescending(record => record.AssignedAtUtc)
+            .Select(record => (DateTime?)record.AssignedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (assignedAtUtc.HasValue && DateTime.UtcNow >= assignedAtUtc.Value.AddDays(AssessmentAvailabilityDays))
+        {
+            throw new InvalidOperationException("This assessment expired because it was not opened within 7 days of assignment.");
+        }
+    }
 }

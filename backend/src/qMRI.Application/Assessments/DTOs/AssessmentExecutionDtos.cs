@@ -35,6 +35,8 @@ public sealed class AssessmentSummaryDto
     public DateTime? SubmittedAtUtc { get; set; }
     public DateTime? ScoredAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    public DateTime? AssignedAtUtc { get; set; }
+    public DateTime? DueAtUtc { get; set; }
     public int AnsweredCount { get; set; }
     public int QuestionCount { get; set; }
     public decimal CompletionPercentage { get; set; }

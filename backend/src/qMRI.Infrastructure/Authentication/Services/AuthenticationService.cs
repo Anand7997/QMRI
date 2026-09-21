@@ -20,6 +20,7 @@ public sealed class AuthenticationService(
     private const string UserRoleCode = "USER";
     private const string GuestRoleCode = "GUEST";
     private const string ClientCategory = "Client";
+    private const char RefreshTokenSeparator = '.';
     private readonly int _refreshTokenDays = configuration.GetValue<int?>("Jwt:RefreshTokenDays") ?? 7;
 
     public async Task<LoginResultDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
@@ -46,6 +47,46 @@ public sealed class AuthenticationService(
         {
             return eligibilityFailure;
         }
+
+        return await CreateLoginResponseAsync(user, cancellationToken);
+    }
+
+    public async Task<LoginResultDto> RefreshAsync(string? refreshToken, CancellationToken cancellationToken = default)
+    {
+        if (!TryParseRefreshToken(refreshToken, out var refreshTokenId, out var refreshTokenSecret))
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.InvalidCredentials,
+                "The refresh session is invalid or expired.");
+        }
+
+        var storedToken = await refreshTokenRepository.GetByIdAsync(refreshTokenId, cancellationToken);
+        if (storedToken is null
+            || storedToken.IsRevoked
+            || storedToken.ExpiresAtUtc.ToUniversalTime() <= DateTime.UtcNow
+            || !passwordHashingService.VerifyPassword(refreshTokenSecret, storedToken.TokenHash))
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.InvalidCredentials,
+                "The refresh session is invalid or expired.");
+        }
+
+        var user = await userRepository.GetByIdWithRolesAsync(storedToken.UserId, cancellationToken);
+        if (user is null)
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.InvalidCredentials,
+                "The refresh session is invalid or expired.");
+        }
+
+        var eligibilityFailure = ValidateLoginEligibility(user);
+        if (eligibilityFailure is not null)
+        {
+            return eligibilityFailure;
+        }
+
+        storedToken.IsRevoked = true;
+        storedToken.RevokedAtUtc = DateTime.UtcNow;
 
         return await CreateLoginResponseAsync(user, cancellationToken);
     }
@@ -244,7 +285,9 @@ public sealed class AuthenticationService(
 
         var (accessToken, accessTokenExpiresAtUtc) = jwtTokenGenerator.GenerateAccessToken(user, roles);
 
-        var refreshTokenValue = refreshTokenFactory.CreateToken();
+        var refreshTokenId = Guid.NewGuid();
+        var refreshTokenSecret = refreshTokenFactory.CreateToken();
+        var refreshTokenValue = FormatRefreshToken(refreshTokenId, refreshTokenSecret);
         var refreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(_refreshTokenDays);
         if (user.IdentityAccessExpiresAtUtc is { } identityAccessExpiresAtUtc
             && string.Equals(user.RequestedRoleCode, GuestRoleCode, StringComparison.OrdinalIgnoreCase)
@@ -255,9 +298,9 @@ public sealed class AuthenticationService(
 
         var refreshToken = new RefreshToken
         {
-            RefreshTokenId = Guid.NewGuid(),
+            RefreshTokenId = refreshTokenId,
             UserId = user.UserId,
-            TokenHash = passwordHashingService.HashPassword(refreshTokenValue),
+            TokenHash = passwordHashingService.HashPassword(refreshTokenSecret),
             ExpiresAtUtc = refreshTokenExpiresAtUtc,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -283,6 +326,34 @@ public sealed class AuthenticationService(
                 Roles = roles
             }
         });
+    }
+
+    private static string FormatRefreshToken(Guid refreshTokenId, string refreshTokenSecret)
+    {
+        return $"{refreshTokenId:N}{RefreshTokenSeparator}{refreshTokenSecret}";
+    }
+
+    private static bool TryParseRefreshToken(
+        string? refreshToken,
+        out Guid refreshTokenId,
+        out string refreshTokenSecret)
+    {
+        refreshTokenId = Guid.Empty;
+        refreshTokenSecret = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return false;
+        }
+
+        var separatorIndex = refreshToken.IndexOf(RefreshTokenSeparator);
+        if (separatorIndex <= 0 || separatorIndex == refreshToken.Length - 1)
+        {
+            return false;
+        }
+
+        return Guid.TryParseExact(refreshToken[..separatorIndex], "N", out refreshTokenId)
+            && (refreshTokenSecret = refreshToken[(separatorIndex + 1)..]).Length > 0;
     }
 
     private static LoginResultDto? ValidateLoginEligibility(User user)
