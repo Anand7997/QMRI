@@ -45,7 +45,7 @@ import {
 } from "shared/api/types";
 import { maturityFor } from "shared/domain/maturity";
 import { RoutePaths } from "shared/constants/routePaths";
-import { ASSESSMENT_LINK_NAVIGATION_SOURCE, isAssessmentLinkNavigationState } from "shared/constants/assessmentNavigation";
+import { isFocusedAssessmentNavigationState } from "shared/constants/assessmentNavigation";
 import "./qmriAgentAnalysis.css";
 
 type AnalysisPhase = "active" | "complete" | "error";
@@ -63,7 +63,7 @@ export function QmriAgentAnalysisPage() {
   const { assessmentId } = useParams<{ assessmentId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const isAssessmentLinkNavigation = isAssessmentLinkNavigationState(location.state);
+  const isFocusedAssessmentSession = isFocusedAssessmentNavigationState(location.state);
   const assessmentQuery = useAssessment(assessmentId);
   const isReady = (assessmentQuery.data?.summary.status ?? -1) >= AssessmentStatus.Scored;
   const analysisQuery = useQmriAgentAnalysis(assessmentId, Boolean(assessmentQuery.data && isReady));
@@ -128,7 +128,7 @@ export function QmriAgentAnalysisPage() {
         <Alert severity="error" sx={{ mt: 2 }}>
           This assessment could not be loaded. Return to your assessments and try again.
         </Alert>
-        {!isAssessmentLinkNavigation ? (
+        {!isFocusedAssessmentSession ? (
           <Button
             variant="outlined"
             startIcon={<ArrowBackOutlinedIcon />}
@@ -156,8 +156,8 @@ export function QmriAgentAnalysisPage() {
   const analysis = analysisQuery.data;
   const responseCount = answeredResponses.length || summary.answeredCount;
   const reportAction = () => navigate(RoutePaths.portalReports, {
-    state: isAssessmentLinkNavigation
-      ? { assessmentId, resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE }
+    state: isFocusedAssessmentSession
+      ? { assessmentId, resume: true, source: location.state.source }
       : { assessmentId },
   });
   const errorMessage = !isReady
@@ -242,7 +242,7 @@ export function QmriAgentAnalysisPage() {
             </>
           ) : null}
 
-          {!isAssessmentLinkNavigation ? (
+          {!isFocusedAssessmentSession ? (
             <Button
               variant={phase === "complete" ? "outlined" : "text"}
               startIcon={<ArrowBackOutlinedIcon />}

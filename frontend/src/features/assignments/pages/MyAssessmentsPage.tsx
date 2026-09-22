@@ -6,11 +6,13 @@ import {
   Button,
   Card,
   Chip,
+  Checkbox,
   Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   LinearProgress,
   Stack,
@@ -46,14 +48,13 @@ import {
   useSaveResumePointer,
 } from "shared/api/dashboardGovernance";
 import {
-  ASSESSMENT_LINK_NAVIGATION_SOURCE,
   isFocusedAssessmentNavigationState,
   isPublicAssessmentNavigationState,
-  isAssessmentLinkNavigationState,
   type AssessmentNavigationState,
 } from "shared/constants/assessmentNavigation";
 import { portalAgentAnalysisPath, RoutePaths } from "shared/constants/routePaths";
 import { isAssessmentExpired, resolveDueDate } from "features/dashboard/governance/dashboardGovernanceState";
+import { getBusinessEmailValidationMessage } from "shared/validation/businessEmail";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
 const MIN_SUBMIT_COMPLETION_PERCENT = 50;
@@ -83,6 +84,8 @@ export function MyAssessmentsPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [participantEmail, setParticipantEmail] = useState("");
   const [participantEmailTouched, setParticipantEmailTouched] = useState(false);
+  const [participantConsent, setParticipantConsent] = useState(false);
+  const [participantConsentTouched, setParticipantConsentTouched] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const [submittedPrompt, setSubmittedPrompt] = useState<SubmittedAssessmentPrompt | null>(null);
@@ -97,9 +100,11 @@ export function MyAssessmentsPage() {
   const shouldResumeNavigation = navigationState?.resume === true;
   const isAssessmentLinkNavigation = isFocusedAssessmentNavigationState(location.state);
   const isPublicAssessment = isPublicAssessmentNavigationState(location.state);
-  const isParticipantEmailValid = isValidEmail(participantEmail.trim());
-  const participantEmailError = participantEmailTouched && !isParticipantEmailValid
-    ? participantEmail.trim() ? "Please enter a valid email address." : "Email address is required."
+  const participantEmailValidationMessage = getBusinessEmailValidationMessage(participantEmail);
+  const isParticipantEmailValid = participantEmailValidationMessage === null;
+  const participantEmailError = participantEmailTouched ? participantEmailValidationMessage ?? undefined : undefined;
+  const participantConsentError = participantConsentTouched && !participantConsent
+    ? "Please agree before submitting your assessment."
     : undefined;
   const assessments = useMemo(
     () =>
@@ -477,20 +482,12 @@ export function MyAssessmentsPage() {
         if (!submittedPrompt) return;
         const targetAssessmentId = submittedPrompt.assessmentId;
         setSubmittedPrompt(null);
-        if (isPublicAssessmentNavigationState(location.state)) {
-          navigate(RoutePaths.portalReports, {
-            state: { assessmentId: targetAssessmentId, resume: true, source: "public" },
-          });
-          return;
-        }
-
         navigate(portalAgentAnalysisPath(targetAssessmentId), {
-          state: isAssessmentLinkNavigationState(location.state)
-            ? { resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE }
+          state: isFocusedAssessmentNavigationState(location.state)
+            ? { resume: true, source: location.state.source }
             : undefined,
         });
       }}
-      actionLabel={isPublicAssessmentNavigationState(location.state) ? "View your report" : undefined}
     />
   );
 
@@ -896,21 +893,69 @@ export function MyAssessmentsPage() {
             </Stack>
             <LinearProgress variant="determinate" value={percent} sx={{ height: 8, borderRadius: 999 }} />
             {isPublicAssessment && (
-              <TextField
-                fullWidth
-                required
-                label="Email address"
-                type="email"
-                autoComplete="email"
-                value={participantEmail}
-                onChange={(event) => {
-                  setParticipantEmail(event.target.value);
-                  setParticipantEmailTouched(true);
+              <Box
+                sx={{
+                  mt: 0.5,
+                  p: { xs: 2, sm: 2.5 },
+                  borderLeft: 4,
+                  borderColor: "primary.dark",
+                  bgcolor: "#F8FAFC",
                 }}
-                error={Boolean(participantEmailError)}
-                helperText={participantEmailError ?? "Your assessment report will be sent to this address."}
-                inputProps={{ inputMode: "email" }}
-              />
+              >
+                <Typography
+                  variant="overline"
+                  sx={{ display: "block", mb: 1, color: "#5D7197", fontWeight: 800, letterSpacing: "0.16em" }}
+                >
+                  Work email
+                </Typography>
+                <TextField
+                  fullWidth
+                  required
+                  placeholder="Enter Business Email ID"
+                  type="email"
+                  autoComplete="email"
+                  value={participantEmail}
+                  onChange={(event) => {
+                    setParticipantEmail(event.target.value);
+                    setParticipantEmailTouched(true);
+                  }}
+                  error={Boolean(participantEmailError)}
+                  helperText={participantEmailError ?? "Use your company or organizational email address."}
+                  inputProps={{ inputMode: "email", "aria-label": "Work email" }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      bgcolor: "common.white",
+                      minHeight: 58,
+                      borderRadius: 1,
+                    },
+                    "& .MuiInputBase-input::placeholder": { color: "#A8B3C9", opacity: 1 },
+                  }}
+                />
+                <FormControlLabel
+                  sx={{ mt: 1.5, alignItems: "flex-start", color: "#496187" }}
+                  control={
+                    <Checkbox
+                      checked={participantConsent}
+                      onChange={(event) => {
+                        setParticipantConsent(event.target.checked);
+                        setParticipantConsentTouched(true);
+                      }}
+                      inputProps={{ "aria-label": "Agree to data processing" }}
+                      sx={{ pt: 0, color: "#6E7890", "&.Mui-checked": { color: "primary.main" } }}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" sx={{ lineHeight: 1.55 }}>
+                      By submitting this assessment, you agree that we may collect, store and process the data you provide. Read our <Box component="span" sx={{ color: "primary.main", textDecoration: "underline" }}>Privacy Policy</Box>.
+                    </Typography>
+                  }
+                />
+                {participantConsentError && (
+                  <Typography variant="caption" color="error.main" sx={{ display: "block", ml: 4.5 }}>
+                    {participantConsentError}
+                  </Typography>
+                )}
+              </Box>
             )}
             {!canSubmitAssessment && (
               <Alert severity="info">Complete at least {MIN_SUBMIT_COMPLETION_PERCENT}% of the assessment to submit.</Alert>
@@ -921,14 +966,15 @@ export function MyAssessmentsPage() {
           <Button onClick={() => setReviewOpen(false)}>Go back</Button>
           <Button
             variant="contained"
-            disabled={submit.isPending || !canSubmitAssessment || (isPublicAssessment && !isParticipantEmailValid)}
+            disabled={submit.isPending || !canSubmitAssessment || (isPublicAssessment && (!isParticipantEmailValid || !participantConsent))}
             onClick={() => {
-              if (isPublicAssessment && !isParticipantEmailValid) {
+              if (isPublicAssessment && (!isParticipantEmailValid || !participantConsent)) {
                 setParticipantEmailTouched(true);
+                setParticipantConsentTouched(true);
                 return;
               }
 
-              submit.mutate(isPublicAssessment ? { email: participantEmail.trim() } : undefined, {
+              submit.mutate(isPublicAssessment ? { email: participantEmail } : undefined, {
                 onSuccess: (submittedDetail) => {
                   const submittedAssessmentId = submittedDetail.summary.assessmentId;
                   setSubmittedPrompt({
@@ -955,7 +1001,7 @@ export function MyAssessmentsPage() {
               });
             }}
           >
-            Submit assessment
+            Submit assessment <KeyboardArrowRightIcon />
           </Button>
         </DialogActions>
       </Dialog>
@@ -1016,10 +1062,6 @@ function AssessmentResultDialog({
       </DialogActions>
     </Dialog>
   );
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 interface AssessmentDetailViewProps {

@@ -14,7 +14,8 @@ namespace qMRI.Infrastructure.Authentication.Services;
 public sealed class UserAdministrationService(
     qMRIDbContext dbContext,
     IPasswordHashingService passwordHashingService,
-    IIdentityLinkEmailSender identityLinkEmailSender) : IUserAdministrationService
+    IIdentityLinkEmailSender identityLinkEmailSender,
+    IBusinessEmailValidator businessEmailValidator) : IUserAdministrationService
 {
     private const string AdminRoleCode = "ADMIN";
     private const string UserRoleCode = "USER";
@@ -167,15 +168,16 @@ public sealed class UserAdministrationService(
         CreateIdentityAccessRequestDto request,
         CancellationToken cancellationToken = default)
     {
+        var emailValidationError = businessEmailValidator.GetValidationError(request.Email);
+        if (emailValidationError is not null)
+        {
+            throw new ArgumentException(emailValidationError, nameof(request.Email));
+        }
+
         var email = request.Email.Trim();
         if (string.IsNullOrWhiteSpace(email))
         {
             throw new ArgumentException("Email is required.", nameof(request.Email));
-        }
-
-        if (!email.Contains("@", StringComparison.Ordinal) || !email.Contains(".", StringComparison.Ordinal))
-        {
-            throw new ArgumentException("Enter a valid guest email address.", nameof(request.Email));
         }
 
         var expiresAtUtc = ToUtc(request.ExpiresAtUtc);
@@ -243,6 +245,12 @@ public sealed class UserAdministrationService(
         CancellationToken cancellationToken = default)
     {
         var fullName = request.FullName.Trim();
+        var emailValidationError = businessEmailValidator.GetValidationError(request.Email);
+        if (emailValidationError is not null)
+        {
+            throw new ArgumentException(emailValidationError, nameof(request.Email));
+        }
+
         var email = request.Email.Trim();
         if (string.IsNullOrWhiteSpace(fullName))
         {
@@ -252,11 +260,6 @@ public sealed class UserAdministrationService(
         if (string.IsNullOrWhiteSpace(email))
         {
             throw new ArgumentException("Email is required.", nameof(request.Email));
-        }
-
-        if (!email.Contains("@", StringComparison.Ordinal) || !email.Contains(".", StringComparison.Ordinal))
-        {
-            throw new ArgumentException("Enter a valid client email address.", nameof(request.Email));
         }
 
         var expiresAtUtc = ToUtc(request.ExpiresAtUtc);

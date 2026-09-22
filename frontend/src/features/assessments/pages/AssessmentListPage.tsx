@@ -395,6 +395,10 @@ function assignedByLabel(row: AssessmentSummaryDto) {
   return row.assignedByFullName?.trim() || row.assignedByUserName?.trim() || "Unknown";
 }
 
+function isGuestAssessment(assessment: AssessmentSummaryDto) {
+  return assessment.departments.some((department) => department.trim().toLowerCase() === "guest");
+}
+
 export function AssessmentListPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -434,11 +438,13 @@ export function AssessmentListPage() {
 
   const rows = useMemo(
     () =>
-      groupAssessmentsByAssignment(assessmentsQuery.data ?? []).map(({ representative, assignedPeopleCount, takenPeopleCount }) => ({
-        ...representative,
-        assignedPeopleCount,
-        takenPeopleCount,
-      })),
+      groupAssessmentsByAssignment((assessmentsQuery.data ?? []).filter((assessment) => !isGuestAssessment(assessment))).map(
+        ({ representative, assignedPeopleCount, takenPeopleCount }) => ({
+          ...representative,
+          assignedPeopleCount,
+          takenPeopleCount,
+        }),
+      ),
     [assessmentsQuery.data],
   );
   const assignedByOptions = useMemo(() => {

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
+using qMRI.Application.Authentication.Abstractions;
 using qMRI.Domain.Assessments.Entities;
 using qMRI.Domain.Assessments.Enums;
 using qMRI.Domain.Common.Entities;
@@ -12,7 +13,8 @@ namespace qMRI.Infrastructure.Assessments.Services;
 
 public sealed class AssessmentExecutionService(
     qMRIDbContext dbContext,
-    IScoringConfigurationService scoringConfigurationService) : IAssessmentExecutionService
+    IScoringConfigurationService scoringConfigurationService,
+    IBusinessEmailValidator businessEmailValidator) : IAssessmentExecutionService
 {
     private const string ExpectedAnswerScoredSubModuleCode = "MANDATORY_OPERATIONAL_QUESTIONS";
     private const int PublicAssessmentQuestionCount = 16;
@@ -605,15 +607,15 @@ public sealed class AssessmentExecutionService(
             throw new InvalidOperationException("Archived assessments cannot be submitted.");
         }
 
-        if (!string.IsNullOrWhiteSpace(participantEmail))
+        if (participantEmail is not null)
         {
-            var normalizedEmail = participantEmail.Trim();
-            if (!IsValidEmail(normalizedEmail))
+            var emailValidationError = businessEmailValidator.GetValidationError(participantEmail);
+            if (emailValidationError is not null)
             {
-                throw new ArgumentException("Please enter a valid email address.", nameof(participantEmail));
+                throw new ArgumentException(emailValidationError, nameof(participantEmail));
             }
 
-            assessment.ParticipantEmail = normalizedEmail;
+            assessment.ParticipantEmail = participantEmail;
         }
 
         var now = DateTime.UtcNow;
@@ -1100,17 +1102,6 @@ public sealed class AssessmentExecutionService(
     }
 
     private static string NormalizeDepartment(string? department) => department?.Trim() ?? string.Empty;
-
-    private static bool IsValidEmail(string value)
-    {
-        var atIndex = value.IndexOf('@');
-        return value.Length <= 256
-            && atIndex > 0
-            && atIndex < value.Length - 3
-            && value.IndexOf('@', atIndex + 1) < 0
-            && value[(atIndex + 1)..].Contains('.', StringComparison.Ordinal)
-            && !value.Any(char.IsWhiteSpace);
-    }
 
     private static string ResolveExamTakerStatus(AssessmentStatus status)
     {

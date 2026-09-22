@@ -24,6 +24,7 @@ public static class InfrastructureDependencyInjection
         var commandTimeoutSeconds = configuration.GetValue<int?>("Database:CommandTimeoutSeconds");
         var enableSensitiveDataLogging = configuration.GetValue<bool?>("Database:EnableSensitiveDataLogging") ?? false;
         services.Configure<IdentityLinkEmailOptions>(configuration.GetSection(IdentityLinkEmailOptions.SectionName));
+        services.Configure<BusinessEmailOptions>(configuration.GetSection(BusinessEmailOptions.SectionName));
 
         services.AddDbContext<qMRIDbContext>(options =>
         {
@@ -53,6 +54,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IPasswordHashingService, PasswordHashingService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IRefreshTokenFactory, RefreshTokenFactory>();
+        services.AddSingleton<IBusinessEmailValidator, BusinessEmailValidator>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IUserAdministrationService, UserAdministrationService>();
         services.AddScoped<IIdentityLinkEmailSender, SmtpIdentityLinkEmailSender>();

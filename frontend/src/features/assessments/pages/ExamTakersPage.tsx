@@ -279,7 +279,6 @@ export function ExamTakersPage() {
                   aria-label="Exam taker view"
                   sx={{ ml: { md: "auto" } }}
                 >
-                  <Tab label="Assigned" value="assigned" sx={{ cursor: "pointer" }} />
                   <Tab label="Guest" value="guest" sx={{ cursor: "pointer" }} />
                 </Tabs>
               </Stack>

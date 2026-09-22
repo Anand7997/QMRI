@@ -16,6 +16,7 @@ public sealed class AuthenticationService(
     IPasswordHashingService passwordHashingService,
     IJwtTokenGenerator jwtTokenGenerator,
     IRefreshTokenFactory refreshTokenFactory,
+    IBusinessEmailValidator businessEmailValidator,
     IConfiguration configuration,
     qMRIDbContext dbContext) : IAuthenticationService
 {
@@ -203,7 +204,8 @@ public sealed class AuthenticationService(
     {
         var fullName = request.FullName.Trim();
         var userName = request.UserName.Trim();
-        var email = request.Email.Trim();
+        var rawEmail = request.Email ?? string.Empty;
+        var email = rawEmail.Trim();
         var requestedRole = NormalizeRequestedRole(request.RequestedRole);
 
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(email))
@@ -211,9 +213,10 @@ public sealed class AuthenticationService(
             return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Full name, username and email are required.");
         }
 
-        if (!email.Contains("@", StringComparison.Ordinal) || !email.Contains(".", StringComparison.Ordinal))
+        var emailValidationError = businessEmailValidator.GetValidationError(rawEmail);
+        if (emailValidationError is not null)
         {
-            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Enter a valid work email address.");
+            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, emailValidationError);
         }
 
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)

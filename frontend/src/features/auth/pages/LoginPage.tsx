@@ -35,6 +35,7 @@ import {
   type CharacterState,
 } from "@/components/ui/interactive-login-character";
 import { QmriLogo } from "shared/components";
+import { getBusinessEmailValidationMessage } from "shared/validation/businessEmail";
 
 type Mode = "signin" | "signup";
 type Audience = "admin" | "user";
@@ -248,8 +249,8 @@ export function LoginPage() {
       return;
     }
 
-    const normalizedEmail = email.trim();
-    const emailValidationMessage = getEmailValidationMessage(normalizedEmail);
+    const normalizedEmail = email;
+    const emailValidationMessage = getBusinessEmailValidationMessage(normalizedEmail);
 
     if (emailValidationMessage) {
       setSignUpEmailError(emailValidationMessage);
@@ -736,14 +737,6 @@ function getApiError(error: unknown): ApiErrorBody | null {
   }
 
   return error.response?.data ?? null;
-}
-
-function getEmailValidationMessage(value: string): string | null {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-    return "Email is not valid.";
-  }
-
-  return null;
 }
 
 function getPasswordValidationMessage(value: string): string | null {

@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\qMRI.Application\qMRI.Application.csproj" />
     <ProjectReference Include="..\..\src\qMRI.Domain\qMRI.Domain.csproj" />
+    <ProjectReference Include="..\..\src\qMRI.Infrastructure\qMRI.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

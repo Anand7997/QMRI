@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using qMRI.Application.Assessments.Abstractions;
 using qMRI.Application.Assessments.DTOs;
+using qMRI.Application.Authentication.Abstractions;
 using qMRI.Application.Reports.Abstractions;
 using qMRI.Application.Reports.DTOs;
 using qMRI.Domain.Assessments.Enums;
@@ -17,7 +18,8 @@ namespace qMRI.Api.Controllers;
 public sealed class AssessmentsController(
     IAssessmentExecutionService assessmentService,
     IQmriAgentAnalysisService agentAnalysisService,
-    IReportEmailSender reportEmailSender) : ControllerBase
+    IReportEmailSender reportEmailSender,
+    IBusinessEmailValidator businessEmailValidator) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAssessments([FromQuery] Guid? userId, CancellationToken cancellationToken)
@@ -146,15 +148,19 @@ public sealed class AssessmentsController(
         }
 
         var publicParticipant = IsPublicAssessmentSession();
-        var participantEmail = request?.Email?.Trim();
-        if (publicParticipant && string.IsNullOrWhiteSpace(participantEmail))
+        var participantEmail = request?.Email;
+        if (publicParticipant && string.IsNullOrEmpty(participantEmail))
         {
             return BadRequest(new { message = "Email address is required to submit the public assessment." });
         }
 
-        if (publicParticipant && participantEmail is not null && !IsValidEmail(participantEmail))
+        if (publicParticipant && participantEmail is not null)
         {
-            return BadRequest(new { message = "Please enter a valid email address." });
+            var emailValidationError = businessEmailValidator.GetValidationError(participantEmail);
+            if (emailValidationError is not null)
+            {
+                return BadRequest(new { message = emailValidationError });
+            }
         }
 
         if (!publicParticipant && !string.IsNullOrWhiteSpace(participantEmail))
@@ -342,14 +348,4 @@ public sealed class AssessmentsController(
             && email?.EndsWith("@qascan.invalid", StringComparison.OrdinalIgnoreCase) == true;
     }
 
-    private static bool IsValidEmail(string value)
-    {
-        var atIndex = value.IndexOf('@');
-        return value.Length <= 256
-            && atIndex > 0
-            && atIndex < value.Length - 3
-            && value.IndexOf('@', atIndex + 1) < 0
-            && value[(atIndex + 1)..].Contains('.', StringComparison.Ordinal)
-            && !value.Any(char.IsWhiteSpace);
-    }
 }
