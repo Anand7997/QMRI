@@ -7,6 +7,7 @@ import type {
   AssessmentSummaryDto,
   CreateAssessmentRequest,
   QmriAgentAnalysisDto,
+  SubmitAssessmentRequest,
   UpdateAssessmentRequest,
   UpsertAssessmentResponseRequest,
 } from "./types";
@@ -19,7 +20,7 @@ const keys = {
   examTakers: (id: string) => ["assessments", "exam-takers", id] as const,
 };
 
-export function useAssessments(userId?: string) {
+export function useAssessments(userId?: string, enabled = true) {
   return useQuery({
     queryKey: keys.list(userId),
     queryFn: async () => {
@@ -28,6 +29,7 @@ export function useAssessments(userId?: string) {
       });
       return data;
     },
+    enabled,
   });
 }
 
@@ -122,8 +124,8 @@ export function useExamTakers(assessmentId: string | undefined) {
 export function useSubmitAssessment(assessmentId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      axiosClient.post<AssessmentDetailDto>(`/assessments/${assessmentId}/submit`).then((r) => r.data),
+    mutationFn: (body?: SubmitAssessmentRequest) =>
+      axiosClient.post<AssessmentDetailDto>(`/assessments/${assessmentId}/submit`, body).then((r) => r.data),
     onSuccess: (detail) => {
       qc.setQueryData(keys.detail(assessmentId), detail);
       qc.invalidateQueries({ queryKey: ["assessments"] });

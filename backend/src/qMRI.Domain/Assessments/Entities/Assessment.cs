@@ -15,6 +15,8 @@ public sealed class Assessment
 
     public string? Description { get; set; }
 
+    public string? ParticipantEmail { get; set; }
+
     public string? Departments { get; set; }
 
     public string? SelectedQuestionIds { get; set; }

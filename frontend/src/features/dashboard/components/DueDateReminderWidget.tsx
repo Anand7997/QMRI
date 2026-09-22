@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, Button, Card, Chip, LinearProgress, Stack, Typography } from "@mui/material";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
-import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import { useAuthContext } from "contexts/AuthContext";
 import { AssessmentStatus, type AssessmentSummaryDto } from "shared/api/types";
 import {
-  ASSESSMENT_AVAILABILITY_DAYS,
   isAssessmentExpired,
   resolveDueDate,
 } from "features/dashboard/governance/dashboardGovernanceState";
@@ -67,18 +65,8 @@ export function DueDateReminderWidget({ assessments, onOpenAssessment }: DueDate
         <Typography variant="h3">Due Dates & Reminders</Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Assignments are available for {ASSESSMENT_AVAILABILITY_DAYS} days and ranked by due-date urgency.
+        Assignments are ranked by due-date urgency.
       </Typography>
-
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-        <Chip
-          size="small"
-          icon={<NotificationsActiveOutlinedIcon />}
-          color={preferences.enabled ? "success" : "default"}
-          label={preferences.enabled ? `Reminders ${preferences.remindBeforeDays} days before due` : "Reminders off"}
-        />
-        <Chip size="small" variant="outlined" label={`${ASSESSMENT_AVAILABILITY_DAYS}-day access window`} />
-      </Stack>
 
       <Box
         role="region"

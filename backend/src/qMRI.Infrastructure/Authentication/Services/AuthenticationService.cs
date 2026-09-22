@@ -1,10 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using qMRI.Application.Authentication.Abstractions;
 using qMRI.Application.Authentication.DTOs;
 using qMRI.Domain.Common.Entities;
 using qMRI.Domain.Common.Enums;
+using qMRI.Infrastructure.Persistence;
 
 namespace qMRI.Infrastructure.Authentication.Services;
 
@@ -14,12 +16,12 @@ public sealed class AuthenticationService(
     IPasswordHashingService passwordHashingService,
     IJwtTokenGenerator jwtTokenGenerator,
     IRefreshTokenFactory refreshTokenFactory,
-    IConfiguration configuration) : IAuthenticationService
+    IConfiguration configuration,
+    qMRIDbContext dbContext) : IAuthenticationService
 {
     private const string AdminRoleCode = "ADMIN";
     private const string UserRoleCode = "USER";
     private const string GuestRoleCode = "GUEST";
-    private const string ClientCategory = "Client";
     private const char RefreshTokenSeparator = '.';
     private readonly int _refreshTokenDays = configuration.GetValue<int?>("Jwt:RefreshTokenDays") ?? 7;
 
@@ -47,6 +49,52 @@ public sealed class AuthenticationService(
         {
             return eligibilityFailure;
         }
+
+        return await CreateLoginResponseAsync(user, cancellationToken);
+    }
+
+    public async Task<LoginResultDto> CreatePublicSessionAsync(CancellationToken cancellationToken = default)
+    {
+        var guestRole = await dbContext.Roles
+            .SingleOrDefaultAsync(role => role.Code == GuestRoleCode && role.IsActive, cancellationToken);
+
+        if (guestRole is null)
+        {
+            return LoginResultDto.Failure(
+                AuthenticationFailureReason.AccessDisabled,
+                "Public assessment access is not configured.");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var userId = Guid.NewGuid();
+        var user = new User
+        {
+            UserId = userId,
+            FullName = "Public Assessment Participant",
+            UserName = $"public.{Guid.NewGuid():N}",
+            Email = $"public.{Guid.NewGuid():N}@qascan.invalid",
+            PasswordHash = passwordHashingService.HashPassword(Guid.NewGuid().ToString("N")),
+            IsActive = true,
+            ApprovalStatus = UserApprovalStatus.Approved,
+            RequestedRoleCode = GuestRoleCode,
+            Category = "Guest",
+            RequestedAtUtc = nowUtc,
+            ApprovedAtUtc = nowUtc,
+            CreatedAtUtc = nowUtc,
+            UserRoles =
+            [
+                new UserRole
+                {
+                    UserId = userId,
+                    RoleId = guestRole.RoleId,
+                    Role = guestRole,
+                    AssignedAtUtc = nowUtc
+                }
+            ]
+        };
+
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return await CreateLoginResponseAsync(user, cancellationToken);
     }
@@ -213,61 +261,6 @@ public sealed class AuthenticationService(
         });
     }
 
-    public async Task<RegisterResultDto> RequestClientAccessAsync(ClientAccessRequestDto request, CancellationToken cancellationToken = default)
-    {
-        var fullName = request.FullName?.Trim() ?? string.Empty;
-        var email = request.Email?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(fullName))
-        {
-            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Name is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Email is required.");
-        }
-
-        if (!IsEmailLike(email))
-        {
-            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Enter a valid client email address.");
-        }
-
-        var exists = await userRepository.ExistsByUserNameOrEmailAsync(email, email, cancellationToken);
-        if (exists)
-        {
-            return RegisterResultDto.Failure(RegistrationFailureReason.DuplicateAccount, "An account or request with this email already exists.");
-        }
-
-        var nowUtc = DateTime.UtcNow;
-        var user = new User
-        {
-            UserId = Guid.NewGuid(),
-            FullName = fullName.Length <= 200 ? fullName : fullName[..200],
-            UserName = BuildClientRequestUserName(),
-            Email = email,
-            PasswordHash = passwordHashingService.HashPassword(CreateRandomPassword()),
-            IsActive = false,
-            ApprovalStatus = UserApprovalStatus.Pending,
-            RequestedRoleCode = UserRoleCode,
-            Category = ClientCategory,
-            RequestedAtUtc = nowUtc,
-            CreatedAtUtc = nowUtc
-        };
-
-        await userRepository.AddAsync(user, cancellationToken);
-
-        return RegisterResultDto.Success(new RegisterResponseDto
-        {
-            UserId = user.UserId,
-            FullName = user.FullName,
-            UserName = user.UserName,
-            Email = user.Email,
-            RequestedRoleCode = user.RequestedRoleCode,
-            ApprovalStatus = user.ApprovalStatus.ToString(),
-            Message = "Your request has been sent to the QAScan administrator for approval."
-        });
-    }
-
     private async Task<LoginResultDto> CreateLoginResponseAsync(User user, CancellationToken cancellationToken)
     {
         var roles = user.UserRoles
@@ -403,11 +396,6 @@ public sealed class AuthenticationService(
         return UserRoleCode;
     }
 
-    private static bool IsEmailLike(string email)
-    {
-        return email.Contains("@", StringComparison.Ordinal) && email.Contains(".", StringComparison.Ordinal);
-    }
-
     private static bool ContainsSpecialCharacter(string value)
     {
         foreach (var character in value)
@@ -438,13 +426,4 @@ public sealed class AuthenticationService(
         return fullName.Length <= 200 ? fullName : fullName[..200];
     }
 
-    private static string BuildClientRequestUserName()
-    {
-        return $"client.{Guid.NewGuid():N}"[..39];
-    }
-
-    private static string CreateRandomPassword()
-    {
-        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-    }
 }

@@ -3,12 +3,15 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using qMRI.Application.Authentication.Abstractions;
 using qMRI.Application.Authentication.DTOs;
+using qMRI.Application.Assessments.Abstractions;
 
 namespace qMRI.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
-public sealed class AuthenticationController(IAuthenticationService authenticationService) : ControllerBase
+public sealed class AuthenticationController(
+    IAuthenticationService authenticationService,
+    IAssessmentExecutionService assessmentService) : ControllerBase
 {
     private const string RefreshCookieName = "qmri.refreshToken";
 
@@ -67,30 +70,32 @@ public sealed class AuthenticationController(IAuthenticationService authenticati
         return ToActionResult(result);
     }
 
-
-
     [AllowAnonymous]
-    [HttpPost("client-access/request")]
-    [ProducesResponseType(typeof(RegisterResponseDto), StatusCodes.Status202Accepted)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> RequestClientAccess([FromBody] ClientAccessRequestDto? request, CancellationToken cancellationToken)
+    [HttpPost("public-session")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> CreatePublicSession(CancellationToken cancellationToken)
     {
-        if (request is null)
+        var result = await authenticationService.CreatePublicSessionAsync(cancellationToken);
+        if (result.Response is null)
         {
-            return BadRequest(new { code = "Validation", message = "Email is required." });
+            return ToActionResult(result);
         }
 
-        var result = await authenticationService.RequestClientAccessAsync(request, cancellationToken);
-        if (result.Response is not null)
-        {
-            return Accepted(result.Response);
-        }
+        var assessment = await assessmentService.CreatePublicAssessmentAsync(result.Response.User.UserId, cancellationToken);
+        SetRefreshCookie(result.Response.RefreshToken);
+        result.Response.RefreshToken.Token = string.Empty;
 
-        return result.FailureReason == RegistrationFailureReason.DuplicateAccount
-            ? Conflict(new { code = "DuplicateAccount", message = result.Message })
-            : BadRequest(new { code = "Validation", message = result.Message });
+        return Ok(new
+        {
+            result.Response.AccessToken,
+            result.Response.AccessTokenExpiresAtUtc,
+            result.Response.RefreshToken,
+            result.Response.User,
+            assessment = new { assessmentId = assessment.AssessmentId }
+        });
     }
+
+
 
     [AllowAnonymous]
     [HttpPost("register")]

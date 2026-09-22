@@ -20,6 +20,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from "@mui/material";
@@ -29,7 +31,7 @@ import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import { EmptyState, LoadingState, PageHeader } from "shared/components";
 import { useAssessment, useAssessments, useCreateAssessment, useExamTakers } from "shared/api/assessments";
-import { answerLabel, type AssessmentSummaryDto, type ExamTakerProgressDto, type ExamTakerProgressStatus } from "shared/api/types";
+import { answerLabel, assessmentStatusLabel, AssessmentStatus, type AssessmentSummaryDto, type ExamTakerProgressDto, type ExamTakerProgressStatus } from "shared/api/types";
 import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 
 const unknownAssignedByValue = "__unknown_assigned_by__";
@@ -39,6 +41,8 @@ type ActionFeedback = {
   severity: "success" | "error";
   message: string;
 };
+
+type ExamTakersView = "assigned" | "guest";
 
 function errorMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError<{ message?: string }>(error)) {
@@ -52,12 +56,24 @@ function assignedByLabel(assessment: AssessmentSummaryDto) {
   return assessment.assignedByFullName?.trim() || assessment.assignedByUserName?.trim() || "Unknown";
 }
 
+function isGuestAssessment(assessment: AssessmentSummaryDto) {
+  return assessment.departments.some((department) => department.trim().toLowerCase() === "guest");
+}
+
 export function ExamTakersPage() {
   const assessmentsQuery = useAssessments();
   const createAssessment = useCreateAssessment();
+  const [view, setView] = useState<ExamTakersView>("assigned");
+  const allAssessmentSummaries = assessmentsQuery.data ?? [];
   const assessments = useMemo(
-    () => collapseAssessmentsByAssignment(assessmentsQuery.data ?? []),
-    [assessmentsQuery.data],
+    () => collapseAssessmentsByAssignment(allAssessmentSummaries.filter((assessment) => !isGuestAssessment(assessment))),
+    [allAssessmentSummaries],
+  );
+  const guestAssessments = useMemo(
+    () => allAssessmentSummaries
+      .filter(isGuestAssessment)
+      .sort((left, right) => Date.parse(right.createdAtUtc) - Date.parse(left.createdAtUtc)),
+    [allAssessmentSummaries],
   );
 
   const [assignedByFilter, setAssignedByFilter] = useState<string>("all");
@@ -129,7 +145,7 @@ export function ExamTakersPage() {
     [assessmentId, filteredAssessments],
   );
 
-  const examTakersQuery = useExamTakers(assessmentId);
+  const examTakersQuery = useExamTakers(view === "assigned" ? assessmentId : undefined);
   const examTakers = examTakersQuery.data ?? [];
   const resultQuery = useAssessment(resultAssessmentId);
   const resultExamTaker = examTakers.find((examTaker) => examTaker.assessmentId === resultAssessmentId);
@@ -137,6 +153,7 @@ export function ExamTakersPage() {
   const notStartedCount = examTakers.filter((item) => item.progressStatus === "NotStarted").length;
   const inProgressCount = examTakers.filter((item) => item.progressStatus === "InProgress").length;
   const finishedCount = examTakers.filter((item) => item.progressStatus === "Finished").length;
+  const hasAnyAssessment = assessments.length > 0 || guestAssessments.length > 0;
 
   async function handleReassign(examTaker: ExamTakerProgressDto) {
     if (!selectedAssessment) {
@@ -174,7 +191,9 @@ export function ExamTakersPage() {
     <Box>
       <PageHeader
         title="Exam Takers"
-        subtitle="Track who has not started, who is in progress, and who has finished each assigned assessment."
+        subtitle={view === "guest"
+          ? "Track everyone who accessed the assessment through the direct link."
+          : "Track who has not started, who is in progress, and who has finished each assigned assessment."}
       />
 
       {assessmentsQuery.isLoading ? <LoadingState label="Loading assessments..." /> : null}
@@ -188,16 +207,16 @@ export function ExamTakersPage() {
         </Card>
       ) : null}
 
-      {!assessmentsQuery.isLoading && !assessmentsQuery.isError && assessments.length === 0 ? (
+      {!assessmentsQuery.isLoading && !assessmentsQuery.isError && !hasAnyAssessment ? (
         <Card sx={{ p: 4 }}>
           <EmptyState
             title="No assessments found"
-            description="Create an assessment first to view exam taker progress."
+            description="Create an assessment or share the direct assessment link first."
           />
         </Card>
       ) : null}
 
-      {!assessmentsQuery.isLoading && !assessmentsQuery.isError && assessments.length > 0 && filteredAssessments.length === 0 ? (
+      {!assessmentsQuery.isLoading && !assessmentsQuery.isError && view === "assigned" && assessments.length > 0 && filteredAssessments.length === 0 ? (
         <Card sx={{ p: 4 }}>
           <EmptyState
             title="No assessments match this admin"
@@ -206,7 +225,7 @@ export function ExamTakersPage() {
         </Card>
       ) : null}
 
-      {!assessmentsQuery.isLoading && !assessmentsQuery.isError && filteredAssessments.length > 0 ? (
+      {!assessmentsQuery.isLoading && !assessmentsQuery.isError && hasAnyAssessment ? (
         <Stack spacing={2}>
           {actionFeedback ? (
             <Alert severity={actionFeedback.severity} onClose={() => setActionFeedback(null)}>
@@ -216,40 +235,56 @@ export function ExamTakersPage() {
 
           <Card sx={{ p: 2 }}>
             <Stack spacing={2}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <TextField
-                  select
-                  label="Assigned by"
-                  value={assignedByFilter}
-                  onChange={(event) => setAssignedByFilter(event.target.value)}
-                  size="small"
-                  sx={{ minWidth: 260 }}
-                >
-                  <MenuItem value="all">All admins ({assessments.length})</MenuItem>
-                  {assignedByOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label} ({option.count})
-                    </MenuItem>
-                  ))}
-                </TextField>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+                {assessments.length > 0 ? (
+                  <>
+                    <TextField
+                      select
+                      label="Assigned by"
+                      value={assignedByFilter}
+                      onChange={(event) => setAssignedByFilter(event.target.value)}
+                      size="small"
+                      sx={{ minWidth: 260 }}
+                      disabled={view === "guest"}
+                    >
+                      <MenuItem value="all">All admins ({assessments.length})</MenuItem>
+                      {assignedByOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label} ({option.count})
+                        </MenuItem>
+                      ))}
+                    </TextField>
 
-                <TextField
-                  select
-                  label="Assessment"
-                  value={assessmentId ?? ""}
-                  onChange={(event) => setAssessmentId(event.target.value)}
-                  size="small"
-                  sx={{ maxWidth: 560, flexGrow: 1 }}
+                    <TextField
+                      select
+                      label="Assessment"
+                      value={assessmentId ?? ""}
+                      onChange={(event) => setAssessmentId(event.target.value)}
+                      size="small"
+                      sx={{ maxWidth: 560, flexGrow: 1 }}
+                      disabled={view === "guest"}
+                    >
+                      {filteredAssessments.map((assessment) => (
+                        <MenuItem key={assessment.assessmentId} value={assessment.assessmentId}>
+                          {assessment.title} • {formatDate(assessment.createdAtUtc)}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </>
+                ) : null}
+
+                <Tabs
+                  value={view}
+                  onChange={(_, nextView: ExamTakersView) => setView(nextView)}
+                  aria-label="Exam taker view"
+                  sx={{ ml: { md: "auto" } }}
                 >
-                  {filteredAssessments.map((assessment) => (
-                    <MenuItem key={assessment.assessmentId} value={assessment.assessmentId}>
-                      {assessment.title} • {formatDate(assessment.createdAtUtc)}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  <Tab label="Assigned" value="assigned" sx={{ cursor: "pointer" }} />
+                  <Tab label="Guest" value="guest" sx={{ cursor: "pointer" }} />
+                </Tabs>
               </Stack>
 
-              {selectedAssessment ? (
+              {view === "assigned" && selectedAssessment ? (
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip size="small" label={`Assigned by ${assignedByLabel(selectedAssessment)}`} variant="outlined" />
                   {selectedAssessment.departments.map((department) => (
@@ -260,14 +295,18 @@ export function ExamTakersPage() {
             </Stack>
           </Card>
 
-          {examTakersQuery.isLoading ? <LinearProgress /> : null}
-
-          {examTakersQuery.isError ? (
-            <Alert severity="error">Could not load exam taker progress for this assessment.</Alert>
-          ) : null}
-
-          {!examTakersQuery.isLoading && !examTakersQuery.isError ? (
+          {view === "guest" ? (
+            <GuestAssessmentsTable assessments={guestAssessments} />
+          ) : (
             <>
+              {examTakersQuery.isLoading ? <LinearProgress /> : null}
+
+              {examTakersQuery.isError ? (
+                <Alert severity="error">Could not load exam taker progress for this assessment.</Alert>
+              ) : null}
+
+              {!examTakersQuery.isLoading && !examTakersQuery.isError ? (
+                <>
               <Box
                 sx={{
                   display: "grid",
@@ -376,8 +415,10 @@ export function ExamTakersPage() {
                   </Table>
                 </TableContainer>
               </Card>
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
         </Stack>
       ) : null}
 
@@ -433,6 +474,70 @@ export function ExamTakersPage() {
       </Dialog>
     </Box>
   );
+}
+
+function GuestAssessmentsTable({ assessments }: { assessments: AssessmentSummaryDto[] }) {
+  if (assessments.length === 0) {
+    return (
+      <Card sx={{ p: 4 }}>
+        <EmptyState
+          icon={<GroupOutlinedIcon sx={{ fontSize: 36 }} />}
+          title="No guest access yet"
+          description="People who open the direct assessment link will appear here."
+        />
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <TableContainer>
+        <Table sx={{ minWidth: 900 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Guest email</TableCell>
+              <TableCell>Accessed</TableCell>
+              <TableCell>Submitted</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Progress</TableCell>
+              <TableCell align="right">Score</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {assessments.map((assessment) => (
+              <TableRow key={assessment.assessmentId} hover>
+                <TableCell>
+                  <Typography variant="body2" fontWeight={700}>
+                    {assessment.participantEmail?.trim() || "Not submitted"}
+                  </Typography>
+                </TableCell>
+                <TableCell>{formatDate(assessment.createdAtUtc)}</TableCell>
+                <TableCell>{formatDate(assessment.submittedAtUtc)}</TableCell>
+                <TableCell><GuestAssessmentStatus status={assessment.status} /></TableCell>
+                <TableCell>
+                  {assessment.answeredCount}/{assessment.questionCount} ({Math.round(assessment.completionPercentage)}%)
+                </TableCell>
+                <TableCell align="right">
+                  {assessment.overallScore == null ? "-" : `${Math.round(assessment.overallScore)}%`}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Card>
+  );
+}
+
+function GuestAssessmentStatus({ status }: { status: number }) {
+  const label = assessmentStatusLabel[status] ?? "Unknown";
+  const color = status === AssessmentStatus.Scored
+    ? "success"
+    : status >= AssessmentStatus.Submitted
+      ? "info"
+      : "warning";
+
+  return <Chip size="small" label={label} color={color} />;
 }
 
 function StatusMetric({

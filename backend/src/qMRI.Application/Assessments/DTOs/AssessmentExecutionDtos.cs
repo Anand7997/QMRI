@@ -18,6 +18,12 @@ public sealed class UpdateAssessmentRequest
     public string? Title { get; set; }
     public string? Description { get; set; }
 }
+
+public sealed class SubmitAssessmentRequest
+{
+    public string? Email { get; set; }
+}
+
 public sealed class AssessmentSummaryDto
 {
     public Guid AssessmentId { get; set; }
@@ -28,6 +34,7 @@ public sealed class AssessmentSummaryDto
     public Guid? ScoringModelId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? ParticipantEmail { get; set; }
     public IReadOnlyCollection<string> Departments { get; set; } = Array.Empty<string>();
     public IReadOnlyCollection<Guid> QuestionIds { get; set; } = Array.Empty<Guid>();
     public AssessmentStatus Status { get; set; }

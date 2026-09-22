@@ -164,6 +164,7 @@ export interface AssessmentSummaryDto {
   scoringModelId?: string | null;
   title: string;
   description?: string | null;
+  participantEmail?: string | null;
   departments: string[];
   questionIds: string[];
   status: number;
@@ -298,6 +299,10 @@ export interface UpsertAssessmentResponseRequest {
   questionId: string;
   answer: number;
   findings?: string | null;
+}
+
+export interface SubmitAssessmentRequest {
+  email?: string;
 }
 
 

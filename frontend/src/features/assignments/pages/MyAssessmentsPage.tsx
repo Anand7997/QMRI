@@ -47,10 +47,12 @@ import {
 } from "shared/api/dashboardGovernance";
 import {
   ASSESSMENT_LINK_NAVIGATION_SOURCE,
+  isFocusedAssessmentNavigationState,
+  isPublicAssessmentNavigationState,
   isAssessmentLinkNavigationState,
   type AssessmentNavigationState,
 } from "shared/constants/assessmentNavigation";
-import { portalAgentAnalysisPath } from "shared/constants/routePaths";
+import { portalAgentAnalysisPath, RoutePaths } from "shared/constants/routePaths";
 import { isAssessmentExpired, resolveDueDate } from "features/dashboard/governance/dashboardGovernanceState";
 
 const OPTIONS = [AnswerOption.No, AnswerOption.Partial, AnswerOption.Yes];
@@ -79,6 +81,8 @@ export function MyAssessmentsPage() {
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [optimisticAnswers, setOptimisticAnswers] = useState<Record<string, number>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [participantEmail, setParticipantEmail] = useState("");
+  const [participantEmailTouched, setParticipantEmailTouched] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [completedAssessmentIds, setCompletedAssessmentIds] = useState<Set<string>>(() => new Set());
   const [submittedPrompt, setSubmittedPrompt] = useState<SubmittedAssessmentPrompt | null>(null);
@@ -91,7 +95,12 @@ export function MyAssessmentsPage() {
   const navigationState = location.state as AssessmentNavigationState;
   const navigationAssessmentId = navigationState?.assessmentId;
   const shouldResumeNavigation = navigationState?.resume === true;
-  const isAssessmentLinkNavigation = isAssessmentLinkNavigationState(location.state);
+  const isAssessmentLinkNavigation = isFocusedAssessmentNavigationState(location.state);
+  const isPublicAssessment = isPublicAssessmentNavigationState(location.state);
+  const isParticipantEmailValid = isValidEmail(participantEmail.trim());
+  const participantEmailError = participantEmailTouched && !isParticipantEmailValid
+    ? participantEmail.trim() ? "Please enter a valid email address." : "Email address is required."
+    : undefined;
   const assessments = useMemo(
     () =>
       (assessmentsQuery.data ?? []).filter(
@@ -468,12 +477,20 @@ export function MyAssessmentsPage() {
         if (!submittedPrompt) return;
         const targetAssessmentId = submittedPrompt.assessmentId;
         setSubmittedPrompt(null);
+        if (isPublicAssessmentNavigationState(location.state)) {
+          navigate(RoutePaths.portalReports, {
+            state: { assessmentId: targetAssessmentId, resume: true, source: "public" },
+          });
+          return;
+        }
+
         navigate(portalAgentAnalysisPath(targetAssessmentId), {
           state: isAssessmentLinkNavigationState(location.state)
             ? { resume: true, source: ASSESSMENT_LINK_NAVIGATION_SOURCE }
             : undefined,
         });
       }}
+      actionLabel={isPublicAssessmentNavigationState(location.state) ? "View your report" : undefined}
     />
   );
 
@@ -878,6 +895,23 @@ export function MyAssessmentsPage() {
               </Card>
             </Stack>
             <LinearProgress variant="determinate" value={percent} sx={{ height: 8, borderRadius: 999 }} />
+            {isPublicAssessment && (
+              <TextField
+                fullWidth
+                required
+                label="Email address"
+                type="email"
+                autoComplete="email"
+                value={participantEmail}
+                onChange={(event) => {
+                  setParticipantEmail(event.target.value);
+                  setParticipantEmailTouched(true);
+                }}
+                error={Boolean(participantEmailError)}
+                helperText={participantEmailError ?? "Your assessment report will be sent to this address."}
+                inputProps={{ inputMode: "email" }}
+              />
+            )}
             {!canSubmitAssessment && (
               <Alert severity="info">Complete at least {MIN_SUBMIT_COMPLETION_PERCENT}% of the assessment to submit.</Alert>
             )}
@@ -887,9 +921,14 @@ export function MyAssessmentsPage() {
           <Button onClick={() => setReviewOpen(false)}>Go back</Button>
           <Button
             variant="contained"
-            disabled={submit.isPending || !canSubmitAssessment}
+            disabled={submit.isPending || !canSubmitAssessment || (isPublicAssessment && !isParticipantEmailValid)}
             onClick={() => {
-              submit.mutate(undefined, {
+              if (isPublicAssessment && !isParticipantEmailValid) {
+                setParticipantEmailTouched(true);
+                return;
+              }
+
+              submit.mutate(isPublicAssessment ? { email: participantEmail.trim() } : undefined, {
                 onSuccess: (submittedDetail) => {
                   const submittedAssessmentId = submittedDetail.summary.assessmentId;
                   setSubmittedPrompt({
@@ -929,10 +968,12 @@ function AssessmentResultDialog({
   prompt,
   onClose,
   onAnalyze,
+  actionLabel,
 }: {
   prompt: SubmittedAssessmentPrompt | null;
   onClose: () => void;
   onAnalyze: () => void;
+  actionLabel?: string;
 }) {
   const scoreLabel = typeof prompt?.score === "number" ? `${Math.round(prompt.score)}%` : "Ready";
 
@@ -970,11 +1011,15 @@ function AssessmentResultDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button variant="contained" onClick={onAnalyze} fullWidth>
-          Analyse your responses by QAScan Agent
+          {actionLabel ?? "Analyse your responses by QAScan Agent"}
         </Button>
       </DialogActions>
     </Dialog>
   );
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 interface AssessmentDetailViewProps {

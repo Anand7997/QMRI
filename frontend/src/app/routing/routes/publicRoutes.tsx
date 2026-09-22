@@ -2,8 +2,8 @@ import type { RouteObject } from "react-router-dom";
 import { AuthLayout } from "layouts/AuthLayout";
 import { LandingPage } from "features/landing/pages/LandingPage";
 import { LoginPage } from "features/auth/pages/LoginPage";
-import { ClientAccessRequestPage } from "features/auth/pages/ClientAccessRequestPage";
 import { IdentityLinkLoginPage } from "features/auth/pages/IdentityLinkLoginPage";
+import { PublicAssessmentPage } from "features/assessments/pages/PublicAssessmentPage";
 import { NotFoundPage } from "pages/NotFoundPage";
 import { UnauthorizedPage } from "pages/UnauthorizedPage";
 import { RoutePaths } from "shared/constants/routePaths";
@@ -20,9 +20,12 @@ export const publicRoutes: RouteObject[] = [
       { path: RoutePaths.signup, element: <LoginPage /> },
       { path: RoutePaths.adminLogin, element: <LoginPage /> },
       { path: RoutePaths.adminSignup, element: <LoginPage /> },
-      { path: RoutePaths.clientAccessRequest, element: <ClientAccessRequestPage /> },
       { path: RoutePaths.identityLink, element: <IdentityLinkLoginPage /> },
     ],
+  },
+  {
+    path: RoutePaths.publicAssessment,
+    element: <PublicAssessmentPage />,
   },
   {
     path: RoutePaths.unauthorized,

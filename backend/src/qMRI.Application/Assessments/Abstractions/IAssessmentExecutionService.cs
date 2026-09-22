@@ -8,6 +8,10 @@ public interface IAssessmentExecutionService
         CreateAssessmentRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<AssessmentSummaryDto> CreatePublicAssessmentAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<AssessmentSummaryDto>> GetAssessmentsAsync(
         Guid? userId = null,
         CancellationToken cancellationToken = default);
@@ -37,5 +41,8 @@ public interface IAssessmentExecutionService
         UpsertAssessmentResponseRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<AssessmentDetailDto?> SubmitAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default);
+    Task<AssessmentDetailDto?> SubmitAssessmentAsync(
+        Guid assessmentId,
+        string? participantEmail = null,
+        CancellationToken cancellationToken = default);
 }

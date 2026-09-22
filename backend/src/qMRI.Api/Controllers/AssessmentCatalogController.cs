@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using qMRI.Application.Assessments.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using qMRI.Application.Assessments.DTOs;
 
 namespace qMRI.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/v1/assessment-catalog")]
 public sealed class AssessmentCatalogController(IAssessmentCatalogService catalogService) : ControllerBase
 {

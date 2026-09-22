@@ -24,17 +24,16 @@ export interface LoginResponse {
   user: AuthUser;
 }
 
+export interface PublicAssessmentSessionResponse extends LoginResponse {
+  assessment: { assessmentId: string };
+}
+
 export interface RegisterRequest {
   fullName: string;
   userName: string;
   email: string;
   password: string;
   requestedRole: "USER" | "ADMIN";
-}
-
-export interface ClientAccessRequest {
-  fullName: string;
-  email: string;
 }
 
 export interface RegisterResponse {
@@ -52,6 +51,11 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
   return data;
 }
 
+export async function createPublicAssessmentSession(): Promise<PublicAssessmentSessionResponse> {
+  const { data } = await axiosClient.post<PublicAssessmentSessionResponse>("/auth/public-session");
+  return data;
+}
+
 export async function loginWithIdentityAccess(request: IdentityAccessLoginRequest): Promise<LoginResponse> {
   const { data } = await axiosClient.post<LoginResponse>("/auth/identity-access/login", request);
   return data;
@@ -63,10 +67,5 @@ export async function loginWithIdentityLink(request: IdentityLinkLoginRequest): 
 }
 export async function register(request: RegisterRequest): Promise<RegisterResponse> {
   const { data } = await axiosClient.post<RegisterResponse>("/auth/register", request);
-  return data;
-}
-
-export async function requestClientAccess(request: ClientAccessRequest): Promise<RegisterResponse> {
-  const { data } = await axiosClient.post<RegisterResponse>("/auth/client-access/request", request);
   return data;
 }

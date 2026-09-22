@@ -134,7 +134,10 @@ public sealed class AssessmentsController(
     }
 
     [HttpPost("{assessmentId:guid}/submit")]
-    public async Task<IActionResult> SubmitAssessment(Guid assessmentId, CancellationToken cancellationToken)
+    public async Task<IActionResult> SubmitAssessment(
+        Guid assessmentId,
+        [FromBody] SubmitAssessmentRequest? request,
+        CancellationToken cancellationToken)
     {
         var accessResult = await EnsureAssessmentAccessAsync(assessmentId, cancellationToken);
         if (accessResult is not null)
@@ -142,7 +145,24 @@ public sealed class AssessmentsController(
             return accessResult;
         }
 
-        var assessment = await assessmentService.SubmitAssessmentAsync(assessmentId, cancellationToken);
+        var publicParticipant = IsPublicAssessmentSession();
+        var participantEmail = request?.Email?.Trim();
+        if (publicParticipant && string.IsNullOrWhiteSpace(participantEmail))
+        {
+            return BadRequest(new { message = "Email address is required to submit the public assessment." });
+        }
+
+        if (publicParticipant && participantEmail is not null && !IsValidEmail(participantEmail))
+        {
+            return BadRequest(new { message = "Please enter a valid email address." });
+        }
+
+        if (!publicParticipant && !string.IsNullOrWhiteSpace(participantEmail))
+        {
+            return BadRequest(new { message = "Email address can only be supplied for the public assessment." });
+        }
+
+        var assessment = await assessmentService.SubmitAssessmentAsync(assessmentId, participantEmail, cancellationToken);
         return assessment is null ? NotFound() : Ok(assessment);
     }
 
@@ -235,16 +255,16 @@ public sealed class AssessmentsController(
             return BadRequest(new { message = "The report attachment must be a PDF." });
         }
 
-        var recipientEmail = User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrWhiteSpace(recipientEmail))
-        {
-            return BadRequest(new { message = "Your signed-in account does not have an email address." });
-        }
-
         var assessment = await assessmentService.GetAssessmentAsync(assessmentId, cancellationToken);
         if (assessment is null)
         {
             return NotFound();
+        }
+
+        var recipientEmail = assessment.Summary.ParticipantEmail ?? User.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrWhiteSpace(recipientEmail) || recipientEmail.EndsWith("@qascan.invalid", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Please submit an email address before sending the report." });
         }
 
         await using var stream = new MemoryStream();
@@ -313,5 +333,23 @@ public sealed class AssessmentsController(
     {
         var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(claimValue, out var userId) ? userId : null;
+    }
+
+    private bool IsPublicAssessmentSession()
+    {
+        var email = User.FindFirstValue(ClaimTypes.Email);
+        return User.IsInRole("GUEST")
+            && email?.EndsWith("@qascan.invalid", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsValidEmail(string value)
+    {
+        var atIndex = value.IndexOf('@');
+        return value.Length <= 256
+            && atIndex > 0
+            && atIndex < value.Length - 3
+            && value.IndexOf('@', atIndex + 1) < 0
+            && value[(atIndex + 1)..].Contains('.', StringComparison.Ordinal)
+            && !value.Any(char.IsWhiteSpace);
     }
 }

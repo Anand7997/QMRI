@@ -41,6 +41,8 @@ import SelectAllOutlinedIcon from "@mui/icons-material/SelectAllOutlined";
 import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
 import { EmptyState, FormDrawer, KpiTile, PageHeader, TableSkeleton } from "shared/components";
+import { AssessmentStatus, assessmentStatusLabel, type AssessmentSummaryDto } from "shared/api/types";
+import { useAssessments } from "shared/api/assessments";
 import {
   useApproveUser,
   useApproveUserWithIdentityLink,
@@ -57,9 +59,8 @@ import {
   type UserAccessRequest,
   type UserStatusFilter,
 } from "shared/api/users";
-import { RoutePaths } from "shared/constants/routePaths";
 
-type FilterTab = UserStatusFilter;
+type FilterTab = UserStatusFilter | "guest";
 type IdentityDurationUnit = "hours" | "days";
 type IdentityGenerationMode = "tokens" | "link";
 type Feedback = { severity: "error" | "info" | "success"; message: string };
@@ -68,6 +69,7 @@ const filterTabs: { label: string; value: FilterTab }[] = [
   { label: "Pending", value: "Pending" },
   { label: "Approved", value: "Approved" },
   { label: "All", value: "all" },
+  { label: "Guest", value: "guest" },
 ];
 
 const defaultApprovalRole: ApprovalRoleCode = "USER";
@@ -109,12 +111,13 @@ export function AuthenticationDashboardPage() {
   const [identityLinkFeedback, setIdentityLinkFeedback] = useState<Feedback | null>(null);
   const [createdIdentityLink, setCreatedIdentityLink] = useState<CreateIdentityLinkResponse | null>(null);
   const [identityLinkCopiedOpen, setIdentityLinkCopiedOpen] = useState(false);
-  const [clientRequestLinkFeedback, setClientRequestLinkFeedback] = useState<Feedback | null>(null);
   const [approvalLinkFeedback, setApprovalLinkFeedback] = useState<Feedback | null>(null);
   const [approvedClientLinks, setApprovedClientLinks] = useState<CreateIdentityLinkResponse[]>([]);
   const [sendingLinkEmailUserId, setSendingLinkEmailUserId] = useState<string | null>(null);
 
   const { data: users = [], isLoading, isError } = useUsers("all");
+  const isGuestFilter = filter === "guest";
+  const guestAssessmentsQuery = useAssessments(undefined, isGuestFilter);
   const approveUser = useApproveUser();
   const approveUserWithIdentityLink = useApproveUserWithIdentityLink();
   const createIdentityAccess = useCreateIdentityAccess();
@@ -123,11 +126,22 @@ export function AuthenticationDashboardPage() {
   const updateUserAccess = useUpdateUserAccess();
   const deactivateUser = useDeactivateUser();
 
-  const clientRequestLink = useMemo(() => `${window.location.origin}${RoutePaths.clientAccessRequest}`, []);
-
   const filteredUsers = useMemo(() => {
+    if (isGuestFilter) {
+      return [];
+    }
+
     return filter === "all" ? users : users.filter((user) => user.approvalStatus === filter);
-  }, [filter, users]);
+  }, [filter, isGuestFilter, users]);
+
+  const guestAssessments = useMemo(
+    () => (guestAssessmentsQuery.data ?? [])
+      .filter((assessment) =>
+        assessment.departments.some((department) => department.toLowerCase() === guestApprovalCategory.toLowerCase())
+      )
+      .sort((left, right) => Date.parse(right.createdAtUtc) - Date.parse(left.createdAtUtc)),
+    [guestAssessmentsQuery.data],
+  );
 
   const pendingFilteredUsers = filteredUsers.filter((user) => user.approvalStatus === "Pending");
   const pendingFilteredIds = pendingFilteredUsers.map((user) => user.userId);
@@ -504,15 +518,6 @@ export function AuthenticationDashboardPage() {
     }
   }
 
-  async function copyClientRequestLink() {
-    const copied = await copyTextToClipboard(clientRequestLink);
-    setClientRequestLinkFeedback(
-      copied
-        ? { severity: "success", message: "Client request link copied to the clipboard." }
-        : { severity: "error", message: "Unable to confirm clipboard copy. Select the link and copy it manually." },
-    );
-  }
-
   async function copyApprovedClientLink(link: string) {
     const copied = await copyTextToClipboard(link);
     setApprovalLinkFeedback(
@@ -586,9 +591,6 @@ export function AuthenticationDashboardPage() {
         subtitle="Approve signup requests before users can access their dashboards."
         actions={(
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
-            <Button variant="outlined" startIcon={<EmailOutlinedIcon />} onClick={copyClientRequestLink} sx={{ whiteSpace: "nowrap" }}>
-              Copy client request link
-            </Button>
             <Button variant="contained" startIcon={<VpnKeyOutlinedIcon />} onClick={openIdentityDrawer} sx={{ whiteSpace: "nowrap" }}>
               Identity Access
             </Button>
@@ -602,24 +604,6 @@ export function AuthenticationDashboardPage() {
         <KpiTile label="Active users" value={activeUserCount} icon={<GroupOutlinedIcon />} />
         <KpiTile label="Admin requests" value={adminRequestCount} icon={<AdminPanelSettingsOutlinedIcon />} />
       </Box>
-
-      <Card sx={{ p: 2.5, mb: 2 }}>
-        <Stack spacing={1.5}>
-          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5}>
-            <Box>
-              <Typography variant="h3">Client request link</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Send this link first. Client emails submitted there appear below as Pending requests.
-              </Typography>
-            </Box>
-            <Button variant="outlined" startIcon={<ContentCopyOutlinedIcon />} onClick={copyClientRequestLink} sx={{ alignSelf: { xs: "stretch", md: "center" } }}>
-              Copy link
-            </Button>
-          </Stack>
-          {clientRequestLinkFeedback ? <Alert severity={clientRequestLinkFeedback.severity}>{clientRequestLinkFeedback.message}</Alert> : null}
-          <TextField label="Request link" value={clientRequestLink} fullWidth multiline minRows={2} InputProps={{ readOnly: true }} />
-        </Stack>
-      </Card>
 
       {approvedClientLinks.length > 0 ? (
         <Card sx={{ p: 2.5, mb: 2 }}>
@@ -694,39 +678,49 @@ export function AuthenticationDashboardPage() {
         >
           <Box>
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="h3">Access approval queue</Typography>
-              <Chip size="small" label={`${pendingCount} pending`} color={pendingCount ? "warning" : "success"} />
+              <Typography variant="h3">{isGuestFilter ? "Guest assessment submissions" : "Access approval queue"}</Typography>
+              <Chip
+                size="small"
+                label={isGuestFilter ? `${guestAssessments.length} accessed` : `${pendingCount} pending`}
+                color={isGuestFilter ? "info" : pendingCount ? "warning" : "success"}
+              />
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Select each user role and category before approving access.
+              {isGuestFilter
+                ? "Visitors who open the direct assessment link appear here without an approval request."
+                : "Select each user role and category before approving access."}
             </Typography>
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "stretch", sm: "center" }}>
-            <Button
-              variant="outlined"
-              startIcon={<SelectAllOutlinedIcon />}
-              disabled={filteredIds.length === 0 || approvalPending || updateUserAccess.isPending || deactivateUser.isPending}
-              onClick={handleToggleAllFiltered}
-            >
-              Select all
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={approvingUserId === "bulk" ? <CircularProgress size={16} color="inherit" /> : <DoneAllOutlinedIcon />}
-              disabled={selectedPendingIds.length === 0 || approvalPending}
-              onClick={handleApproveAll}
-            >
-              Approve all ({selectedPendingIds.length})
-            </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteOutlineIcon />}
-              disabled={selectedVisibleIds.length === 0 || deactivateUser.isPending}
-              onClick={() => handleDeactivateUsers(selectedVisibleIds)}
-            >
-              Delete ({selectedVisibleIds.length})
-            </Button>
+            {!isGuestFilter ? (
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<SelectAllOutlinedIcon />}
+                  disabled={filteredIds.length === 0 || approvalPending || updateUserAccess.isPending || deactivateUser.isPending}
+                  onClick={handleToggleAllFiltered}
+                >
+                  Select all
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={approvingUserId === "bulk" ? <CircularProgress size={16} color="inherit" /> : <DoneAllOutlinedIcon />}
+                  disabled={selectedPendingIds.length === 0 || approvalPending}
+                  onClick={handleApproveAll}
+                >
+                  Approve all ({selectedPendingIds.length})
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteOutlineIcon />}
+                  disabled={selectedVisibleIds.length === 0 || deactivateUser.isPending}
+                  onClick={() => handleDeactivateUsers(selectedVisibleIds)}
+                >
+                  Delete ({selectedVisibleIds.length})
+                </Button>
+              </>
+            ) : null}
             <Tabs value={filter} onChange={(_, value: FilterTab) => setFilter(value)}>
               {filterTabs.map((tab) => (
                 <Tab key={tab.value} label={tab.label} value={tab.value} sx={{ cursor: "pointer" }} />
@@ -738,9 +732,24 @@ export function AuthenticationDashboardPage() {
         {approveUser.isError || approveUserWithIdentityLink.isError || updateUserAccess.isError || deactivateUser.isError ? (
           <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to save one or more account changes.</Alert>
         ) : null}
-        {isError ? <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to load authentication requests.</Alert> : null}
+        {isGuestFilter && guestAssessmentsQuery.isError ? (
+          <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to load guest assessment submissions.</Alert>
+        ) : null}
+        {!isGuestFilter && isError ? <Alert severity="error" sx={{ mx: 2.5, mt: 2 }}>Unable to load authentication requests.</Alert> : null}
 
-        {isLoading ? (
+        {isGuestFilter ? (
+          guestAssessmentsQuery.isLoading ? (
+            <TableSkeleton rows={6} cols={5} />
+          ) : guestAssessments.length === 0 ? (
+            <EmptyState
+              icon={<GroupOutlinedIcon sx={{ fontSize: 40 }} />}
+              title="No guest access yet"
+              description="Visitors who open the direct assessment link will appear here immediately."
+            />
+          ) : (
+            <GuestAssessmentTable assessments={guestAssessments} />
+          )
+        ) : isLoading ? (
           <TableSkeleton rows={6} cols={9} />
         ) : filteredUsers.length === 0 ? (
           <EmptyState
@@ -1123,6 +1132,52 @@ export function AuthenticationDashboardPage() {
       </FormDrawer>
     </Box>
   );
+}
+
+function GuestAssessmentTable({ assessments }: { assessments: AssessmentSummaryDto[] }) {
+  return (
+    <Box sx={{ width: "100%", overflowX: "auto" }}>
+      <Table sx={{ minWidth: 760 }}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Guest email</TableCell>
+            <TableCell>Accessed</TableCell>
+            <TableCell>Submitted</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell align="right">Score</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {assessments.map((assessment) => (
+            <TableRow key={assessment.assessmentId} hover>
+              <TableCell>
+                <Typography variant="body1" fontWeight={700} noWrap>
+                  {assessment.participantEmail?.trim() || "Not submitted"}
+                </Typography>
+              </TableCell>
+              <TableCell>{formatDateTime(assessment.createdAtUtc)}</TableCell>
+              <TableCell>{assessment.submittedAtUtc ? formatDateTime(assessment.submittedAtUtc) : "--"}</TableCell>
+              <TableCell><GuestAssessmentStatus status={assessment.status} /></TableCell>
+              <TableCell align="right">
+                {assessment.overallScore == null ? "--" : `${Math.round(assessment.overallScore)}%`}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Box>
+  );
+}
+
+function GuestAssessmentStatus({ status }: { status: number }) {
+  const label = assessmentStatusLabel[status] ?? "Unknown";
+  const color = status === AssessmentStatus.Scored
+    ? "success"
+    : status >= AssessmentStatus.Submitted
+      ? "info"
+      : "warning";
+
+  return <Chip size="small" label={label} color={color} />;
 }
 
 function RoleChip({ role }: { role: string }) {

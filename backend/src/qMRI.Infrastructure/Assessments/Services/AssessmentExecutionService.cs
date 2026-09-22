@@ -134,6 +134,91 @@ public sealed class AssessmentExecutionService(
         return MapSummary(assessments[0], questionCount, assignedByMetadata);
     }
 
+    public async Task<AssessmentSummaryDto> CreatePublicAssessmentAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await dbContext.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.UserId == userId, cancellationToken);
+
+        if (user is null || !user.IsActive)
+        {
+            throw new InvalidOperationException("The public assessment participant could not be created.");
+        }
+
+        var questionIds = await dbContext.Questions
+            .Where(question =>
+                question.IsActive
+                && question.SubModule != null
+                && question.SubModule.IsActive
+                && question.SubModule.Code == ExpectedAnswerScoredSubModuleCode
+                && question.SubModule.Module != null
+                && question.SubModule.Module.IsActive
+                && question.SubModule.Module.Category != null
+                && question.SubModule.Module.Category.IsActive)
+            .OrderBy(question => question.SubModule!.Module!.Category!.SortOrder)
+            .ThenBy(question => question.SubModule!.Module!.SortOrder)
+            .ThenBy(question => question.SubModule!.SortOrder)
+            .ThenBy(question => question.SortOrder)
+            .Select(question => question.QuestionId)
+            .ToArrayAsync(cancellationToken);
+
+        if (questionIds.Length == 0)
+        {
+            questionIds = await dbContext.Questions
+                .Where(question =>
+                    question.IsActive
+                    && question.SubModule != null
+                    && question.SubModule.IsActive
+                    && question.SubModule.Module != null
+                    && question.SubModule.Module.IsActive
+                    && question.SubModule.Module.Category != null
+                    && question.SubModule.Module.Category.IsActive)
+                .OrderBy(question => question.SubModule!.Module!.Category!.SortOrder)
+                .ThenBy(question => question.SubModule!.Module!.SortOrder)
+                .ThenBy(question => question.SubModule!.SortOrder)
+                .ThenBy(question => question.SortOrder)
+                .Select(question => question.QuestionId)
+                .ToArrayAsync(cancellationToken);
+        }
+
+        if (questionIds.Length == 0)
+        {
+            throw new InvalidOperationException("No active assessment questions are configured.");
+        }
+
+        var scoringModel = await scoringConfigurationService.EnsureDefaultScoringModelAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        var assessment = new Assessment
+        {
+            AssessmentId = Guid.NewGuid(),
+            UserId = userId,
+            ScoringModelId = scoringModel.ScoringModelId,
+            Title = "QAScan Assessment",
+            Description = "Complete this assessment to receive your QAScan report.",
+            Departments = SerializeStringList(["Guest"]),
+            SelectedQuestionIds = SerializeGuidList(questionIds),
+            Status = AssessmentStatus.Draft,
+            CreatedAtUtc = now
+        };
+
+        dbContext.Assessments.Add(assessment);
+        dbContext.UserRecords.Add(new UserRecord
+        {
+            UserRecordId = Guid.NewGuid(),
+            AssessmentId = assessment.AssessmentId,
+            UserId = userId,
+            UserName = user.UserName,
+            FullName = user.FullName,
+            CreatedAtUtc = now,
+            RecordDateUtc = now.Date
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapSummary(assessment, questionIds.Length);
+    }
+
     private async Task<User[]> ResolveAssigneesAsync(
         CreateAssessmentRequest request,
         IReadOnlyCollection<string> selectedDepartments,
@@ -499,7 +584,10 @@ public sealed class AssessmentExecutionService(
         return MapResponse(response);
     }
 
-    public async Task<AssessmentDetailDto?> SubmitAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default)
+    public async Task<AssessmentDetailDto?> SubmitAssessmentAsync(
+        Guid assessmentId,
+        string? participantEmail = null,
+        CancellationToken cancellationToken = default)
     {
         var assessment = await dbContext.Assessments
             .SingleOrDefaultAsync(entity => entity.AssessmentId == assessmentId, cancellationToken);
@@ -512,6 +600,17 @@ public sealed class AssessmentExecutionService(
         if (assessment.Status == AssessmentStatus.Archived)
         {
             throw new InvalidOperationException("Archived assessments cannot be submitted.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(participantEmail))
+        {
+            var normalizedEmail = participantEmail.Trim();
+            if (!IsValidEmail(normalizedEmail))
+            {
+                throw new ArgumentException("Please enter a valid email address.", nameof(participantEmail));
+            }
+
+            assessment.ParticipantEmail = normalizedEmail;
         }
 
         var now = DateTime.UtcNow;
@@ -999,6 +1098,17 @@ public sealed class AssessmentExecutionService(
 
     private static string NormalizeDepartment(string? department) => department?.Trim() ?? string.Empty;
 
+    private static bool IsValidEmail(string value)
+    {
+        var atIndex = value.IndexOf('@');
+        return value.Length <= 256
+            && atIndex > 0
+            && atIndex < value.Length - 3
+            && value.IndexOf('@', atIndex + 1) < 0
+            && value[(atIndex + 1)..].Contains('.', StringComparison.Ordinal)
+            && !value.Any(char.IsWhiteSpace);
+    }
+
     private static string ResolveExamTakerStatus(AssessmentStatus status)
     {
         return status switch
@@ -1050,6 +1160,7 @@ public sealed class AssessmentExecutionService(
             ScoringModelId = assessment.ScoringModelId,
             Title = assessment.Title,
             Description = assessment.Description,
+            ParticipantEmail = assessment.ParticipantEmail,
             Departments = GetDepartments(assessment),
             QuestionIds = selectedQuestionIds.ToArray(),
             Status = assessment.Status,

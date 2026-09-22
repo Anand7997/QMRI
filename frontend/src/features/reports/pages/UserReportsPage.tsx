@@ -28,7 +28,8 @@ import { AssessmentStatus } from "shared/api/types";
 import { brandTokens, dataTokens, neutralTokens, semanticTokens } from "app/theme/tokens/palette";
 import { MotionReveal } from "features/dashboard/components/dashboardMotion";
 import { useAuthContext } from "contexts/AuthContext";
-import { portalAgentAnalysisPath } from "shared/constants/routePaths";
+import { isAssessmentLinkNavigationState, isFocusedAssessmentNavigationState } from "shared/constants/assessmentNavigation";
+import { portalAgentAnalysisPath, RoutePaths } from "shared/constants/routePaths";
 import { ReportDetailPage } from "../components/ReportDetailPage";
 import { formatDate, resolveDate, stageForScore, stageLabelForAverage, type StageInfo } from "../components/reportAnalytics";
 
@@ -56,7 +57,7 @@ export function UserReportsPage() {
   const routeState = location.state as ReportRouteState | null;
   const routeAssessmentId = routeState?.assessmentId;
   const routeFocus = routeState?.focus;
-  const shouldPreserveRouteState = routeState?.resume === true && routeState?.source === "identity-link";
+  const shouldPreserveRouteState = isFocusedAssessmentNavigationState(location.state);
   const detailQuery = useAssessment(selectedId);
 
   const summary = useMemo(() => {
@@ -95,8 +96,15 @@ export function UserReportsPage() {
         focusSteps={focusSteps}
         isIdentityLinkSession={shouldPreserveRouteState}
         onBack={() => {
-          navigate(portalAgentAnalysisPath(selectedSummary.assessmentId), {
-            state: shouldPreserveRouteState ? { resume: true, source: routeState?.source } : undefined,
+          if (isAssessmentLinkNavigationState(location.state)) {
+            navigate(portalAgentAnalysisPath(selectedSummary.assessmentId), {
+              state: { resume: true, source: routeState?.source },
+            });
+            return;
+          }
+
+          navigate(RoutePaths.portalAssessments, {
+            state: { assessmentId: selectedSummary.assessmentId, resume: true, source: "public" },
           });
         }}
       />

@@ -23,6 +23,9 @@ public sealed class AssessmentConfiguration : IEntityTypeConfiguration<Assessmen
         builder.Property(entity => entity.Description)
             .HasMaxLength(1000);
 
+        builder.Property(entity => entity.ParticipantEmail)
+            .HasMaxLength(256);
+
         builder.Property(entity => entity.Departments)
             .HasMaxLength(512);
 
