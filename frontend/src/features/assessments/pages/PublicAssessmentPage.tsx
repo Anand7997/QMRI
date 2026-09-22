@@ -7,11 +7,9 @@ import { PUBLIC_ASSESSMENT_NAVIGATION_SOURCE } from "shared/constants/assessment
 import { RoutePaths } from "shared/constants/routePaths";
 import { brandTokens } from "app/theme/tokens/palette";
 
-const PUBLIC_ASSESSMENT_ID_KEY = "qmri.publicAssessmentId";
-
 export function PublicAssessmentPage() {
   const navigate = useNavigate();
-  const { user, login } = useAuthContext();
+  const { login } = useAuthContext();
   const startedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,23 +17,15 @@ export function PublicAssessmentPage() {
     if (startedRef.current) return;
     startedRef.current = true;
 
-    const existingAssessmentId = sessionStorage.getItem(PUBLIC_ASSESSMENT_ID_KEY);
-    const isPublicSession = user?.roles.some((role) => role.toUpperCase() === "GUEST");
-    if (existingAssessmentId && isPublicSession) {
-      navigateToAssessment(existingAssessmentId);
-      return;
-    }
-
     void createPublicAssessmentSession()
       .then((session) => {
         login(session);
-        sessionStorage.setItem(PUBLIC_ASSESSMENT_ID_KEY, session.assessment.assessmentId);
         navigateToAssessment(session.assessment.assessmentId);
       })
       .catch(() => {
         setError("We could not start the assessment right now. Please try opening the link again.");
       });
-  }, [login, navigate, user]);
+  }, [login, navigate]);
 
   function navigateToAssessment(assessmentId: string) {
     navigate(RoutePaths.portalAssessments, {

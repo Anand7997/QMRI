@@ -15,6 +15,7 @@ public sealed class AssessmentExecutionService(
     IScoringConfigurationService scoringConfigurationService) : IAssessmentExecutionService
 {
     private const string ExpectedAnswerScoredSubModuleCode = "MANDATORY_OPERATIONAL_QUESTIONS";
+    private const int PublicAssessmentQuestionCount = 16;
     private const int AssessmentAvailabilityDays = 7;
 
     public async Task<AssessmentSummaryDto> CreateAssessmentAsync(
@@ -161,6 +162,7 @@ public sealed class AssessmentExecutionService(
             .ThenBy(question => question.SubModule!.Module!.SortOrder)
             .ThenBy(question => question.SubModule!.SortOrder)
             .ThenBy(question => question.SortOrder)
+            .Take(PublicAssessmentQuestionCount)
             .Select(question => question.QuestionId)
             .ToArrayAsync(cancellationToken);
 
@@ -179,13 +181,14 @@ public sealed class AssessmentExecutionService(
                 .ThenBy(question => question.SubModule!.Module!.SortOrder)
                 .ThenBy(question => question.SubModule!.SortOrder)
                 .ThenBy(question => question.SortOrder)
+                .Take(PublicAssessmentQuestionCount)
                 .Select(question => question.QuestionId)
                 .ToArrayAsync(cancellationToken);
         }
 
-        if (questionIds.Length == 0)
+        if (questionIds.Length != PublicAssessmentQuestionCount)
         {
-            throw new InvalidOperationException("No active assessment questions are configured.");
+            throw new InvalidOperationException($"The public assessment requires exactly {PublicAssessmentQuestionCount} active assessment questions.");
         }
 
         var scoringModel = await scoringConfigurationService.EnsureDefaultScoringModelAsync(cancellationToken);
