@@ -10,7 +10,6 @@ import {
   Chip,
   LinearProgress,
   Stack,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
@@ -21,7 +20,6 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import PriorityHighOutlinedIcon from "@mui/icons-material/PriorityHighOutlined";
 import ReplayOutlinedIcon from "@mui/icons-material/ReplayOutlined";
-import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
 import {
   Bar,
@@ -39,7 +37,6 @@ import { useAssessment, useQmriAgentAnalysis } from "shared/api/assessments";
 import {
   AssessmentStatus,
   ScoreScope,
-  type AssessmentQuestionResultDto,
   type QmriAgentAnalysisDto,
   type QmriAgentInsightDto,
 } from "shared/api/types";
@@ -157,8 +154,8 @@ export function QmriAgentAnalysisPage() {
   const responseCount = answeredResponses.length || summary.answeredCount;
   const reportAction = () => navigate(RoutePaths.portalReports, {
     state: isFocusedAssessmentSession
-      ? { assessmentId, resume: true, source: location.state.source }
-      : { assessmentId },
+      ? { assessmentId, resume: true, source: location.state.source, returnTo: "analysis" }
+      : { assessmentId, returnTo: "analysis" },
   });
   const errorMessage = !isReady
     ? "This assessment must be submitted and scored before QAScan Agent can analyse it."
@@ -219,8 +216,6 @@ export function QmriAgentAnalysisPage() {
           />
         </Box>
       )}
-
-      <ResponseTrail responses={answeredResponses} phase={phase} />
 
       <Box className="qmri-agent-controls">
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
@@ -745,42 +740,6 @@ function AnalysisTerminal({
     </Box>
   );
 }
-function ResponseTrail({ responses, phase }: { responses: AssessmentQuestionResultDto[]; phase: AnalysisPhase }) {
-  return (
-    <Box component="section" aria-labelledby="response-trail-title" className="qmri-agent-trail-section">
-      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={0.5}>
-        <Box>
-          <Typography id="response-trail-title" component="h2" variant="h3">Response trail</Typography>
-          <Typography variant="caption" color="text.secondary">
-            {phase === "complete" ? "Every answered response was included in the aggregate analysis." : "Responses stay queued until the aggregate analysis returns."}
-          </Typography>
-        </Box>
-        <Chip
-          size="small"
-          variant="outlined"
-          icon={phase === "complete" ? <CheckCircleOutlineIcon /> : phase === "error" ? <ErrorOutlineIcon /> : <ScheduleOutlinedIcon />}
-          label={phase === "complete" ? "Included" : phase === "error" ? "Request failed · responses preserved" : "Submitted"}
-        />
-      </Stack>
-
-      <Box className="qmri-agent-response-trail" role="list" aria-label={`${responses.length} submitted assessment responses`}>
-        {responses.map((response, index) => {
-          const state = phase === "complete" ? "complete" : "queued";
-          const label = `Response ${index + 1}: ${response.categoryName} · ${state}`;
-          return (
-            <Tooltip key={response.questionId} title={`${response.categoryName} · ${response.moduleName}`} arrow>
-              <Box className={`qmri-agent-response-step qmri-agent-response-step--${state}`} role="listitem" aria-label={label}>
-                {state === "complete" ? <CheckCircleOutlineIcon /> : <ScheduleOutlinedIcon />}
-                <span>{String(index + 1).padStart(2, "0")}</span>
-              </Box>
-            </Tooltip>
-          );
-        })}
-      </Box>
-    </Box>
-  );
-}
-
 function InsightSection({
   className,
   title,

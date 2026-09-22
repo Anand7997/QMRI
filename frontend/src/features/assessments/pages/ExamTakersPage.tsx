@@ -31,11 +31,12 @@ import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import { EmptyState, LoadingState, PageHeader } from "shared/components";
 import { useAssessment, useAssessments, useCreateAssessment, useExamTakers } from "shared/api/assessments";
-import { answerLabel, assessmentStatusLabel, AssessmentStatus, type AssessmentSummaryDto, type ExamTakerProgressDto, type ExamTakerProgressStatus } from "shared/api/types";
+import { answerLabel, AssessmentStatus, type AssessmentSummaryDto, type ExamTakerProgressDto, type ExamTakerProgressStatus } from "shared/api/types";
 import { collapseAssessmentsByAssignment } from "shared/domain/assessmentGrouping";
 
 const unknownAssignedByValue = "__unknown_assigned_by__";
 const PASS_SCORE = 70;
+const PUBLIC_ASSESSMENT_QUESTION_COUNT = 16;
 
 type ActionFeedback = {
   severity: "success" | "error";
@@ -60,6 +61,16 @@ function isGuestAssessment(assessment: AssessmentSummaryDto) {
   return assessment.departments.some((department) => department.trim().toLowerCase() === "guest");
 }
 
+function isGuestAssessmentNotSubmitted(assessment: AssessmentSummaryDto) {
+  return assessment.status < AssessmentStatus.Submitted
+    && assessment.questionCount === PUBLIC_ASSESSMENT_QUESTION_COUNT
+    && assessment.answeredCount === PUBLIC_ASSESSMENT_QUESTION_COUNT;
+}
+
+function shouldShowGuestAssessment(assessment: AssessmentSummaryDto) {
+  return assessment.status >= AssessmentStatus.Submitted || isGuestAssessmentNotSubmitted(assessment);
+}
+
 export function ExamTakersPage() {
   const assessmentsQuery = useAssessments();
   const createAssessment = useCreateAssessment();
@@ -72,6 +83,7 @@ export function ExamTakersPage() {
   const guestAssessments = useMemo(
     () => allAssessmentSummaries
       .filter(isGuestAssessment)
+      .filter(shouldShowGuestAssessment)
       .sort((left, right) => Date.parse(right.createdAtUtc) - Date.parse(left.createdAtUtc)),
     [allAssessmentSummaries],
   );
@@ -149,6 +161,7 @@ export function ExamTakersPage() {
   const examTakers = examTakersQuery.data ?? [];
   const resultQuery = useAssessment(resultAssessmentId);
   const resultExamTaker = examTakers.find((examTaker) => examTaker.assessmentId === resultAssessmentId);
+  const resultAssessment = allAssessmentSummaries.find((assessment) => assessment.assessmentId === resultAssessmentId);
 
   const notStartedCount = examTakers.filter((item) => item.progressStatus === "NotStarted").length;
   const inProgressCount = examTakers.filter((item) => item.progressStatus === "InProgress").length;
@@ -245,7 +258,6 @@ export function ExamTakersPage() {
                       onChange={(event) => setAssignedByFilter(event.target.value)}
                       size="small"
                       sx={{ minWidth: 260 }}
-                      disabled={view === "guest"}
                     >
                       <MenuItem value="all">All admins ({assessments.length})</MenuItem>
                       {assignedByOptions.map((option) => (
@@ -262,7 +274,6 @@ export function ExamTakersPage() {
                       onChange={(event) => setAssessmentId(event.target.value)}
                       size="small"
                       sx={{ maxWidth: 560, flexGrow: 1 }}
-                      disabled={view === "guest"}
                     >
                       {filteredAssessments.map((assessment) => (
                         <MenuItem key={assessment.assessmentId} value={assessment.assessmentId}>
@@ -428,7 +439,11 @@ export function ExamTakersPage() {
         maxWidth="md"
       >
         <DialogTitle>
-          Result{resultExamTaker ? ` - ${resultExamTaker.fullName || resultExamTaker.userName}` : ""}
+          Result{resultExamTaker
+            ? ` - ${resultExamTaker.fullName || resultExamTaker.userName}`
+            : resultAssessment?.participantEmail
+              ? ` - ${resultAssessment.participantEmail}`
+              : " - Guest assessment"}
         </DialogTitle>
         <DialogContent dividers>
           {resultQuery.isLoading ? (
@@ -500,6 +515,7 @@ function GuestAssessmentsTable({ assessments }: { assessments: AssessmentSummary
               <TableCell>Status</TableCell>
               <TableCell>Progress</TableCell>
               <TableCell align="right">Score</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -512,12 +528,21 @@ function GuestAssessmentsTable({ assessments }: { assessments: AssessmentSummary
                 </TableCell>
                 <TableCell>{formatDate(assessment.createdAtUtc)}</TableCell>
                 <TableCell>{formatDate(assessment.submittedAtUtc)}</TableCell>
-                <TableCell><GuestAssessmentStatus status={assessment.status} /></TableCell>
+                <TableCell><GuestAssessmentStatus assessment={assessment} /></TableCell>
                 <TableCell>
                   {assessment.answeredCount}/{assessment.questionCount} ({Math.round(assessment.completionPercentage)}%)
                 </TableCell>
                 <TableCell align="right">
                   {assessment.overallScore == null ? "-" : `${Math.round(assessment.overallScore)}%`}
+                </TableCell>
+                <TableCell align="right">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setResultAssessmentId(assessment.assessmentId)}
+                  >
+                    Result
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -528,15 +553,10 @@ function GuestAssessmentsTable({ assessments }: { assessments: AssessmentSummary
   );
 }
 
-function GuestAssessmentStatus({ status }: { status: number }) {
-  const label = assessmentStatusLabel[status] ?? "Unknown";
-  const color = status === AssessmentStatus.Scored
-    ? "success"
-    : status >= AssessmentStatus.Submitted
-      ? "info"
-      : "warning";
+function GuestAssessmentStatus({ assessment }: { assessment: AssessmentSummaryDto }) {
+  const submitted = assessment.status >= AssessmentStatus.Submitted;
 
-  return <Chip size="small" label={label} color={color} />;
+  return <Chip size="small" label={submitted ? "Submitted" : "Not submitted"} color={submitted ? "success" : "warning"} />;
 }
 
 function StatusMetric({

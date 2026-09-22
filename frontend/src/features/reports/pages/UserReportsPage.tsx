@@ -36,6 +36,7 @@ import { formatDate, resolveDate, stageForScore, stageLabelForAverage, type Stag
 type ReportRouteState = {
   assessmentId?: string;
   focus?: "steps";
+  returnTo?: "analysis";
   resume?: boolean;
   source?: string;
 };
@@ -83,7 +84,9 @@ export function UserReportsPage() {
     setFocusSteps(routeFocus === "steps");
     navigate(location.pathname, {
       replace: true,
-      state: shouldPreserveRouteState ? { resume: true, source: routeState?.source } : null,
+      state: shouldPreserveRouteState
+        ? { resume: true, source: routeState?.source, returnTo: routeState?.returnTo }
+        : routeState?.returnTo ? { returnTo: routeState.returnTo } : null,
     });
   }, [location.pathname, navigate, reports, routeAssessmentId, routeFocus, routeState, shouldPreserveRouteState]);
 
@@ -96,9 +99,11 @@ export function UserReportsPage() {
         focusSteps={focusSteps}
         isIdentityLinkSession={shouldPreserveRouteState}
         onBack={() => {
-          if (isAssessmentLinkNavigationState(location.state)) {
+          if (routeState?.returnTo === "analysis" || isAssessmentLinkNavigationState(location.state)) {
             navigate(portalAgentAnalysisPath(selectedSummary.assessmentId), {
-              state: { resume: true, source: routeState?.source },
+              state: routeState?.source
+                ? { resume: true, source: routeState.source }
+                : undefined,
             });
             return;
           }

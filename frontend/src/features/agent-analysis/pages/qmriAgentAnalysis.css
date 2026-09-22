@@ -779,50 +779,6 @@
   background: #fafbfc;
 }
 
-.qmri-agent-trail-section {
-  margin-top: 20px;
-  padding: 18px;
-  border: 1px solid var(--agent-line);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.qmri-agent-response-trail {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-  padding: 2px 1px 6px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.qmri-agent-response-step {
-  display: inline-flex;
-  min-width: 54px;
-  height: 38px;
-  flex: 0 0 54px;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  border: 1px solid var(--agent-line);
-  border-radius: 6px;
-  color: var(--agent-muted);
-  background: #fff;
-  font-size: 0.76rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.qmri-agent-response-step svg {
-  font-size: 16px;
-}
-
-.qmri-agent-response-step--complete {
-  border-color: rgba(15, 108, 189, 0.2);
-  color: var(--agent-azure-deep);
-  background: #eaf3fc;
-}
-
 .qmri-agent-feedback {
   margin-top: 28px;
 }
