@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import axios from "axios";
+import * as XLSX from "xlsx";
 import {
   Alert,
   Box,
@@ -30,6 +31,7 @@ import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
@@ -142,6 +144,37 @@ export function AuthenticationDashboardPage() {
       .sort((left, right) => Date.parse(right.createdAtUtc) - Date.parse(left.createdAtUtc)),
     [guestAssessmentsQuery.data],
   );
+  const submittedGuestAssessments = useMemo(
+    () => guestAssessments.filter((assessment) =>
+      assessment.status >= AssessmentStatus.Submitted && Boolean(assessment.participantEmail?.trim()),
+    ),
+    [guestAssessments],
+  );
+
+  function handleExportGuest() {
+    if (submittedGuestAssessments.length === 0) {
+      return;
+    }
+
+    const rows = submittedGuestAssessments.map((assessment) => ({
+      "Guest email": assessment.participantEmail?.trim() ?? "",
+      Accessed: formatDateTime(assessment.createdAtUtc),
+      Submitted: assessment.submittedAtUtc ? formatDateTime(assessment.submittedAtUtc) : "--",
+      Status: assessmentStatusLabel[assessment.status] ?? "Unknown",
+      Score: assessment.overallScore == null ? "--" : `${Math.round(assessment.overallScore)}%`,
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 32 },
+      { wch: 24 },
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 12 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Guest submissions");
+    XLSX.writeFile(workbook, `guest-submissions-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
 
   const pendingFilteredUsers = filteredUsers.filter((user) => user.approvalStatus === "Pending");
   const pendingFilteredIds = pendingFilteredUsers.map((user) => user.userId);
@@ -720,6 +753,16 @@ export function AuthenticationDashboardPage() {
                   Delete ({selectedVisibleIds.length})
                 </Button>
               </>
+            ) : null}
+            {isGuestFilter ? (
+              <Button
+                variant="outlined"
+                startIcon={<DownloadOutlinedIcon />}
+                disabled={submittedGuestAssessments.length === 0}
+                onClick={handleExportGuest}
+              >
+                Export guest
+              </Button>
             ) : null}
             <Tabs value={filter} onChange={(_, value: FilterTab) => setFilter(value)}>
               {filterTabs.map((tab) => (

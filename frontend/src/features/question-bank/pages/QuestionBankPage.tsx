@@ -63,14 +63,15 @@ export function QuestionBankPage() {
   const [subModuleId, setSubModuleId] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  const [includeInactive, setIncludeInactive] = useState(false);
 
-  const { data: tree = [] } = useHierarchy(true, false);
+  const { data: tree = [] } = useHierarchy(includeInactive, false);
   const questionsQuery = useQuestions({
     search: search || undefined,
     categoryId: categoryId || undefined,
     moduleId: moduleId || undefined,
     subModuleId: subModuleId || undefined,
-    includeInactive: true,
+    includeInactive,
     page: page + 1,
     pageSize,
   });
@@ -213,6 +214,11 @@ export function QuestionBankPage() {
             <MenuItem value="">All submodules</MenuItem>
             {subModules.map((s) => <MenuItem key={s.subModuleId} value={s.subModuleId}>{s.name}</MenuItem>)}
           </TextField>
+          <FormControlLabel
+            control={<Switch checked={includeInactive} onChange={(e) => { setIncludeInactive(e.target.checked); resetPage(); }} />}
+            label="Show inactive"
+            sx={{ ml: { md: "auto" }, mr: 0, whiteSpace: "nowrap" }}
+          />
         </Stack>
 
         {questionsQuery.isLoading ? (
