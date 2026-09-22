@@ -271,7 +271,10 @@ export function ExamTakersPage() {
                       select
                       label="Assessment"
                       value={assessmentId ?? ""}
-                      onChange={(event) => setAssessmentId(event.target.value)}
+                      onChange={(event) => {
+                        setAssessmentId(event.target.value);
+                        setView("assigned");
+                      }}
                       size="small"
                       sx={{ maxWidth: 560, flexGrow: 1 }}
                     >
@@ -306,7 +309,10 @@ export function ExamTakersPage() {
           </Card>
 
           {view === "guest" ? (
-            <GuestAssessmentsTable assessments={guestAssessments} />
+            <GuestAssessmentsTable
+              assessments={guestAssessments}
+              onResultClick={setResultAssessmentId}
+            />
           ) : (
             <>
               {examTakersQuery.isLoading ? <LinearProgress /> : null}
@@ -490,7 +496,13 @@ export function ExamTakersPage() {
   );
 }
 
-function GuestAssessmentsTable({ assessments }: { assessments: AssessmentSummaryDto[] }) {
+function GuestAssessmentsTable({
+  assessments,
+  onResultClick,
+}: {
+  assessments: AssessmentSummaryDto[];
+  onResultClick: (assessmentId: string) => void;
+}) {
   if (assessments.length === 0) {
     return (
       <Card sx={{ p: 4 }}>
@@ -539,7 +551,7 @@ function GuestAssessmentsTable({ assessments }: { assessments: AssessmentSummary
                   <Button
                     size="small"
                     variant="outlined"
-                    onClick={() => setResultAssessmentId(assessment.assessmentId)}
+                    onClick={() => onResultClick(assessment.assessmentId)}
                   >
                     Result
                   </Button>
