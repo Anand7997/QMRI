@@ -306,7 +306,7 @@ function ExecutiveAnalysisOverview({
             endIcon={<ArrowForwardOutlinedIcon />}
             className="qmri-agent-executive-report-button"
           >
-            View full detailed report
+            View Detailed Report
           </Button>
         </Stack>
       </Box>
