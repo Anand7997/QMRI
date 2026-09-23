@@ -920,9 +920,11 @@ export function MyAssessmentsPage() {
                     setParticipantEmailTouched(true);
                   }}
                   error={Boolean(participantEmailError)}
-                  helperText={participantEmailError ?? "Use your company or organizational email address."}
+                  helperText={participantEmailError ?? "Enter your work email to receive the report in your inbox."}
                   inputProps={{ inputMode: "email", "aria-label": "Work email" }}
                   sx={{
+                    width: "100%",
+                    maxWidth: 480,
                     "& .MuiOutlinedInput-root": {
                       bgcolor: "common.white",
                       minHeight: 58,

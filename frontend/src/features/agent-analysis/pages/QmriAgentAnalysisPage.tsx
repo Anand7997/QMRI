@@ -191,6 +191,7 @@ export function QmriAgentAnalysisPage() {
           overallScore={clampScore(summary.overallScore ?? 0)}
           categoryMetrics={categoryMetrics}
           responseCount={responseCount}
+          onViewReport={reportAction}
         />
       ) : (
         <Box className="qmri-agent-chamber">
@@ -219,11 +220,7 @@ export function QmriAgentAnalysisPage() {
 
       <Box className="qmri-agent-controls">
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-          {phase === "complete" ? (
-            <Button variant="contained" onClick={reportAction} endIcon={<ArrowForwardOutlinedIcon />}>
-              View full detailed report
-            </Button>
-          ) : phase === "error" ? (
+          {phase === "error" ? (
             <>
               <Button
                 variant="contained"
@@ -265,11 +262,13 @@ function ExecutiveAnalysisOverview({
   overallScore,
   categoryMetrics,
   responseCount,
+  onViewReport,
 }: {
   analysis: QmriAgentAnalysisDto;
   overallScore: number;
   categoryMetrics: CategoryMetric[];
   responseCount: number;
+  onViewReport: () => void;
 }) {
   const overallBand = maturityDisplayForScore(overallScore);
   const leader = categoryMetrics[0];
@@ -294,12 +293,22 @@ function ExecutiveAnalysisOverview({
             A decision-ready view of maturity, risk and the next best moves.
           </Typography>
         </Box>
-        <Chip
-          size="small"
-          icon={<CheckCircleOutlineIcon />}
-          label={responseCount + " responses analysed"}
-          className="qmri-agent-executive-chip"
-        />
+        <Stack spacing={1.25} alignItems={{ xs: "flex-start", sm: "flex-end" }}>
+          <Chip
+            size="small"
+            icon={<CheckCircleOutlineIcon />}
+            label={responseCount + " responses analysed"}
+            className="qmri-agent-executive-chip"
+          />
+          <Button
+            variant="contained"
+            onClick={onViewReport}
+            endIcon={<ArrowForwardOutlinedIcon />}
+            className="qmri-agent-executive-report-button"
+          >
+            View full detailed report
+          </Button>
+        </Stack>
       </Box>
 
       <Box className="qmri-agent-executive-grid">

@@ -892,6 +892,12 @@
   font-weight: 750 !important;
 }
 
+.qmri-agent-executive-report-button {
+  min-height: 42px;
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
 .qmri-agent-executive-grid {
   display: grid;
   grid-template-columns: minmax(220px, 0.58fr) minmax(420px, 1.28fr) minmax(320px, 1fr);
