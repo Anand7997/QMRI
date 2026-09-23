@@ -1099,9 +1099,9 @@
                 {
                   "questionId": "49d5b2e5-18e2-5305-96ed-6dbe80491877",
                   "subModuleId": "82e2b3b2-b1c4-53ef-af44-f57332a876a2",
-                  "text": "Are enterprise tools available and consistently adopted across QA?",
-                  "guidance": "Scoring: Yes=Good, Partial=Partial, No=Zero. Shared tooling should be available and used consistently across QA delivery.",
-                  "expectedAnswer": 2,
+                  "text": "Does your regression execution cycle regularly exceed 40 hours, impacting overall release timelines?",
+                  "guidance": "Scoring: Yes=Zero, Partial=Partial, No=Good. Regression execution should remain within the 40-hour threshold and should not regularly constrain release timelines.",
+                  "expectedAnswer": 0,
                   "intensity": 0,
                   "weight": 1,
                   "sortOrder": 3
@@ -3311,9 +3311,9 @@
                 {
                   "questionId": "b03be957-0fee-5a7b-84ba-3103a5510b85",
                   "subModuleId": "84652e55-1eab-561f-925b-d388acc71b65",
-                  "text": "Do you have a documented test strategy that is consistently followed?",
-                  "guidance": "Scoring: Yes=Good, Partial=Partial, No=Zero. Test strategy should be documented and consistently followed.",
-                  "expectedAnswer": 2,
+                  "text": "Do you believe the QE Total Cost of Ownership is currently higher than it should be, and that there are significant opportunities to reduce it?",
+                  "guidance": "Scoring: Yes=Zero, Partial=Partial, No=Good. QE Total Cost of Ownership should be controlled relative to quality requirements and delivery objectives.",
+                  "expectedAnswer": 0,
                   "intensity": 0,
                   "weight": 1,
                   "sortOrder": 3
