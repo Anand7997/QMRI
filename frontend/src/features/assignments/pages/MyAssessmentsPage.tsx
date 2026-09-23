@@ -924,7 +924,7 @@ export function MyAssessmentsPage() {
                   inputProps={{ inputMode: "email", "aria-label": "Work email" }}
                   sx={{
                     width: "100%",
-                    maxWidth: 480,
+                    maxWidth: 360,
                     "& .MuiOutlinedInput-root": {
                       bgcolor: "common.white",
                       minHeight: 58,
