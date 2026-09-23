@@ -924,10 +924,10 @@ export function MyAssessmentsPage() {
                   inputProps={{ inputMode: "email", "aria-label": "Work email" }}
                   sx={{
                     width: "100%",
-                    maxWidth: 400,
+                    maxWidth: 600,
                     "& .MuiOutlinedInput-root": {
                       bgcolor: "common.white",
-                      minHeight: 54,
+                      minHeight: 44,
                       borderRadius: 1,
                     },
                     "& .MuiInputBase-input::placeholder": { color: "#A8B3C9", opacity: 1 },
