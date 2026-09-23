@@ -559,7 +559,7 @@ export function MyAssessmentsPage() {
     : 0;
 
   return (
-    <Box sx={{ pb: 9 }}>
+    <Box sx={{ pb: { xs: 18, sm: 9 } }}>
       <Box
         sx={{
           mb: 3,
@@ -822,13 +822,18 @@ export function MyAssessmentsPage() {
           bgcolor: "background.paper",
           borderTop: 1,
           borderColor: "divider",
-          px: 3,
-          py: 1.5,
+          px: { xs: 2, sm: 3 },
+          pt: 1.5,
+          pb: { xs: "calc(0.75rem + env(safe-area-inset-bottom))", sm: 1.5 },
           zIndex: 5,
         }}
       >
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <Box sx={{ flexGrow: 1, maxWidth: 420, minWidth: { xs: "100%", md: 320 } }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          alignItems={{ xs: "stretch", sm: "center" }}
+        >
+          <Box sx={{ flexGrow: 1, width: { xs: "100%", sm: "auto" }, maxWidth: { xs: "none", sm: 420 }, minWidth: { sm: 320 } }}>
             <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
               <Typography variant="caption" color="text.secondary">
                 {answeredCount} / {questionCount} answered
@@ -842,29 +847,41 @@ export function MyAssessmentsPage() {
               </Typography>
             )}
           </Box>
-          <Box sx={{ flexGrow: 1 }} />
-          {saveResponse.isPending && <Chip size="small" label="Saving..." />}
-          {isSubmitted ? (
-            <Chip color="success" label="Submitted" />
-          ) : (
-            <>
-              <Button
-                variant="outlined"
-                endIcon={<KeyboardArrowRightIcon />}
-                disabled={!nextCategoryGroup}
-                onClick={goToNextCategory}
-              >
-                Next section
-              </Button>
-              <Button
-                variant="contained"
-                disabled={submit.isPending || !canSubmitAssessment}
-                onClick={() => setReviewOpen(true)}
-              >
-                Submit
-              </Button>
-            </>
-          )}
+          <Box sx={{ display: { xs: "none", sm: "block" }, flexGrow: 1 }} />
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent={{ xs: "flex-end", sm: "flex-start" }}
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ width: { xs: "100%", sm: "auto" } }}
+          >
+            {saveResponse.isPending && <Chip size="small" label="Saving..." />}
+            {isSubmitted ? (
+              <Chip color="success" label="Submitted" />
+            ) : (
+              <>
+                <Button
+                  variant="outlined"
+                  endIcon={<KeyboardArrowRightIcon />}
+                  disabled={!nextCategoryGroup}
+                  onClick={goToNextCategory}
+                  sx={{ minHeight: 44 }}
+                >
+                  Next section
+                </Button>
+                <Button
+                  variant="contained"
+                  disabled={submit.isPending || !canSubmitAssessment}
+                  onClick={() => setReviewOpen(true)}
+                  sx={{ minHeight: 44 }}
+                >
+                  Submit
+                </Button>
+              </>
+            )}
+          </Stack>
         </Stack>
       </Box>
 
