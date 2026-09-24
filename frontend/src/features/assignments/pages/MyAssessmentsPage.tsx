@@ -597,7 +597,16 @@ export function MyAssessmentsPage() {
       </Box>
 
       <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "300px 1fr" } }}>
-        <Card sx={{ p: 1, alignSelf: "start", maxHeight: "70vh", overflowY: "auto", borderColor: "#C9DDF1" }}>
+        <Card
+          sx={{
+            p: 1,
+            alignSelf: "start",
+            maxHeight: "70vh",
+            overflowY: "auto",
+            borderColor: "#C9DDF1",
+            display: { xs: isAssessmentLinkNavigation ? "none" : "block", md: "block" },
+          }}
+        >
           <Box sx={{ px: 1.25, pt: 1, pb: 0.75 }}>
             <Typography variant="h3" sx={{ color: "primary.dark" }}>Assessment sections</Typography>
             <Typography variant="caption" color="text.secondary">Select a section to begin</Typography>
