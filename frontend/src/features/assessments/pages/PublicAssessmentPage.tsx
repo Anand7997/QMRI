@@ -3,7 +3,10 @@ import { Alert, Box, CircularProgress, Container, Stack, Typography } from "@mui
 import { useNavigate } from "react-router-dom";
 import { createPublicAssessmentSession } from "shared/api/auth";
 import { useAuthContext } from "contexts/AuthContext";
-import { PUBLIC_ASSESSMENT_NAVIGATION_SOURCE } from "shared/constants/assessmentNavigation";
+import {
+  PUBLIC_ASSESSMENT_NAVIGATION_SOURCE,
+  persistFocusedAssessmentNavigation,
+} from "shared/constants/assessmentNavigation";
 import { RoutePaths } from "shared/constants/routePaths";
 import { brandTokens } from "app/theme/tokens/palette";
 
@@ -28,13 +31,15 @@ export function PublicAssessmentPage() {
   }, [login, navigate]);
 
   function navigateToAssessment(assessmentId: string) {
+    const navigationState = {
+      assessmentId,
+      resume: true as const,
+      source: PUBLIC_ASSESSMENT_NAVIGATION_SOURCE,
+    };
+    persistFocusedAssessmentNavigation(navigationState);
     navigate(RoutePaths.portalAssessments, {
       replace: true,
-      state: {
-        assessmentId,
-        resume: true,
-        source: PUBLIC_ASSESSMENT_NAVIGATION_SOURCE,
-      },
+      state: navigationState,
     });
   }
 

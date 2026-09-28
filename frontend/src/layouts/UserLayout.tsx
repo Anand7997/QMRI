@@ -2,14 +2,14 @@ import { PortalLayout } from "./portal/PortalLayout";
 import { userNavItems } from "./user/navItems";
 import { matchPath, useLocation } from "react-router-dom";
 import { useAuthContext } from "contexts/AuthContext";
-import { isFocusedAssessmentNavigationState } from "shared/constants/assessmentNavigation";
+import { getFocusedAssessmentNavigationState } from "shared/constants/assessmentNavigation";
 import { RoutePaths } from "shared/constants/routePaths";
 
 export function UserLayout() {
   const location = useLocation();
   const { user } = useAuthContext();
   const displayName = user?.fullName || user?.userName || "Portal User";
-  const isFocusedAssessmentSession = isFocusedAssessmentNavigationState(location.state);
+  const isFocusedAssessmentSession = Boolean(getFocusedAssessmentNavigationState(location.state));
   const hidePortalChrome =
     isFocusedAssessmentSession
     && Boolean(

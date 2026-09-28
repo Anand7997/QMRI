@@ -48,6 +48,7 @@ import {
   useSaveResumePointer,
 } from "shared/api/dashboardGovernance";
 import {
+  getFocusedAssessmentNavigationState,
   isFocusedAssessmentNavigationState,
   isPublicAssessmentNavigationState,
   type AssessmentNavigationState,
@@ -95,11 +96,11 @@ export function MyAssessmentsPage() {
   const resumeScrollApplied = useRef(false);
   const resumePointerReady = !user?.userId || resumePointerQuery.isFetched;
 
-  const navigationState = location.state as AssessmentNavigationState;
+  const navigationState = getFocusedAssessmentNavigationState(location.state) ?? (location.state as AssessmentNavigationState);
   const navigationAssessmentId = navigationState?.assessmentId;
   const shouldResumeNavigation = navigationState?.resume === true;
-  const isAssessmentLinkNavigation = isFocusedAssessmentNavigationState(location.state);
-  const isPublicAssessment = isPublicAssessmentNavigationState(location.state);
+  const isAssessmentLinkNavigation = isFocusedAssessmentNavigationState(navigationState);
+  const isPublicAssessment = isPublicAssessmentNavigationState(navigationState);
   const participantEmailValidationMessage = getBusinessEmailValidationMessage(participantEmail);
   const isParticipantEmailValid = participantEmailValidationMessage === null;
   const participantEmailError = participantEmailTouched ? participantEmailValidationMessage ?? undefined : undefined;
@@ -565,20 +566,23 @@ export function MyAssessmentsPage() {
           mb: 3,
           px: { xs: 1, sm: 2, md: 3 },
           py: { xs: 1.5, sm: 2 },
+          width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box",
           borderBottom: "1px solid #DCE8F5",
           backgroundColor: "common.white",
           boxShadow: "0 4px 14px rgba(16,24,40,0.06)",
         }}
       >
-        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={2}>
-          <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} alignItems="center" sx={{ minWidth: 0 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }} spacing={2} sx={{ width: "100%", minWidth: 0 }}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 1, sm: 2 }} alignItems={{ xs: "flex-start", sm: "center" }} sx={{ minWidth: 0, maxWidth: "100%" }}>
             <Box component="img" src="/qascan-logo.svg" alt="QAScan" sx={{ width: { xs: 112, sm: 148 }, height: "auto", display: "block", flexShrink: 0 }} />
             <Box sx={{ width: "1px", height: 38, bgcolor: "#B8CDE3", display: { xs: "none", sm: "block" } }} />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h1" sx={{ color: "#12366D", fontWeight: 700 }} noWrap>
+            <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+              <Typography variant="h1" sx={{ color: "#12366D", fontWeight: 700, lineHeight: 1.2, overflowWrap: "anywhere" }}>
                 QA Maturity Assessment
               </Typography>
-              <Typography variant="body2" sx={{ color: "#49678F", mt: 0.25, letterSpacing: "0.02em" }}>
+              <Typography variant="body2" sx={{ color: "#49678F", mt: 0.25, letterSpacing: "0.02em", overflowWrap: "anywhere" }}>
                 Measure&nbsp; | &nbsp;Recommend&nbsp; | &nbsp;Implement
               </Typography>
             </Box>

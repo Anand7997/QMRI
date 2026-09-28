@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { authStorage, type AuthSession, type AuthUser } from "shared/auth/authStorage";
+import { clearFocusedAssessmentNavigation } from "shared/constants/assessmentNavigation";
 
 const ADMIN_ROLE = "ADMIN";
 
@@ -26,11 +27,13 @@ export function AuthContextProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(() => authStorage.getUser());
 
   const login = useCallback((session: AuthSession) => {
+    clearFocusedAssessmentNavigation();
     authStorage.save(session);
     setUser(session.user);
   }, []);
 
   const logout = useCallback(() => {
+    clearFocusedAssessmentNavigation();
     authStorage.clear();
     setUser(null);
   }, []);
