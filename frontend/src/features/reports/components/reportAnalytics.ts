@@ -10,9 +10,8 @@
 import { brandTokens, dataTokens, semanticTokens } from "app/theme/tokens/palette";
 
 /* ------------------------------------------------------------------ *
- * Maturity stages (1-5) - the domain's core scoring model.
- * Colours follow the brief: red = critical, yellow = attention,
- * blue = informational, green = strong.
+ * Maturity stages - keep these score bands aligned with QAScan Agent
+ * analysis: Foundation, Building, Scaling and Leading.
  * ------------------------------------------------------------------ */
 export interface StageInfo {
   level: number;
@@ -22,25 +21,23 @@ export interface StageInfo {
 }
 
 export const STAGES: StageInfo[] = [
-  { level: 1, label: "Immature", description: "Foundational quality practices are still weak or inconsistent.", color: semanticTokens.errorMain },
-  { level: 2, label: "Developing", description: "Some practices exist, but they are not yet consistent across teams.", color: semanticTokens.warningMain },
-  { level: 3, label: "Defined", description: "Core practices are documented and repeatable, with room to improve coverage.", color: brandTokens.blue600 },
-  { level: 4, label: "Managed", description: "Practices are measured, proactive, and broadly reliable.", color: dataTokens.bandIQ },
-  { level: 5, label: "Optimized", description: "Capabilities are mature, data-driven, and continuously improving.", color: semanticTokens.successMain },
+  { level: 1, label: "Foundation", description: "Foundational quality practices are still weak or inconsistent.", color: dataTokens.bandTesting },
+  { level: 2, label: "Building", description: "Some practices exist, but they are not yet consistent across teams.", color: dataTokens.bandQA },
+  { level: 3, label: "Scaling", description: "Core practices are becoming repeatable and extending across teams.", color: dataTokens.bandQE },
+  { level: 4, label: "Leading", description: "Capabilities are mature, dependable, and continuously improving.", color: dataTokens.bandIQ },
 ];
 
 export function stageForScore(score: number): StageInfo {
   const normalized = Math.max(0, Math.min(100, Math.round(score)));
-  const level = normalized <= 20 ? 1 : normalized <= 40 ? 2 : normalized <= 60 ? 3 : normalized <= 80 ? 4 : 5;
+  const level = normalized <= 30 ? 1 : normalized <= 60 ? 2 : normalized <= 80 ? 3 : 4;
   return STAGES[level - 1];
 }
 
 export function stageLabelForAverage(value: number) {
-  if (value <= 1.5) return "Immature";
-  if (value <= 2.5) return "Developing";
-  if (value <= 3.5) return "Defined";
-  if (value <= 4.5) return "Managed";
-  return "Optimized";
+  if (value <= 1.5) return "Foundation";
+  if (value <= 2.5) return "Building";
+  if (value <= 3.5) return "Scaling";
+  return "Leading";
 }
 
 /* ------------------------------------------------------------------ *
@@ -254,8 +251,8 @@ export function buildKpis(
     { key: "best", label: "Highest performing area", value: best ? `${best.score}` : "--", sub: best ? best.categoryName : "No data", accent: semanticTokens.successMain },
     { key: "worst", label: "Lowest performing area", value: worst ? `${worst.score}` : "--", sub: worst ? worst.categoryName : "No data", accent: semanticTokens.errorMain },
     { key: "completion", label: "Completion", value: `${Math.round(completion)}%`, numeric: Math.round(completion), sub: "Of assigned questions answered", accent: dataTokens.bandQE },
-    { key: "maturity", label: "Maturity level", value: `${stage.level}/5`, numeric: stage.level, sub: stage.label, accent: stage.color },
-    { key: "readiness", label: "Readiness index", value: `${readiness}%`, numeric: readiness, sub: "Competencies at Managed+ stage", accent: readiness >= 60 ? semanticTokens.successMain : readiness >= 30 ? semanticTokens.warningMain : semanticTokens.errorMain },
+    { key: "maturity", label: "Maturity level", value: `${stage.level}/4`, numeric: stage.level, sub: stage.label, accent: stage.color },
+    { key: "readiness", label: "Readiness index", value: `${readiness}%`, numeric: readiness, sub: "Competencies at Leading stage", accent: readiness >= 60 ? semanticTokens.successMain : readiness >= 30 ? semanticTokens.warningMain : semanticTokens.errorMain },
   ];
 }
 
@@ -421,7 +418,7 @@ export function buildInsights(groups: CategoryGroup[], overallDelta: number | nu
       id: "risk",
       tone: "critical",
       title: `${atRisk.length} area${atRisk.length > 1 ? "s" : ""} at risk`,
-      body: `${atRisk.map((g) => g.categoryName).slice(0, 3).join(", ")}${atRisk.length > 3 ? "..." : ""} sit at Immature/Developing maturity and need attention first.`,
+      body: `${atRisk.map((g) => g.categoryName).slice(0, 3).join(", ")}${atRisk.length > 3 ? "..." : ""} sit at Foundation/Building maturity and need attention first.`,
     });
   }
 
@@ -431,7 +428,7 @@ export function buildInsights(groups: CategoryGroup[], overallDelta: number | nu
       id: "high",
       tone: "positive",
       title: `${highPerforming.length} high-performing area${highPerforming.length > 1 ? "s" : ""}`,
-      body: `${highPerforming.map((g) => g.categoryName).slice(0, 3).join(", ")} reached Managed maturity or higher - reliable strengths to build on.`,
+      body: `${highPerforming.map((g) => g.categoryName).slice(0, 3).join(", ")} reached Leading maturity - reliable strengths to build on.`,
     });
   }
 
@@ -646,7 +643,7 @@ export function buildBenchmark(
   const data: BenchmarkDatum[] = [{ label: "This assessment", score: overallScore, color: stageForScore(overallScore).color }];
   if (previousScore != null) data.push({ label: "Previous assessment", score: previousScore, color: dataTokens.bandQE });
   if (yourAverage != null) data.push({ label: "Your average", score: yourAverage, color: brandTokens.blue600 });
-  data.push({ label: "Target (Optimized)", score: 85, color: "#C7C7CC" });
+  data.push({ label: "Target (Leading)", score: 85, color: "#C7C7CC" });
   return data;
 }
 

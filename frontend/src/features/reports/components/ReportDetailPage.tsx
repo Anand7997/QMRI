@@ -261,7 +261,7 @@ async function mailReport() {
   const highestName = kpis.find((k) => k.key === "best")?.sub ?? "";
   const lowestName = kpis.find((k) => k.key === "worst")?.sub ?? "";
   const readinessValue = kpis.find((k) => k.key === "readiness")?.value ?? "--";
-  const managedCount = categoryGroups.filter((group) => group.stage.level >= 4).length;
+  const leadingCount = categoryGroups.filter((group) => group.stage.level >= 4).length;
   const reportId = summary.assessmentId.slice(0, 8).toUpperCase();
   const dateTaken = formatDate(resolveDate(summary));
 
@@ -474,7 +474,7 @@ async function mailReport() {
                     <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mt: 1 }}>
                       <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: overallStage.color }} />
                       <Typography variant="body2" fontWeight={900} sx={{ color: overallStage.color }}>
-                        {overallStage.level}/5 - {overallStage.label}
+                        {overallStage.level}/4 - {overallStage.label}
                       </Typography>
                     </Stack>
                     {overallDelta != null ? (
@@ -488,7 +488,7 @@ async function mailReport() {
               </Box>
 
               <Box sx={{ p: { xs: 2, md: 2.5 }, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))", xl: "1fr 1fr 1.2fr" } }}>
-                <HeroStat icon={<ShieldOutlinedIcon />} label="Managed+ areas" value={`${managedCount}/${categoryGroups.length || 0}`} tone={semanticTokens.successMain} />
+                <HeroStat icon={<ShieldOutlinedIcon />} label="Leading areas" value={`${leadingCount}/${categoryGroups.length || 0}`} tone={semanticTokens.successMain} />
                 <HeroStat icon={<FlagOutlinedIcon />} label="Priority area" value={lowestName || "No data"} tone={semanticTokens.warningMain} />
                 <MaturityJourney currentLevel={overallStage.level} />
               </Box>
@@ -582,13 +582,7 @@ async function mailReport() {
                     interpretation="Red and amber cells are the modules dragging a competency down - the fastest place to recover points."
                   >
                     <Heatmap rows={heat} onSelect={drillToCategory} selectedId={selectedCategoryId} />
-                    <LegendRow items={[
-                      { label: "Immature", color: semanticTokens.errorMain },
-                      { label: "Developing", color: semanticTokens.warningMain },
-                      { label: "Defined", color: brandTokens.blue600 },
-                      { label: "Managed", color: dataTokens.bandIQ },
-                      { label: "Optimized", color: semanticTokens.successMain },
-                    ]} />
+                    <LegendRow items={STAGES.map((stage) => ({ label: stage.label, color: stage.color }))} />
                   </ChartCard>
                 </MotionReveal>
 
@@ -1469,7 +1463,7 @@ function SummaryReadCard({ highest, lowest, readiness }: { highest: string; lowe
     <Card sx={{ p: 2, height: "100%", bgcolor: brandTokens.blue50, border: `1px solid ${alpha(brandTokens.blue600, 0.18)}`, boxShadow: `0 10px 30px ${alpha(brandTokens.blue600, 0.08)}` }}>
       <Typography variant="overline" sx={{ color: brandTokens.blue700, letterSpacing: "0.06em", fontWeight: 900 }}>Executive readout</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.55 }}>
-        Strongest: <b>{highest || "No data"}</b>. Priority: <b>{lowest || "No data"}</b>. Managed+ readiness stands at <b>{readiness}</b>.
+        Strongest: <b>{highest || "No data"}</b>. Priority: <b>{lowest || "No data"}</b>. Leading readiness stands at <b>{readiness}</b>.
       </Typography>
       <Box sx={{ mt: 1.4, height: 7, borderRadius: 999, bgcolor: alpha(brandTokens.blue600, 0.12), overflow: "hidden" }}>
         <Box sx={{ width: readiness, maxWidth: "100%", height: "100%", bgcolor: semanticTokens.successMain }} />
@@ -1565,7 +1559,7 @@ function MaturityJourney({ currentLevel }: { currentLevel: number }) {
   return (
     <Box sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${neutralTokens.line200}`, bgcolor: "background.default" }}>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, lineHeight: 1.25 }}>Maturity journey</Typography>
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 0.75 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 0.75 }}>
         {STAGES.map((stage) => {
           const active = stage.level <= currentLevel;
           return (
@@ -1779,7 +1773,7 @@ function StageChip({ stage }: { stage: StageInfo }) {
   return (
     <Chip
       size="small"
-      label={`${stage.level}/5 - ${stage.label}`}
+      label={`${stage.level}/4 - ${stage.label}`}
       variant="outlined"
       sx={{ fontWeight: 700, borderColor: alpha(stage.color, 0.35), color: stage.color, bgcolor: alpha(stage.color, 0.08) }}
     />
@@ -1840,7 +1834,7 @@ function distributionInterpretation(groups: CategoryGroup[]) {
   const managed = groups.filter((g) => g.stage.level >= 4).length;
   const total = groups.length || 1;
   const pct = Math.round((managed / total) * 100);
-  return `${pct}% of competencies are at Managed maturity or higher. The more weight sits in the green stages, the more dependable your quality practices are.`;
+  return `${pct}% of competencies are at Leading maturity. The more weight sits in the green stages, the more dependable your quality practices are.`;
 }
 
 function toStatus(status: number): EntityStatus {
