@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/interactive-login-character";
 import { QmriLogo } from "shared/components";
 import { getBusinessEmailValidationMessage } from "shared/validation/businessEmail";
+import { getPasswordValidationMessage } from "shared/validation/password";
 
 type Mode = "signin" | "signup";
 type Audience = "admin" | "user";
@@ -594,7 +595,7 @@ export function LoginPage() {
                       <TextField label="Full name" value={fullName} onFocus={() => setActiveField("fullName")} onBlur={() => setActiveField(null)} onChange={(e) => { setFullName(e.target.value); markTyping(); }} autoComplete="name" autoFocus fullWidth required disabled={submitting || requestSent} />
                       <TextField label="Username" value={userName} onFocus={() => setActiveField("userName")} onBlur={() => setActiveField(null)} onChange={(e) => { setUserName(e.target.value); markTyping(); }} autoComplete="username" fullWidth required disabled={submitting || requestSent} />
                       <TextField label="Work email" type="email" value={email} onFocus={() => setActiveField("email")} onBlur={() => setActiveField(null)} onChange={(e) => { setEmail(e.target.value); setSignUpEmailError(null); markTyping(); }} autoComplete="email" fullWidth required error={Boolean(signUpEmailError)} helperText={signUpEmailError} disabled={submitting || requestSent} />
-                      <TextField label="Password" type="password" value={signUpPassword} onFocus={() => setActiveField("signUpPassword")} onBlur={() => setActiveField(null)} onChange={(e) => { setSignUpPassword(e.target.value); setSignUpPasswordError(null); markTyping(); }} autoComplete="new-password" fullWidth required error={Boolean(signUpPasswordError)} helperText={signUpPasswordError} disabled={submitting || requestSent} />
+                      <TextField label="Password" type="password" value={signUpPassword} onFocus={() => setActiveField("signUpPassword")} onBlur={() => setActiveField(null)} onChange={(e) => { setSignUpPassword(e.target.value); setSignUpPasswordError(null); markTyping(); }} autoComplete="new-password" fullWidth required error={Boolean(signUpPasswordError)} helperText={signUpPasswordError ?? "Use at least 8 characters with uppercase, lowercase, number, and special character."} disabled={submitting || requestSent} />
                       <Button type="submit" variant="contained" size="large" disabled={submitting || requestSent} sx={{ minHeight: 50, cursor: requestSent ? "default" : "pointer", fontWeight: 850 }}>
                         {submitting ? <CircularProgress size={22} color="inherit" /> : "Request Access"}
                       </Button>
@@ -737,16 +738,4 @@ function getApiError(error: unknown): ApiErrorBody | null {
   }
 
   return error.response?.data ?? null;
-}
-
-function getPasswordValidationMessage(value: string): string | null {
-  if (value.length < 8) {
-    return "Password must be at least 8 characters.";
-  }
-
-  if (!/[^\dA-Za-z]/.test(value)) {
-    return "Password must include at least one special character.";
-  }
-
-  return null;
 }

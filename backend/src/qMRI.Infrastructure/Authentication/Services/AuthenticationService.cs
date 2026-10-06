@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using qMRI.Application.Authentication;
 using qMRI.Application.Authentication.Abstractions;
 using qMRI.Application.Authentication.DTOs;
 using qMRI.Domain.Common.Entities;
@@ -219,14 +220,10 @@ public sealed class AuthenticationService(
             return RegisterResultDto.Failure(RegistrationFailureReason.Validation, emailValidationError);
         }
 
-        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+        var passwordValidationError = PasswordPolicy.GetValidationError(request.Password);
+        if (passwordValidationError is not null)
         {
-            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Password must be at least 8 characters.");
-        }
-
-        if (!ContainsSpecialCharacter(request.Password))
-        {
-            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, "Password must include at least one special character.");
+            return RegisterResultDto.Failure(RegistrationFailureReason.Validation, passwordValidationError);
         }
 
         var exists = await userRepository.ExistsByUserNameOrEmailAsync(userName, email, cancellationToken);
@@ -397,19 +394,6 @@ public sealed class AuthenticationService(
         }
 
         return UserRoleCode;
-    }
-
-    private static bool ContainsSpecialCharacter(string value)
-    {
-        foreach (var character in value)
-        {
-            if (!char.IsLetterOrDigit(character))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string BuildClientFullName(string email)
