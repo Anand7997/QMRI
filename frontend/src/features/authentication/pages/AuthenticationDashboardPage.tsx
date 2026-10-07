@@ -128,18 +128,26 @@ export function AuthenticationDashboardPage() {
   const updateUserAccess = useUpdateUserAccess();
   const deactivateUser = useDeactivateUser();
 
+  const authenticationUsers = useMemo(
+    () => users.filter((user) => !isPublicAssessmentParticipant(user)),
+    [users],
+  );
+
   const filteredUsers = useMemo(() => {
     if (isGuestFilter) {
       return [];
     }
 
-    return filter === "all" ? users : users.filter((user) => user.approvalStatus === filter);
-  }, [filter, isGuestFilter, users]);
+    return filter === "all"
+      ? authenticationUsers
+      : authenticationUsers.filter((user) => user.approvalStatus === filter);
+  }, [authenticationUsers, filter, isGuestFilter]);
 
   const guestAssessments = useMemo(
     () => (guestAssessmentsQuery.data ?? [])
       .filter((assessment) =>
         assessment.departments.some((department) => department.toLowerCase() === guestApprovalCategory.toLowerCase())
+        && Boolean(assessment.participantEmail?.trim())
       )
       .sort((left, right) => Date.parse(right.createdAtUtc) - Date.parse(left.createdAtUtc)),
     [guestAssessmentsQuery.data],
@@ -184,10 +192,10 @@ export function AuthenticationDashboardPage() {
   const isAllFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
   const isSomeFilteredSelected = selectedIds.some((id) => filteredIds.includes(id)) && !isAllFilteredSelected;
 
-  const pendingCount = users.filter((user) => user.approvalStatus === "Pending").length;
-  const approvedCount = users.filter((user) => user.approvalStatus === "Approved").length;
-  const adminRequestCount = users.filter((user) => user.requestedRoleCode.toUpperCase() === "ADMIN").length;
-  const activeUserCount = users.filter((user) => user.isActive).length;
+  const pendingCount = authenticationUsers.filter((user) => user.approvalStatus === "Pending").length;
+  const approvedCount = authenticationUsers.filter((user) => user.approvalStatus === "Approved").length;
+  const adminRequestCount = authenticationUsers.filter((user) => user.requestedRoleCode.toUpperCase() === "ADMIN").length;
+  const activeUserCount = authenticationUsers.filter((user) => user.isActive).length;
   const approvalPending = approveUser.isPending || approveUserWithIdentityLink.isPending;
 
   function rememberGeneratedClientLink(result: CreateIdentityLinkResponse) {
@@ -714,13 +722,13 @@ export function AuthenticationDashboardPage() {
               <Typography variant="h3">{isGuestFilter ? "Guest assessment submissions" : "Access approval queue"}</Typography>
               <Chip
                 size="small"
-                label={isGuestFilter ? `${guestAssessments.length} accessed` : `${pendingCount} pending`}
+                label={isGuestFilter ? `${guestAssessments.length} submitted` : `${pendingCount} pending`}
                 color={isGuestFilter ? "info" : pendingCount ? "warning" : "success"}
               />
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {isGuestFilter
-                ? "Visitors who open the direct assessment link appear here without an approval request."
+                ? "People who submit the public assessment with their email appear here without an approval request."
                 : "Select each user role and category before approving access."}
             </Typography>
           </Box>
@@ -786,8 +794,8 @@ export function AuthenticationDashboardPage() {
           ) : guestAssessments.length === 0 ? (
             <EmptyState
               icon={<GroupOutlinedIcon sx={{ fontSize: 40 }} />}
-              title="No guest access yet"
-              description="Visitors who open the direct assessment link will appear here immediately."
+              title="No guest submissions yet"
+              description="People who submit the public assessment with their email will appear here."
             />
           ) : (
             <GuestAssessmentTable assessments={guestAssessments} />
@@ -1221,6 +1229,13 @@ function GuestAssessmentStatus({ status }: { status: number }) {
       : "warning";
 
   return <Chip size="small" label={label} color={color} />;
+}
+
+function isPublicAssessmentParticipant(user: UserAccessRequest) {
+  return user.fullName.trim().toLowerCase() === "public assessment participant"
+    && user.userName.trim().toLowerCase().startsWith("public.")
+    && user.email.trim().toLowerCase().endsWith("@qascan.invalid")
+    && user.requestedRoleCode.toUpperCase() === guestApprovalRole;
 }
 
 function RoleChip({ role }: { role: string }) {
